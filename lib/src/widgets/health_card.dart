@@ -1,0 +1,208 @@
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+
+import 'package:eldercare_app/src/domain/models/vital_point.dart';
+
+class HealthCard extends StatelessWidget {
+  const HealthCard({super.key, required this.point});
+
+  final VitalPoint? point;
+
+  Color _a(Color c, double alpha) => c.withValues(alpha: alpha); // nếu Flutter cũ -> đổi withOpacity
+
+  Widget _prettyItem({
+    required BuildContext context,
+    required String label,
+    required String value,
+    required String unit,
+    required IconData icon,
+    required Color accent,
+  }) {
+    final scheme = Theme.of(context).colorScheme;
+    final t = Theme.of(context).textTheme;
+
+    final isEmpty = value.trim().isEmpty || value.trim() == '--';
+
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: scheme.outlineVariant),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [_a(accent, 0.14), _a(accent, 0.06)],
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: _a(accent, 0.22),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(icon, color: accent),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: t.labelLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: scheme.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        isEmpty ? '--' : value,
+                        style: t.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.5,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 3),
+                        child: Text(
+                          unit,
+                          style: t.labelMedium?.copyWith(
+                            color: scheme.onSurfaceVariant,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = point;
+    final time = p?.time;
+    final scheme = Theme.of(context).colorScheme;
+    final t = Theme.of(context).textTheme;
+
+    final hr = p?.hr?.toString() ?? '--';
+    final spo2 = p?.spo2?.toString() ?? '--';
+    final temp = p?.temp == null ? '--' : p!.temp!.toStringAsFixed(1);
+    final rr = p?.rr?.toString() ?? '--';
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header có “nhấn màu” nhẹ
+            Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: scheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(
+                    Icons.monitor_heart_rounded,
+                    color: scheme.onPrimaryContainer,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Thông số mới nhất',
+                    style: t.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+
+            Row(
+              children: [
+                _prettyItem(
+                  context: context,
+                  label: 'HR',
+                  value: hr,
+                  unit: 'bpm',
+                  icon: Icons.favorite_rounded,
+                  accent: const Color(0xFFFF4D6D), // đỏ hồng
+                ),
+                const SizedBox(width: 12),
+                _prettyItem(
+                  context: context,
+                  label: 'SpO₂',
+                  value: spo2,
+                  unit: '%',
+                  icon: Icons.bloodtype_rounded,
+                  accent: const Color(0xFF3B82F6), // xanh
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                _prettyItem(
+                  context: context,
+                  label: 'Temp',
+                  value: temp,
+                  unit: '°C',
+                  icon: Icons.thermostat_rounded,
+                  accent: const Color(0xFFFFA726), // cam
+                ),
+                const SizedBox(width: 12),
+                _prettyItem(
+                  context: context,
+                  label: 'RR',
+                  value: rr,
+                  unit: 'rpm',
+                  icon: Icons.air_rounded,
+                  accent: const Color(0xFF8B5CF6), // tím
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 14),
+
+            // Footer: thời gian cập nhật dạng pill
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: scheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: scheme.outlineVariant),
+              ),
+              child: Text(
+                time == null
+                    ? 'Chưa có dữ liệu'
+                    : 'Cập nhật: ${DateFormat('HH:mm:ss dd/MM').format(time.toLocal())}',
+                style: t.labelMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
