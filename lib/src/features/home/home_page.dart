@@ -15,7 +15,7 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  String? _boundUserId;
+  String? _lastBindingKey;
 
   String _deviceLabel(dynamic device) {
     if (device == null) return 'Chưa chọn thiết bị';
@@ -36,8 +36,9 @@ class _HomePageState extends State<HomePage> {
     final current = context.read<DeviceProvider>().current;
     final userId = current?.id ?? '';
     final deviceId = current?.deviceId?.trim() ?? '';
-    if (_boundUserId == userId) return;
-    _boundUserId = userId;
+    final bindingKey = '$userId::$deviceId';
+    if (_lastBindingKey == bindingKey) return;
+    _lastBindingKey = bindingKey;
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;

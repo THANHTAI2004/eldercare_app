@@ -2,7 +2,8 @@ import 'package:eldercare_app/src/data/api/api_client.dart';
 import 'package:eldercare_app/src/domain/models/vital_point.dart';
 
 class HealthApiService {
-  HealthApiService({ApiClient? client}) : _client = client ?? ApiClient.fromEnv();
+  HealthApiService({ApiClient? client})
+    : _client = client ?? ApiClient.fromEnv();
 
   final ApiClient _client;
 
@@ -80,13 +81,19 @@ class HealthApiService {
   Future<Map<String, dynamic>?> waitForEcgResult({
     required String userId,
     required int pollIntervalMs,
+    DateTime? notBefore,
     Duration timeout = const Duration(seconds: 45),
   }) async {
     final deadline = DateTime.now().add(timeout);
     while (DateTime.now().isBefore(deadline)) {
-      final items = await getEcgByUser(userId: userId, limit: 1);
-      if (items.isNotEmpty) {
-        return items.first;
+      final items = await getEcgByUser(userId: userId, limit: 5);
+      for (final item in items) {
+        final itemTime = _readItemTime(item);
+        if (notBefore == null ||
+            itemTime == null ||
+            !itemTime.isBefore(notBefore.toUtc())) {
+          return item;
+        }
       }
       await Future<void>.delayed(Duration(milliseconds: pollIntervalMs));
     }
@@ -123,5 +130,13 @@ class HealthApiService {
       }
     }
     return json;
+  }
+
+  DateTime? _readItemTime(Map<String, dynamic> json) {
+    try {
+      return VitalPoint.fromJson(json).time.toUtc();
+    } catch (_) {
+      return null;
+    }
   }
 }

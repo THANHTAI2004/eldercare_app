@@ -19,7 +19,7 @@ class DevicePage extends StatefulWidget {
 class _DevicePageState extends State<DevicePage> {
   final _searchCtrl = TextEditingController();
   String _query = '';
-  String? _lastBoundUserId;
+  String? _lastBindingKey;
 
   @override
   void initState() {
@@ -41,8 +41,9 @@ class _DevicePageState extends State<DevicePage> {
     final userId = device?.id ?? '';
     final deviceId = device?.deviceId?.trim() ?? '';
 
-    if (_lastBoundUserId == userId) return;
-    _lastBoundUserId = userId;
+    final bindingKey = '$userId::$deviceId';
+    if (_lastBindingKey == bindingKey) return;
+    _lastBindingKey = bindingKey;
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
@@ -316,9 +317,9 @@ class _DevicePageState extends State<DevicePage> {
       builder: (ctx) => AlertDialog(
         title: const Text('Hướng dẫn nhanh'),
         content: const Text(
-          '• Thêm thiết bị: nhấn “Quét QR” hoặc “Nhập userId”.\n'
+          '• Thêm thiết bị: nhấn “Quét QR” hoặc “Them user/device”.\n'
           '• Chọn thiết bị: nhấn vào thẻ thiết bị để xem chỉ số.\n'
-          '• ECG: nếu báo “Chưa gắn điện cực” thì kiểm tra dây/miếng dán.\n'
+          '• ECG can deviceId that. Neu thieu deviceId, app chi xem du lieu theo user.\n'
           '• History: xem theo ngày/giờ trong mục History.',
         ),
         actions: [
@@ -452,6 +453,10 @@ class _DevicePageState extends State<DevicePage> {
                     labelText: 'Tên thiết bị (tuỳ chọn)',
                     hintText: 'VD: Thiết bị phòng ngủ',
                   ),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Neu khong nhap deviceId, app van doc du lieu theo user nhung ECG co the khong hoat dong.',
                 ),
               ],
             ),
@@ -643,7 +648,7 @@ class _DevicePageState extends State<DevicePage> {
             heroTag: 'manualAddDevice',
             onPressed: () => _showManualAddDialog(),
             icon: const Icon(Icons.edit),
-            label: const Text('Nhập userId'),
+            label: const Text('Them user/device'),
           ),
           const SizedBox(height: 12),
           FloatingActionButton.extended(
@@ -690,7 +695,7 @@ class _DevicePageState extends State<DevicePage> {
                     padding: const EdgeInsets.only(top: 24),
                     child: Center(
                       child: Text(
-                        'Chưa có thiết bị nào.\nNhấn “Quét QR” hoặc “Nhập userId” để thêm.',
+                        'Chua co thiet bi nao.\nNhan "Quet QR" hoac "Them user/device" de them.',
                         textAlign: TextAlign.center,
                         style: textTheme.bodyMedium,
                       ),

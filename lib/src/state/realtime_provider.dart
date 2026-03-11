@@ -255,6 +255,8 @@ class RealtimeProvider extends ChangeNotifier {
     await _authApi.logout();
     accessToken = null;
     currentUser = null;
+    userId = '';
+    deviceId = '';
     error = null;
     latest = null;
     _livePoints.clear();
@@ -500,6 +502,7 @@ class RealtimeProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
+      final requestStartedAt = DateTime.now().toUtc();
       final req = await _api.requestEcg(
         deviceId: deviceId,
         userId: userId,
@@ -510,6 +513,7 @@ class RealtimeProvider extends ChangeNotifier {
       final ecgResult = await _api.waitForEcgResult(
         userId: userId,
         pollIntervalMs: Env.pollIntervalMs,
+        notBefore: requestStartedAt,
       );
 
       await refreshLatest();
