@@ -55,14 +55,14 @@ class _HistoryPageState extends State<HistoryPage> {
     final dayPoints = p.historyForLocalDay(_dayLocal).where((e) {
       final v = e.valueOf(_metric);
       return v != null && v.isFinite;
-    }).toList();
+    }).toList()..sort((a, b) => a.time.compareTo(b.time));
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Lịch sử'),
+        title: const Text('Lich su'),
         actions: [
           IconButton(
-            tooltip: 'Làm mới ngày đang chọn',
+            tooltip: 'Lam moi ngay dang chon',
             onPressed: p.isLoadingHistory
                 ? null
                 : () => p.loadHistoryForLocalDay(dayLocal: _dayLocal),
@@ -86,12 +86,18 @@ class _HistoryPageState extends State<HistoryPage> {
                 ),
               ],
             ),
+            if (p.error != null && p.error!.trim().isNotEmpty) ...[
+              const SizedBox(height: 12),
+              _HistoryBanner(message: p.error!),
+            ],
             const SizedBox(height: 16),
             Expanded(
               child: p.isLoadingHistory && dayPoints.isEmpty
                   ? const Center(child: CircularProgressIndicator())
+                  : dayPoints.isEmpty
+                  ? const _HistoryEmptyState()
                   : LineChartCard(
-                      title: 'Theo giờ trong ngày',
+                      title: 'Theo gio trong ngay',
                       metric: _metric,
                       points: dayPoints,
                       showHourAxis: true,
@@ -99,6 +105,61 @@ class _HistoryPageState extends State<HistoryPage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _HistoryBanner extends StatelessWidget {
+  const _HistoryBanner({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: scheme.errorContainer,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Text(
+        message,
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+          color: scheme.onErrorContainer,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+}
+
+class _HistoryEmptyState extends StatelessWidget {
+  const _HistoryEmptyState();
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.show_chart, size: 56, color: scheme.outline),
+          const SizedBox(height: 12),
+          const Text(
+            'Chua co du lieu lich su',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Thu doi ngay khac hoac refresh lai sau khi thiet bi gui du lieu moi.',
+            textAlign: TextAlign.center,
+          ),
+        ],
       ),
     );
   }

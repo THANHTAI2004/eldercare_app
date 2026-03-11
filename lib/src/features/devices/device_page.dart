@@ -124,6 +124,16 @@ class _DevicePageState extends State<DevicePage> {
                                       color: scheme.onSurfaceVariant,
                                     ),
                                   ),
+                                  if (rt.isAuthenticated) ...[
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      'User hien tai: ${rt.authenticatedUserId}',
+                                      style: t.bodySmall?.copyWith(
+                                        color: scheme.onSurfaceVariant,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ],
                                   const SizedBox(height: 6),
                                   if (current != null)
                                     _MiniStatusPill(
@@ -223,6 +233,33 @@ class _DevicePageState extends State<DevicePage> {
                                         _showAbout(context);
                                       },
                                       trailing: Icons.chevron_right_rounded,
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                _MenuSection(
+                                  title: 'Tai khoan',
+                                  children: [
+                                    _MenuItem(
+                                      icon: Icons.logout_rounded,
+                                      title: 'Dang xuat',
+                                      subtitle: 'Xoa phien dang nhap hien tai',
+                                      onTap: () async {
+                                        Navigator.pop(ctx);
+                                        await context
+                                            .read<RealtimeProvider>()
+                                            .logout();
+                                        if (!context.mounted) return;
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          const SnackBar(
+                                            content: Text(
+                                              'Da dang xuat phien hien tai',
+                                            ),
+                                          ),
+                                        );
+                                      },
                                     ),
                                   ],
                                 ),
@@ -426,18 +463,34 @@ class _DevicePageState extends State<DevicePage> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                TextFormField(
-                  controller: userIdController,
-                  enabled: lockedUserId.isEmpty,
-                  decoration: const InputDecoration(
-                    labelText: 'userId',
-                    hintText: 'VD: u01',
+                if (lockedUserId.isEmpty)
+                  TextFormField(
+                    controller: userIdController,
+                    decoration: const InputDecoration(
+                      labelText: 'userId',
+                      hintText: 'VD: u01',
+                    ),
+                    validator: (v) {
+                      if (v == null || v.trim().isEmpty) return 'Nhap userId';
+                      return null;
+                    },
+                  )
+                else
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Theme.of(ctx).colorScheme.primaryContainer,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      'Session nay chi duoc them device cho user $lockedUserId.',
+                      style: Theme.of(ctx).textTheme.bodyMedium?.copyWith(
+                        color: Theme.of(ctx).colorScheme.onPrimaryContainer,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
-                  validator: (v) {
-                    if (v == null || v.trim().isEmpty) return 'Nhập userId';
-                    return null;
-                  },
-                ),
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: deviceIdController,
@@ -648,7 +701,9 @@ class _DevicePageState extends State<DevicePage> {
             heroTag: 'manualAddDevice',
             onPressed: () => _showManualAddDialog(),
             icon: const Icon(Icons.edit),
-            label: const Text('Them user/device'),
+            label: Text(
+              rt.isUserScopedSession ? 'Them thiet bi' : 'Them user/device',
+            ),
           ),
           const SizedBox(height: 12),
           FloatingActionButton.extended(
@@ -663,7 +718,11 @@ class _DevicePageState extends State<DevicePage> {
       body: SafeArea(
         child: Consumer<DeviceProvider>(
           builder: (context, p, _) {
-            final devices = p.devices;
+            final devices = rt.isUserScopedSession
+                ? p.devices
+                      .where((d) => d.id == rt.authenticatedUserId)
+                      .toList(growable: false)
+                : p.devices;
             final current = p.current;
 
             final filtered = _query.isEmpty

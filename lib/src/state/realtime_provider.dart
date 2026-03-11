@@ -520,6 +520,9 @@ class RealtimeProvider extends ChangeNotifier {
       final output = <String, dynamic>{...req};
       if (ecgResult != null) {
         output['ecg_result'] = ecgResult;
+      } else {
+        output['message'] =
+            'Da gui lenh ECG nhung chua co ket qua moi trong thoi gian cho.';
       }
       return output;
     } catch (e) {

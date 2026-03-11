@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:eldercare_app/src/app/routes.dart';
+import 'package:eldercare_app/src/domain/models/device.dart';
 import 'package:eldercare_app/src/state/device_provider.dart';
 import 'package:eldercare_app/src/state/realtime_provider.dart';
 import 'package:eldercare_app/src/widgets/feature_button.dart';
@@ -17,13 +18,13 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   String? _lastBindingKey;
 
-  String _deviceLabel(dynamic device) {
-    if (device == null) return 'Chưa chọn thiết bị';
+  String _deviceLabel(Device? device) {
+    if (device == null) return 'Chua chon thiet bi';
 
-    final name = (device.name ?? '').toString().trim();
-    final id = (device.id ?? '').toString().trim();
+    final name = device.name.trim();
+    final id = device.id.trim();
 
-    if (name.isEmpty) return 'Thiết bị $id';
+    if (name.isEmpty) return 'Thiet bi $id';
 
     final ln = name.toLowerCase();
     final lid = id.toLowerCase();
@@ -49,6 +50,46 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
+  Future<void> _requestEcg(Device device) async {
+    final rt = context.read<RealtimeProvider>();
+    if (!device.hasExplicitDeviceId) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Thiet bi nay chua co deviceId that de gui lenh ECG.'),
+        ),
+      );
+      return;
+    }
+
+    try {
+      final result = await rt.requestEcg();
+      if (!mounted) return;
+      final message =
+          result['message']?.toString() ??
+          'Da gui lenh ECG thanh cong. Dang cho ket qua moi.';
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(rt.error ?? '$e')));
+    }
+  }
+
+  Future<void> _refreshAll() async {
+    final rt = context.read<RealtimeProvider>();
+    await rt.refreshLatest();
+    await rt.loadHistoryForLocalDay(
+      dayLocal: DateTime(
+        DateTime.now().year,
+        DateTime.now().month,
+        DateTime.now().day,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final device = context.watch<DeviceProvider>().current;
@@ -56,6 +97,7 @@ class _HomePageState extends State<HomePage> {
     _syncRealtime();
 
     final latest = rt.latest;
+    final hasLatest = latest != null;
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -68,13 +110,13 @@ class _HomePageState extends State<HomePage> {
         centerTitle: true,
         actions: [
           IconButton(
-            tooltip: 'Đổi thiết bị',
+            tooltip: 'Doi thiet bi',
             onPressed: () => Navigator.pushNamed(context, AppRoutes.devices),
             icon: const Icon(Icons.devices),
           ),
           IconButton(
-            tooltip: 'Làm mới dữ liệu',
-            onPressed: rt.isLoadingLatest ? null : () => rt.refreshLatest(),
+            tooltip: 'Lam moi du lieu',
+            onPressed: rt.isLoadingLatest ? null : _refreshAll,
             icon: const Icon(Icons.refresh),
           ),
         ],
@@ -93,13 +135,17 @@ class _HomePageState extends State<HomePage> {
           ),
         ),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: device == null
-            ? _buildNoDeviceView(context)
-            : SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+      body: RefreshIndicator(
+        onRefresh: _refreshAll,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: device == null
+              ? ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  children: [_buildNoDeviceView(context)],
+                )
+              : ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
                   children: [
                     SizedBox(
                       height: 360,
@@ -116,8 +162,8 @@ class _HomePageState extends State<HomePage> {
                       alignment: Alignment.centerLeft,
                       child: Text(
                         rt.hasUser
-                            ? 'Cập nhật: ${rt.lastSeenText}'
-                            : 'Chưa có user đang theo dõi',
+                            ? 'Cap nhat: ${rt.lastSeenText}'
+                            : 'Chua co user dang theo doi',
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                     ),
@@ -125,25 +171,50 @@ class _HomePageState extends State<HomePage> {
                       const SizedBox(height: 12),
                       _ErrorBanner(message: rt.error!),
                     ],
+                    if (!device.hasExplicitDeviceId) ...[
+                      const SizedBox(height: 12),
+                      const _InfoBanner(
+                        message:
+                            'Thiet bi nay chi xem du lieu theo user, chua co deviceId de gui lenh ECG.',
+                      ),
+                    ],
+                    if (!hasLatest && rt.isLoadingLatest) ...[
+                      const SizedBox(height: 12),
+                      const _LoadingPanel(),
+                    ] else if (!hasLatest &&
+                        (rt.error == null || rt.error!.trim().isEmpty)) ...[
+                      const SizedBox(height: 12),
+                      const _EmptyPanel(
+                        message:
+                            'Chua co du lieu moi nhat cho user nay. Kiem tra thiet bi va server roi thu refresh lai.',
+                      ),
+                    ],
+                    const SizedBox(height: 16),
+                    _EcgActionCard(
+                      enabled:
+                          device.hasExplicitDeviceId && !rt.isRequestingEcg,
+                      isLoading: rt.isRequestingEcg,
+                      onTap: () => _requestEcg(device),
+                    ),
                     const SizedBox(height: 16),
                     FeatureButton(
                       icon: Icons.history,
                       title: 'History',
-                      subtitle: 'Xem lịch sử theo ngày',
+                      subtitle: 'Xem lich su theo ngay',
                       onTap: () =>
                           Navigator.pushNamed(context, AppRoutes.history),
                     ),
                     const SizedBox(height: 16),
                     FeatureButton(
                       icon: Icons.devices,
-                      title: 'Thiết bị',
-                      subtitle: 'Quản lý thiết bị của bạn',
+                      title: 'Thiet bi',
+                      subtitle: 'Quan ly thiet bi cua ban',
                       onTap: () =>
                           Navigator.pushNamed(context, AppRoutes.devices),
                     ),
                   ],
                 ),
-              ),
+        ),
       ),
     );
   }
@@ -157,20 +228,20 @@ class _HomePageState extends State<HomePage> {
           Icon(Icons.devices_other, size: 64, color: scheme.outline),
           const SizedBox(height: 12),
           const Text(
-            'Chưa chọn thiết bị',
+            'Chua chon thiet bi',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 6),
           const Text(
-            'Vào mục Thiết bị để thêm hoặc chọn một thiết bị\n'
-            'sau đó quay lại đây để xem dữ liệu.',
+            'Vao muc Thiet bi de them hoac chon mot thiet bi\n'
+            'sau do quay lai day de xem du lieu.',
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 16),
           FilledButton.icon(
             onPressed: () => Navigator.pushNamed(context, AppRoutes.devices),
             icon: const Icon(Icons.settings_input_antenna),
-            label: const Text('Quản lý thiết bị'),
+            label: const Text('Quan ly thiet bi'),
           ),
         ],
       ),
@@ -208,6 +279,136 @@ class _ErrorBanner extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _InfoBanner extends StatelessWidget {
+  const _InfoBanner({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: scheme.primaryContainer,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.info_outline, color: scheme.onPrimaryContainer),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: scheme.onPrimaryContainer,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LoadingPanel extends StatelessWidget {
+  const _LoadingPanel();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Card(
+      child: Padding(
+        padding: EdgeInsets.all(24),
+        child: Column(
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 12),
+            Text('Dang tai du lieu moi nhat...'),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EmptyPanel extends StatelessWidget {
+  const _EmptyPanel({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: [
+            Icon(
+              Icons.monitor_heart_outlined,
+              size: 42,
+              color: Theme.of(context).colorScheme.outline,
+            ),
+            const SizedBox(height: 12),
+            Text(message, textAlign: TextAlign.center),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EcgActionCard extends StatelessWidget {
+  const _EcgActionCard({
+    required this.enabled,
+    required this.isLoading,
+    required this.onTap,
+  });
+
+  final bool enabled;
+  final bool isLoading;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'ECG On-demand',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              enabled
+                  ? 'Gui lenh do ECG cho thiet bi dang chon.'
+                  : 'Can deviceId that de gui lenh ECG.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 12),
+            FilledButton.icon(
+              onPressed: enabled ? onTap : null,
+              icon: isLoading
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.favorite_outline),
+              label: Text(isLoading ? 'Dang gui lenh...' : 'Yeu cau ECG'),
+            ),
+          ],
+        ),
       ),
     );
   }
