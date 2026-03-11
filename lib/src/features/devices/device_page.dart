@@ -53,8 +53,9 @@ class _DevicePageState extends State<DevicePage> {
   void _openMenu(BuildContext context) {
     final current = context.read<DeviceProvider>().current;
     final rt = context.read<RealtimeProvider>();
-    final watchingText =
-    current == null ? 'Chưa theo dõi thiết bị' : 'Đang theo dõi: ${_displayName(current)}';
+    final watchingText = current == null
+        ? 'Chưa theo dõi thiết bị'
+        : 'Đang theo dõi: ${_displayName(current)}';
 
     showModalBottomSheet(
       context: context,
@@ -76,7 +77,9 @@ class _DevicePageState extends State<DevicePage> {
                 constraints: BoxConstraints(maxWidth: 560, maxHeight: maxH),
                 child: Material(
                   color: scheme.surface,
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(24),
+                  ),
                   clipBehavior: Clip.antiAlias,
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(16, 10, 16, 18),
@@ -95,19 +98,28 @@ class _DevicePageState extends State<DevicePage> {
                                 color: scheme.primaryContainer,
                                 borderRadius: BorderRadius.circular(14),
                               ),
-                              child: Icon(Icons.menu_rounded, color: scheme.onPrimaryContainer),
+                              child: Icon(
+                                Icons.menu_rounded,
+                                color: scheme.onPrimaryContainer,
+                              ),
                             ),
                             const SizedBox(width: 12),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text('Menu',
-                                      style: t.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
+                                  Text(
+                                    'Menu',
+                                    style: t.titleMedium?.copyWith(
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
                                   const SizedBox(height: 2),
                                   Text(
                                     watchingText,
-                                    style: t.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+                                    style: t.bodySmall?.copyWith(
+                                      color: scheme.onSurfaceVariant,
+                                    ),
                                   ),
                                   const SizedBox(height: 6),
                                   if (current != null)
@@ -163,14 +175,21 @@ class _DevicePageState extends State<DevicePage> {
                                       subtitle: 'Refresh du lieu REST',
                                       onTap: () async {
                                         Navigator.pop(ctx);
-                                        final rt = context.read<RealtimeProvider>();
+                                        final rt = context
+                                            .read<RealtimeProvider>();
                                         if (rt.hasUser) {
                                           await rt.refreshLatest();
                                           await rt.reconnectApi();
                                         }
                                         if (!context.mounted) return;
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          const SnackBar(content: Text('Đã làm mới & kết nối lại')),
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          const SnackBar(
+                                            content: Text(
+                                              'Đã làm mới & kết nối lại',
+                                            ),
+                                          ),
                                         );
                                       },
                                       trailing: Icons.chevron_right_rounded,
@@ -184,7 +203,8 @@ class _DevicePageState extends State<DevicePage> {
                                     _MenuItem(
                                       icon: Icons.help_outline_rounded,
                                       title: 'Hướng dẫn sử dụng',
-                                      subtitle: 'Quét QR • Gắn điện cực ECG • Xem History',
+                                      subtitle:
+                                          'Quét QR • Gắn điện cực ECG • Xem History',
                                       onTap: () {
                                         Navigator.pop(ctx);
                                         _showHelp(context);
@@ -220,7 +240,6 @@ class _DevicePageState extends State<DevicePage> {
     );
   }
 
-
   void _showThemeDialog(BuildContext context) {
     showDialog(
       context: context,
@@ -228,7 +247,7 @@ class _DevicePageState extends State<DevicePage> {
         title: const Text('Giao diện'),
         content: const Text(
           'Hiện tại app đang dùng ThemeMode.light.\n'
-              'Nếu muốn đổi nhanh Sáng/Tối trong app, mình có thể làm thêm SettingsProvider để lưu setting.',
+          'Nếu muốn đổi nhanh Sáng/Tối trong app, mình có thể làm thêm SettingsProvider để lưu setting.',
         ),
         actions: [
           TextButton(
@@ -247,13 +266,27 @@ class _DevicePageState extends State<DevicePage> {
     try {
       final serverOk = await rt.checkServer();
       if (!serverOk) {
-        result = 'Khong the ket noi server. Kiem tra API_BASE_URL/API_KEY va mang.';
+        result = 'Khong the ket noi server. Kiem tra API_BASE_URL va mang.';
+      } else if (!rt.isAuthenticated) {
+        final loggedIn = await rt.ensureAuthenticated(silent: false);
+        if (!loggedIn) {
+          result =
+              rt.error ??
+              'Server OK nhung khong dang nhap duoc. Kiem tra LOGIN_USER_ID va LOGIN_PASSWORD.';
+        } else if (!rt.hasUser) {
+          result =
+              'Dang nhap thanh cong nhung chua chon user/device de kiem tra du lieu.';
+        } else {
+          await rt.refreshLatest();
+          await rt.reconnectApi();
+          result = 'Dang nhap va ket noi server thanh cong. Da refresh latest.';
+        }
       } else if (!rt.hasUser) {
         result = 'Server OK, nhung chua chon user/device de kiem tra du lieu.';
       } else {
         await rt.refreshLatest();
         await rt.reconnectApi();
-        result = 'Ket noi server thanh cong va da refresh latest.';
+        result = 'Dang nhap va ket noi server thanh cong. Da refresh latest.';
       }
     } catch (e) {
       result = 'Loi kiem tra ket noi: $e';
@@ -282,9 +315,9 @@ class _DevicePageState extends State<DevicePage> {
         title: const Text('Hướng dẫn nhanh'),
         content: const Text(
           '• Thêm thiết bị: nhấn “Quét QR” hoặc “Nhập userId”.\n'
-              '• Chọn thiết bị: nhấn vào thẻ thiết bị để xem chỉ số.\n'
-              '• ECG: nếu báo “Chưa gắn điện cực” thì kiểm tra dây/miếng dán.\n'
-              '• History: xem theo ngày/giờ trong mục History.',
+          '• Chọn thiết bị: nhấn vào thẻ thiết bị để xem chỉ số.\n'
+          '• ECG: nếu báo “Chưa gắn điện cực” thì kiểm tra dây/miếng dán.\n'
+          '• History: xem theo ngày/giờ trong mục History.',
         ),
         actions: [
           TextButton(
@@ -311,19 +344,17 @@ class _DevicePageState extends State<DevicePage> {
 
   /// ---------------------- LOGIC THIẾT BỊ ----------------------
 
-  Future<bool> _validateUserOnServer(BuildContext context, String userId) async {
-    final trimmed = userId.trim();
-    if (trimmed.isEmpty) return false;
-
+  Future<bool> _ensureAuthenticated(BuildContext context) async {
     final realtime = context.read<RealtimeProvider>();
-    final ok = await realtime.checkUserExists(trimmed);
+    final ok = await realtime.ensureAuthenticated(silent: false);
     if (!context.mounted) return false;
 
     if (!ok) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text(
-            'userId không có dữ liệu trên server. Kiểm tra lại ESP hoặc userId trước khi thêm.',
+            realtime.error ??
+                'Khong the dang nhap vao server. Kiem tra LOGIN_USER_ID va LOGIN_PASSWORD.',
           ),
         ),
       );
@@ -339,10 +370,7 @@ class _DevicePageState extends State<DevicePage> {
     if (code == null || code.trim().isEmpty) return;
     if (!context.mounted) return;
 
-    final devFromQr = Device.fromQr(code);
-    final userId = devFromQr.id;
-
-    final ok = await _validateUserOnServer(context, userId);
+    final ok = await _ensureAuthenticated(context);
     if (!ok) return;
     if (!context.mounted) return;
 
@@ -419,8 +447,8 @@ class _DevicePageState extends State<DevicePage> {
     final name = nameController.text.trim();
     if (userId.isEmpty) return;
 
-    final exists = await _validateUserOnServer(context, userId);
-    if (!exists) return;
+    final authenticated = await _ensureAuthenticated(context);
+    if (!authenticated) return;
     if (!context.mounted) return;
 
     final deviceProv = context.read<DeviceProvider>();
@@ -435,7 +463,11 @@ class _DevicePageState extends State<DevicePage> {
     await realtime.changeUser(userId, deviceId: userId);
   }
 
-  Future<void> _renameDialog(BuildContext context, String id, String oldName) async {
+  Future<void> _renameDialog(
+    BuildContext context,
+    String id,
+    String oldName,
+  ) async {
     final ctrl = TextEditingController(text: oldName);
     final provider = context.read<DeviceProvider>();
 
@@ -474,7 +506,9 @@ class _DevicePageState extends State<DevicePage> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Xóa thiết bị?'),
-        content: const Text('Thiết bị sẽ bị xóa khỏi danh sách trên app (không ảnh hưởng ESP).'),
+        content: const Text(
+          'Thiết bị sẽ bị xóa khỏi danh sách trên app (không ảnh hưởng ESP).',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -542,7 +576,8 @@ class _DevicePageState extends State<DevicePage> {
               ),
               const SizedBox(height: 6),
               Consumer<DeviceProvider>(
-                builder: (context, p, child) => _CountChip(text: '${p.devices.length} thiết bị'),
+                builder: (context, p, child) =>
+                    _CountChip(text: '${p.devices.length} thiết bị'),
               ),
             ],
           ),
@@ -594,10 +629,10 @@ class _DevicePageState extends State<DevicePage> {
             final filtered = _query.isEmpty
                 ? devices
                 : devices.where((d) {
-              final name = d.name.toLowerCase();
-              final id = d.id.toLowerCase();
-              return name.contains(_query) || id.contains(_query);
-            }).toList();
+                    final name = d.name.toLowerCase();
+                    final id = d.id.toLowerCase();
+                    return name.contains(_query) || id.contains(_query);
+                  }).toList();
 
             return ListView(
               padding: const EdgeInsets.fromLTRB(16, 24, 16, 140),
@@ -643,18 +678,21 @@ class _DevicePageState extends State<DevicePage> {
 
                     final chip = isCurrent
                         ? _StatusChip(
-                      isOnline: rt.isOnline,
-                      text: rt.lastSeenText,
-                    )
+                            isOnline: rt.isOnline,
+                            text: rt.lastSeenText,
+                          )
                         : const _NeutralChip(text: 'Chưa theo dõi');
 
-                    final initial = (_displayName(d).isNotEmpty
-                        ? _displayName(d)[0]
-                        : (d.id.isNotEmpty ? d.id[0] : '?'))
-                        .toUpperCase();
+                    final initial =
+                        (_displayName(d).isNotEmpty
+                                ? _displayName(d)[0]
+                                : (d.id.isNotEmpty ? d.id[0] : '?'))
+                            .toUpperCase();
 
                     return Padding(
-                      padding: EdgeInsets.only(bottom: index == filtered.length - 1 ? 0 : 12),
+                      padding: EdgeInsets.only(
+                        bottom: index == filtered.length - 1 ? 0 : 12,
+                      ),
                       child: Card(
                         child: Padding(
                           padding: const EdgeInsets.all(14),
@@ -672,8 +710,10 @@ class _DevicePageState extends State<DevicePage> {
                                 child: InkWell(
                                   borderRadius: BorderRadius.circular(16),
                                   onTap: () async {
-                                    final deviceProv = context.read<DeviceProvider>();
-                                    final realtime = context.read<RealtimeProvider>();
+                                    final deviceProv = context
+                                        .read<DeviceProvider>();
+                                    final realtime = context
+                                        .read<RealtimeProvider>();
 
                                     await deviceProv.setCurrent(d.id);
                                     await realtime.changeUser(
@@ -684,11 +724,14 @@ class _DevicePageState extends State<DevicePage> {
                                     if (!context.mounted) return;
                                     Navigator.push(
                                       context,
-                                      MaterialPageRoute(builder: (_) => const HomePage()),
+                                      MaterialPageRoute(
+                                        builder: (_) => const HomePage(),
+                                      ),
                                     );
                                   },
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         _displayName(d),
@@ -721,7 +764,8 @@ class _DevicePageState extends State<DevicePage> {
                                   _ActionPill(
                                     icon: Icons.edit,
                                     label: 'Sửa tên',
-                                    onTap: () => _renameDialog(context, d.id, d.name),
+                                    onTap: () =>
+                                        _renameDialog(context, d.id, d.name),
                                   ),
                                   const SizedBox(height: 10),
                                   _ActionPill(
@@ -767,7 +811,11 @@ class _LogoCircle extends StatelessWidget {
           ],
         ),
       ),
-      child: const Icon(Icons.health_and_safety_rounded, size: 18, color: Colors.white),
+      child: const Icon(
+        Icons.health_and_safety_rounded,
+        size: 18,
+        color: Colors.white,
+      ),
     );
   }
 }
@@ -788,9 +836,9 @@ class _CountChip extends StatelessWidget {
       ),
       child: Text(
         text,
-        style: Theme.of(context).textTheme.labelMedium?.copyWith(
-          fontWeight: FontWeight.w800,
-        ),
+        style: Theme.of(
+          context,
+        ).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w800),
       ),
     );
   }
@@ -818,7 +866,10 @@ class _SummaryCard extends StatelessWidget {
                 color: scheme.primaryContainer,
                 borderRadius: BorderRadius.circular(18),
               ),
-              child: Icon(Icons.desktop_windows_rounded, color: scheme.onPrimaryContainer),
+              child: Icon(
+                Icons.desktop_windows_rounded,
+                color: scheme.onPrimaryContainer,
+              ),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -831,8 +882,12 @@ class _SummaryCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    watchingName == null ? 'Chưa theo dõi thiết bị nào' : 'Đang theo dõi: $watchingName',
-                    style: t.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
+                    watchingName == null
+                        ? 'Chưa theo dõi thiết bị nào'
+                        : 'Đang theo dõi: $watchingName',
+                    style: t.bodyMedium?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
                   ),
                 ],
               ),
@@ -918,7 +973,11 @@ class _StatusChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.circle, size: 10, color: isOnline ? scheme.primary : scheme.error),
+          Icon(
+            Icons.circle,
+            size: 10,
+            color: isOnline ? scheme.primary : scheme.error,
+          ),
           const SizedBox(width: 8),
           Text(
             isOnline ? 'Online · cập nhật $text' : 'Offline · $text',
@@ -978,9 +1037,9 @@ class _WatchingChip extends StatelessWidget {
           const SizedBox(width: 6),
           Text(
             'Đang theo dõi',
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              fontWeight: FontWeight.w900,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w900),
           ),
         ],
       ),
@@ -1005,7 +1064,9 @@ class _ActionPill extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
 
-    final bg = isDanger ? scheme.errorContainer.withValues(alpha: 0.35) : scheme.surfaceContainerHighest;
+    final bg = isDanger
+        ? scheme.errorContainer.withValues(alpha: 0.35)
+        : scheme.surfaceContainerHighest;
     final fg = isDanger ? scheme.error : scheme.primary;
 
     return InkWell(
@@ -1099,7 +1160,10 @@ class _MenuSection extends StatelessWidget {
         out.add(
           Padding(
             padding: const EdgeInsets.only(left: 54, right: 6),
-            child: Divider(height: 14, color: scheme.outlineVariant.withValues(alpha: 0.7)),
+            child: Divider(
+              height: 14,
+              color: scheme.outlineVariant.withValues(alpha: 0.7),
+            ),
           ),
         );
       }
@@ -1214,5 +1278,3 @@ class _MiniStatusPill extends StatelessWidget {
     );
   }
 }
-
-

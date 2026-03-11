@@ -3,25 +3,54 @@ import 'package:flutter/foundation.dart';
 import 'package:eldercare_app/src/config/env.dart';
 import 'package:eldercare_app/src/core/constants.dart';
 import 'package:eldercare_app/src/data/api/api_client.dart';
+import 'package:eldercare_app/src/data/api/auth_api_service.dart';
 import 'package:eldercare_app/src/data/api/health_api_service.dart';
+import 'package:eldercare_app/src/data/local/auth_storage.dart';
 import 'package:eldercare_app/src/domain/models/metric.dart';
 import 'package:eldercare_app/src/domain/models/vital_point.dart';
 
 class RealtimeProvider extends ChangeNotifier {
-  final _api = HealthApiService();
+  factory RealtimeProvider({ApiClient? client, AuthStorage? authStorage}) {
+    final resolvedClient = client ?? ApiClient.fromEnv();
+    final resolvedStorage = authStorage ?? AuthStorage();
+    return RealtimeProvider._(
+      client: resolvedClient,
+      api: HealthApiService(client: resolvedClient),
+      authApi: AuthApiService(client: resolvedClient, storage: resolvedStorage),
+    );
+  }
 
-  String userId = Env.defaultUserId;
-  String deviceId = Env.defaultDeviceId;
+  RealtimeProvider._({
+    required ApiClient client,
+    required HealthApiService api,
+    required AuthApiService authApi,
+  }) : _client = client,
+       _api = api,
+       _authApi = authApi;
+
+  final ApiClient _client;
+  final HealthApiService _api;
+  final AuthApiService _authApi;
+
+  String userId = '';
+  String deviceId = '';
 
   bool get hasUser => userId.isNotEmpty;
   bool get hasDevice => deviceId.isNotEmpty;
+  bool get isAuthenticated => accessToken != null && accessToken!.isNotEmpty;
+  String get authenticatedUserId =>
+      currentUser?['user_id']?.toString().trim() ?? '';
 
   bool _initialized = false;
+  Future<void>? _bootstrapFuture;
   bool isLoadingLatest = false;
   bool isLoadingHistory = false;
   bool isRequestingEcg = false;
+  bool isAuthenticating = false;
 
   String? error;
+  String? accessToken;
+  Map<String, dynamic>? currentUser;
 
   VitalPoint? latest;
   Metric selectedMetric = Metric.hr;
@@ -62,14 +91,174 @@ class RealtimeProvider extends ChangeNotifier {
     _lastSeenUtc = null;
   }
 
+  Future<void> bootstrap() {
+    return _bootstrapFuture ??= _bootstrapSession();
+  }
+
+  Future<void> _bootstrapSession() async {
+    final restored = await restoreSession(silent: true);
+    if (restored) return;
+
+    if (Env.hasLoginCredentials) {
+      await login(silent: true);
+    } else {
+      notifyListeners();
+    }
+  }
+
+  Future<bool> restoreSession({bool silent = false}) async {
+    if (!silent) {
+      isAuthenticating = true;
+      error = null;
+      notifyListeners();
+    }
+
+    try {
+      final token = await _authApi.restoreAccessToken();
+      accessToken = token;
+      currentUser = await _authApi.loadSavedCurrentUser();
+
+      if (token == null || token.isEmpty) {
+        return false;
+      }
+
+      try {
+        currentUser = await _authApi.me();
+      } catch (e) {
+        if (e is ApiRequestException && e.statusCode == 401) {
+          await _authApi.logout();
+          accessToken = null;
+          currentUser = null;
+          return false;
+        }
+
+        if (!silent) {
+          error = _friendlyError(
+            e,
+            fallback: 'Khong the khoi phuc phien dang nhap',
+          );
+        }
+      }
+
+      if (userId.isEmpty && authenticatedUserId.isNotEmpty) {
+        userId = authenticatedUserId;
+      }
+
+      return true;
+    } finally {
+      if (!silent) {
+        isAuthenticating = false;
+        notifyListeners();
+      }
+    }
+  }
+
+  Future<bool> ensureAuthenticated({bool silent = true}) async {
+    await bootstrap();
+    if (isAuthenticated) return true;
+
+    if (!Env.hasLoginCredentials) {
+      if (!silent) {
+        error = 'Chua cau hinh LOGIN_USER_ID va LOGIN_PASSWORD';
+        notifyListeners();
+      }
+      return false;
+    }
+
+    return login(silent: silent);
+  }
+
+  Future<bool> login({
+    String? userId,
+    String? password,
+    bool silent = false,
+  }) async {
+    final nextUserId = (userId ?? Env.loginUserId).trim();
+    final nextPassword = password ?? Env.loginPassword;
+
+    if (nextUserId.isEmpty || nextPassword.isEmpty) {
+      if (!silent) {
+        error = 'Chua cau hinh LOGIN_USER_ID va LOGIN_PASSWORD';
+        notifyListeners();
+      }
+      return false;
+    }
+
+    if (!silent) {
+      isAuthenticating = true;
+      error = null;
+      notifyListeners();
+    }
+
+    try {
+      final session = await _authApi.login(
+        userId: nextUserId,
+        password: nextPassword,
+      );
+
+      accessToken = _client.accessToken;
+      currentUser = <String, dynamic>{
+        'user_id': session['user_id'],
+        'role': session['role'],
+      };
+      await _authApi.saveCurrentUser(currentUser!);
+
+      try {
+        currentUser = await _authApi.me();
+      } catch (e) {
+        if (e is ApiRequestException && e.statusCode == 401) rethrow;
+        if (kDebugMode) {
+          debugPrint('login -> me warning: $e');
+        }
+      }
+
+      if (this.userId.isEmpty && authenticatedUserId.isNotEmpty) {
+        this.userId = authenticatedUserId;
+      }
+
+      return true;
+    } catch (e) {
+      accessToken = null;
+      currentUser = null;
+      await _authApi.logout();
+
+      if (!silent) {
+        error = _friendlyError(e, fallback: 'Dang nhap that bai');
+      }
+      return false;
+    } finally {
+      if (!silent) {
+        isAuthenticating = false;
+        notifyListeners();
+      }
+    }
+  }
+
+  Future<void> logout() async {
+    await _authApi.logout();
+    accessToken = null;
+    currentUser = null;
+    error = null;
+    latest = null;
+    _livePoints.clear();
+    _historyPoints.clear();
+    _resetSeen();
+    notifyListeners();
+  }
+
   void _appendLivePoint(VitalPoint point) {
     _livePoints.add(point);
     if (_livePoints.length > AppConstants.liveMaxPoints) {
-      _livePoints.removeRange(0, _livePoints.length - AppConstants.liveMaxPoints);
+      _livePoints.removeRange(
+        0,
+        _livePoints.length - AppConstants.liveMaxPoints,
+      );
     }
   }
 
   Future<void> init({String? userId, String? deviceId}) async {
+    await bootstrap();
+
     final nextUserId = userId?.trim();
     final nextDeviceId = deviceId?.trim();
 
@@ -94,8 +283,19 @@ class RealtimeProvider extends ChangeNotifier {
       latest = null;
       _livePoints.clear();
       _historyPoints.clear();
-      error = null;
+      error = isAuthenticated ? null : 'Chua dang nhap vao server';
       _resetSeen();
+      notifyListeners();
+      return;
+    }
+
+    final loggedIn = await ensureAuthenticated(silent: true);
+    if (!loggedIn) {
+      latest = null;
+      _livePoints.clear();
+      _historyPoints.clear();
+      _resetSeen();
+      error ??= 'Phien dang nhap khong hop le hoac da het han';
       notifyListeners();
       return;
     }
@@ -135,6 +335,13 @@ class RealtimeProvider extends ChangeNotifier {
     _resetSeen();
     notifyListeners();
 
+    final loggedIn = await ensureAuthenticated(silent: true);
+    if (!loggedIn) {
+      error ??= 'Phien dang nhap khong hop le hoac da het han';
+      notifyListeners();
+      return;
+    }
+
     await refreshLatest();
     await loadHistory(limit: 500);
   }
@@ -143,6 +350,17 @@ class RealtimeProvider extends ChangeNotifier {
     if (!hasUser) {
       latest = null;
       _resetSeen();
+      notifyListeners();
+      return;
+    }
+
+    final loggedIn = await ensureAuthenticated(silent: silent);
+    if (!loggedIn) {
+      latest = null;
+      _resetSeen();
+      if (!silent) {
+        error ??= 'Phien dang nhap khong hop le hoac da het han';
+      }
       notifyListeners();
       return;
     }
@@ -189,6 +407,14 @@ class RealtimeProvider extends ChangeNotifier {
       return;
     }
 
+    final loggedIn = await ensureAuthenticated(silent: false);
+    if (!loggedIn) {
+      _historyPoints.clear();
+      error ??= 'Phien dang nhap khong hop le hoac da het han';
+      notifyListeners();
+      return;
+    }
+
     try {
       isLoadingHistory = true;
       error = null;
@@ -216,6 +442,8 @@ class RealtimeProvider extends ChangeNotifier {
   }
 
   Future<void> reconnectApi() async {
+    final loggedIn = await ensureAuthenticated(silent: false);
+    if (!loggedIn) return;
     await refreshLatest();
   }
 
@@ -228,6 +456,11 @@ class RealtimeProvider extends ChangeNotifier {
     }
     if (!hasDevice) {
       throw StateError('Device ID is empty');
+    }
+
+    final loggedIn = await ensureAuthenticated(silent: false);
+    if (!loggedIn) {
+      throw StateError('Phien dang nhap khong hop le hoac da het han');
     }
 
     isRequestingEcg = true;
@@ -288,26 +521,6 @@ class RealtimeProvider extends ChangeNotifier {
         .toList();
   }
 
-  Future<bool> checkUserExists(String userId) async {
-    final trimmed = userId.trim();
-    if (trimmed.isEmpty) return false;
-
-    try {
-      await _api.getLatestByUser(userId: trimmed);
-      return true;
-    } catch (_) {
-      try {
-        final points = await _api.getVitalsByUser(userId: trimmed, limit: 1);
-        return points.isNotEmpty;
-      } catch (e) {
-        if (kDebugMode) {
-          debugPrint('checkUserExists error: $e');
-        }
-        return false;
-      }
-    }
-  }
-
   Future<bool> checkServer() async {
     try {
       final res = await _api.health();
@@ -319,9 +532,17 @@ class RealtimeProvider extends ChangeNotifier {
 
   String _friendlyError(Object e, {required String fallback}) {
     if (e is ApiRequestException) {
-      if (e.statusCode == 401) return 'API key khong hop le hoac bi thieu';
+      if (e.statusCode == 401) {
+        return 'Phien dang nhap khong hop le hoac da het han';
+      }
+      if (e.statusCode == 403) {
+        return 'Tai khoan hien tai khong co quyen truy cap du lieu nay';
+      }
       if (e.statusCode == 404) return 'Khong tim thay du lieu tren server';
       if (e.statusCode == 422) return 'Du lieu gui len chua dung dinh dang';
+      if (e.statusCode == 409) {
+        return 'Yeu cau dang cho xu ly, vui long thu lai sau';
+      }
       if (e.statusCode == 429) {
         final retry = e.retryAfterSeconds;
         if (retry != null && retry > 0) {

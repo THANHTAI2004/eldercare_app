@@ -27,12 +27,40 @@ class ApiRequestException implements Exception {
 }
 
 class ApiClient {
-  ApiClient._(this._dio);
+  ApiClient._(
+    this._dio, {
+    required String apiKey,
+    required bool sendDefaultApiKey,
+  }) : _apiKey = apiKey.trim(),
+       _sendDefaultApiKey = sendDefaultApiKey {
+    _dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          options.headers['Content-Type'] = 'application/json';
+
+          if (_accessToken != null && _accessToken!.isNotEmpty) {
+            options.headers['Authorization'] = 'Bearer $_accessToken';
+          } else {
+            options.headers.remove('Authorization');
+          }
+
+          if (_sendDefaultApiKey && _apiKey.isNotEmpty) {
+            options.headers['X-API-Key'] = _apiKey;
+          } else {
+            options.headers.remove('X-API-Key');
+          }
+
+          handler.next(options);
+        },
+      ),
+    );
+  }
 
   factory ApiClient({
     required String baseUrl,
-    required String apiKey,
+    String apiKey = '',
     required int timeoutMs,
+    bool sendDefaultApiKey = false,
   }) {
     return ApiClient._(
       Dio(
@@ -41,33 +69,51 @@ class ApiClient {
           connectTimeout: Duration(milliseconds: timeoutMs),
           receiveTimeout: Duration(milliseconds: timeoutMs),
           sendTimeout: Duration(milliseconds: timeoutMs),
-          headers: <String, dynamic>{
-            'X-API-Key': apiKey.trim(),
-            'Content-Type': 'application/json',
-          },
         ),
       ),
+      apiKey: apiKey,
+      sendDefaultApiKey: sendDefaultApiKey,
     );
   }
 
-  factory ApiClient.fromEnv() {
+  factory ApiClient.fromEnv({bool sendDefaultApiKey = false}) {
     return ApiClient(
       baseUrl: Env.apiBaseUrl,
       apiKey: Env.apiKey,
       timeoutMs: Env.requestTimeoutMs,
+      sendDefaultApiKey: sendDefaultApiKey,
     );
   }
 
   final Dio _dio;
+  final String _apiKey;
+  final bool _sendDefaultApiKey;
+  String? _accessToken;
 
   Dio get dio => _dio;
+
+  String? get accessToken => _accessToken;
+
+  void setAccessToken(String? token) {
+    final trimmed = token?.trim();
+    _accessToken = trimmed == null || trimmed.isEmpty ? null : trimmed;
+  }
+
+  void clearAccessToken() {
+    _accessToken = null;
+  }
 
   Future<Map<String, dynamic>> getJson(
     String path, {
     Map<String, dynamic>? query,
+    Map<String, dynamic>? headers,
   }) async {
     try {
-      final res = await _dio.get<dynamic>(path, queryParameters: query);
+      final res = await _dio.get<dynamic>(
+        path,
+        queryParameters: query,
+        options: Options(headers: headers),
+      );
       return _asMap(res.data);
     } on DioException catch (e) {
       throw _toApiException(e, method: 'GET', path: path);
@@ -78,12 +124,14 @@ class ApiClient {
     String path, {
     Object? data,
     Map<String, dynamic>? query,
+    Map<String, dynamic>? headers,
   }) async {
     try {
       final res = await _dio.post<dynamic>(
         path,
         data: data,
         queryParameters: query,
+        options: Options(headers: headers),
       );
       return _asMap(res.data);
     } on DioException catch (e) {
@@ -100,9 +148,15 @@ class ApiClient {
   static String _normalizeBaseUrl(String raw) {
     final trimmed = raw.trim();
     if (trimmed.isEmpty) {
-      throw ArgumentError.value(raw, 'baseUrl', 'API_BASE_URL must not be empty');
+      throw ArgumentError.value(
+        raw,
+        'baseUrl',
+        'API_BASE_URL must not be empty',
+      );
     }
-    return trimmed.endsWith('/') ? trimmed.substring(0, trimmed.length - 1) : trimmed;
+    return trimmed.endsWith('/')
+        ? trimmed.substring(0, trimmed.length - 1)
+        : trimmed;
   }
 
   ApiRequestException _toApiException(
@@ -113,7 +167,9 @@ class ApiClient {
     final status = e.response?.statusCode;
     final body = _asNullableMap(e.response?.data);
     final message = _readErrorMessage(status, body, fallback: e.message);
-    final retryAfter = int.tryParse(e.response?.headers.value('Retry-After') ?? '');
+    final retryAfter = int.tryParse(
+      e.response?.headers.value('Retry-After') ?? '',
+    );
 
     return ApiRequestException(
       method: method,
@@ -148,7 +204,8 @@ class ApiClient {
     final message = body?['message']?.toString().trim();
     if (message != null && message.isNotEmpty) return message;
 
-    if (status == 401) return 'Invalid or missing API key';
+    if (status == 401) return 'Invalid or expired session';
+    if (status == 403) return 'Forbidden';
     if (status == 404) return 'No data found';
     if (status == 422) return 'Invalid request data';
     if (status == 429) return 'Too many requests';

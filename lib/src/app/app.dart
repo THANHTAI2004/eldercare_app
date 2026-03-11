@@ -14,12 +14,8 @@ class EldercareApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(
-          create: (_) => DeviceProvider()..load(),
-        ),
-        ChangeNotifierProvider(
-          create: (_) => RealtimeProvider(),
-        ),
+        ChangeNotifierProvider(create: (_) => DeviceProvider()..load()),
+        ChangeNotifierProvider(create: (_) => RealtimeProvider()..bootstrap()),
       ],
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
@@ -30,9 +26,9 @@ class EldercareApp extends StatelessWidget {
 
         // ✅ MUỐN NỀN TRẮNG LUÔN -> dùng ThemeMode.light
         themeMode: ThemeMode.light,
+
         // Nếu muốn tự theo hệ thống thì đổi lại:
         // themeMode: ThemeMode.system,
-
         home: const DevicePage(),
         routes: AppRoutes.routes,
         onUnknownRoute: AppRoutes.unknownRoute,
