@@ -1,4 +1,4 @@
-﻿import 'package:eldercare_app/src/core/utils.dart';
+import 'package:eldercare_app/src/core/utils.dart';
 import 'package:eldercare_app/src/domain/models/metric.dart';
 
 class VitalPoint {
@@ -48,8 +48,11 @@ class VitalPoint {
         parseTime(json['timestamp']) ??
         parseTime(json['_time']) ??
         parseTime(json['time']) ??
+        parseTime(json['recorded_at']) ??
+        parseTime(json['created_at']) ??
         parseTime(vitals['ts']) ??
         parseTime(vitals['timestamp']) ??
+        parseTime(vitals['recorded_at']) ??
         DateTime.now().toUtc();
 
     return VitalPoint(
@@ -58,12 +61,29 @@ class VitalPoint {
         json['userId'] ?? json['user_id'] ?? json['uid'] ?? vitals['user_id'],
       ),
       deviceId: _readString(
-        json['deviceId'] ?? json['device_id'] ?? json['device'],
+        json['deviceId'] ??
+            json['device_id'] ??
+            json['device'] ??
+            vitals['device_id'] ??
+            vitals['deviceId'],
       ),
-      gatewayId: _readString(json['gatewayId'] ?? json['gateway_id']),
+      gatewayId: _readString(
+        json['gatewayId'] ??
+            json['gateway_id'] ??
+            vitals['gateway_id'] ??
+            vitals['gatewayId'],
+      ),
       hr: _readInt(json, vitals, const ['hr', 'heart_rate', 'pulse']),
-      spo2: _readInt(json, vitals, const ['spo2', 'sp_o2', 'oxygen_saturation']),
-      temp: _readDouble(json, vitals, const ['temp', 'temperature', 'body_temp']),
+      spo2: _readInt(json, vitals, const [
+        'spo2',
+        'sp_o2',
+        'oxygen_saturation',
+      ]),
+      temp: _readDouble(json, vitals, const [
+        'temp',
+        'temperature',
+        'body_temp',
+      ]),
       rr: _readInt(json, vitals, const ['rr', 'respiratory_rate', 'resp_rate']),
       leadOff: _readInt(json, vitals, const ['leadOff', 'lead_off', 'leadoff']),
     );

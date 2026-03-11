@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:eldercare_app/src/domain/models/metric.dart';
@@ -34,10 +34,7 @@ class _HistoryPageState extends State<HistoryPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final current = context.read<DeviceProvider>().current;
       final p = context.read<RealtimeProvider>();
-      await p.init(
-        userId: current?.id,
-        deviceId: current?.resolvedDeviceId,
-      );
+      await p.init(userId: current?.id, deviceId: current?.deviceId);
       await p.loadHistoryForLocalDay(dayLocal: _dayLocal);
     });
   }
@@ -46,7 +43,9 @@ class _HistoryPageState extends State<HistoryPage> {
     final dayLocal = DateTime(d.year, d.month, d.day);
     setState(() => _dayLocal = dayLocal);
 
-    await context.read<RealtimeProvider>().loadHistoryForLocalDay(dayLocal: dayLocal);
+    await context.read<RealtimeProvider>().loadHistoryForLocalDay(
+      dayLocal: dayLocal,
+    );
   }
 
   @override
@@ -77,10 +76,7 @@ class _HistoryPageState extends State<HistoryPage> {
           children: [
             Row(
               children: [
-                DatePickerButton(
-                  value: _dayLocal,
-                  onChanged: _onPickDay,
-                ),
+                DatePickerButton(value: _dayLocal, onChanged: _onPickDay),
                 const SizedBox(width: 12),
                 Expanded(
                   child: MetricDropdown(

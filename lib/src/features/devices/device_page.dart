@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -37,7 +39,7 @@ class _DevicePageState extends State<DevicePage> {
     final device = context.read<DeviceProvider>().current;
     final rt = context.read<RealtimeProvider>();
     final userId = device?.id ?? '';
-    final deviceId = device?.resolvedDeviceId ?? '';
+    final deviceId = device?.deviceId?.trim() ?? '';
 
     if (_lastBoundUserId == userId) return;
     _lastBoundUserId = userId;
@@ -165,7 +167,7 @@ class _DevicePageState extends State<DevicePage> {
                                       subtitle: 'API server',
                                       onTap: () async {
                                         Navigator.pop(ctx);
-                                        await _showConnectionCheck(context);
+                                        await _showConnectionCheck();
                                       },
                                       trailing: Icons.chevron_right_rounded,
                                     ),
@@ -259,7 +261,7 @@ class _DevicePageState extends State<DevicePage> {
     );
   }
 
-  Future<void> _showConnectionCheck(BuildContext context) async {
+  Future<void> _showConnectionCheck() async {
     final rt = context.read<RealtimeProvider>();
 
     String result;
@@ -292,7 +294,7 @@ class _DevicePageState extends State<DevicePage> {
       result = 'Loi kiem tra ket noi: $e';
     }
 
-    if (!context.mounted) return;
+    if (!mounted) return;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -344,10 +346,10 @@ class _DevicePageState extends State<DevicePage> {
 
   /// ---------------------- LOGIC THIẾT BỊ ----------------------
 
-  Future<bool> _ensureAuthenticated(BuildContext context) async {
+  Future<bool> _ensureAuthenticated() async {
     final realtime = context.read<RealtimeProvider>();
     final ok = await realtime.ensureAuthenticated(silent: false);
-    if (!context.mounted) return false;
+    if (!mounted) return false;
 
     if (!ok) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -362,17 +364,35 @@ class _DevicePageState extends State<DevicePage> {
     return ok;
   }
 
-  Future<void> _scanAndAdd(BuildContext context) async {
+  bool _canUseUserId(String userId) {
+    final realtime = context.read<RealtimeProvider>();
+    final trimmed = userId.trim();
+    if (!realtime.isUserScopedSession || trimmed.isEmpty) return true;
+    if (trimmed == realtime.authenticatedUserId) return true;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Tai khoan hien tai chi duoc xem du lieu cua ${realtime.authenticatedUserId}.',
+        ),
+      ),
+    );
+    return false;
+  }
+
+  Future<void> _scanAndAdd() async {
     final code = await Navigator.push<String>(
       context,
       MaterialPageRoute(builder: (_) => const DeviceQrScannerPage()),
     );
     if (code == null || code.trim().isEmpty) return;
-    if (!context.mounted) return;
+    if (!mounted) return;
 
-    final ok = await _ensureAuthenticated(context);
+    final ok = await _ensureAuthenticated();
     if (!ok) return;
-    if (!context.mounted) return;
+    final parsed = Device.fromQr(code);
+    if (!_canUseUserId(parsed.id)) return;
+    if (!mounted) return;
 
     final deviceProv = context.read<DeviceProvider>();
     final realtime = context.read<RealtimeProvider>();
@@ -381,13 +401,18 @@ class _DevicePageState extends State<DevicePage> {
 
     final current = deviceProv.current;
     if (current != null) {
-      await realtime.changeUser(current.id, deviceId: current.resolvedDeviceId);
+      await realtime.changeUser(current.id, deviceId: current.deviceId);
     }
   }
 
-  Future<void> _showManualAddDialog(BuildContext context) async {
+  Future<void> _showManualAddDialog() async {
     final formKey = GlobalKey<FormState>();
-    final userIdController = TextEditingController();
+    final realtime = context.read<RealtimeProvider>();
+    final lockedUserId = realtime.isUserScopedSession
+        ? realtime.authenticatedUserId
+        : '';
+    final userIdController = TextEditingController(text: lockedUserId);
+    final deviceIdController = TextEditingController();
     final nameController = TextEditingController();
 
     final ok = await showDialog<bool>(
@@ -402,6 +427,7 @@ class _DevicePageState extends State<DevicePage> {
               children: [
                 TextFormField(
                   controller: userIdController,
+                  enabled: lockedUserId.isEmpty,
                   decoration: const InputDecoration(
                     labelText: 'userId',
                     hintText: 'VD: u01',
@@ -410,6 +436,14 @@ class _DevicePageState extends State<DevicePage> {
                     if (v == null || v.trim().isEmpty) return 'Nhập userId';
                     return null;
                   },
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: deviceIdController,
+                  decoration: const InputDecoration(
+                    labelText: 'deviceId',
+                    hintText: 'VD: dev-esp-001',
+                  ),
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
@@ -441,26 +475,27 @@ class _DevicePageState extends State<DevicePage> {
     );
 
     if (ok != true) return;
-    if (!context.mounted) return;
+    if (!mounted) return;
 
     final userId = userIdController.text.trim();
+    final deviceId = deviceIdController.text.trim();
     final name = nameController.text.trim();
     if (userId.isEmpty) return;
 
-    final authenticated = await _ensureAuthenticated(context);
+    final authenticated = await _ensureAuthenticated();
     if (!authenticated) return;
-    if (!context.mounted) return;
+    if (!_canUseUserId(userId)) return;
+    if (!mounted) return;
 
     final deviceProv = context.read<DeviceProvider>();
-    final realtime = context.read<RealtimeProvider>();
+    final payload = <String, dynamic>{
+      'userId': userId,
+      if (deviceId.isNotEmpty) 'deviceId': deviceId,
+      if (name.isNotEmpty) 'name': name,
+    };
 
-    await deviceProv.addFromQr(userId);
-
-    if (name.isNotEmpty) {
-      await deviceProv.rename(userId, name);
-    }
-
-    await realtime.changeUser(userId, deviceId: userId);
+    await deviceProv.addFromQr(jsonEncode(payload));
+    await realtime.changeUser(userId, deviceId: deviceId);
   }
 
   Future<void> _renameDialog(
@@ -536,7 +571,7 @@ class _DevicePageState extends State<DevicePage> {
         if (current == null) {
           final d0 = devices.first;
           await provider.setCurrent(d0.id);
-          await realtime.changeUser(d0.id, deviceId: d0.resolvedDeviceId);
+          await realtime.changeUser(d0.id, deviceId: d0.deviceId);
         }
       }
     }
@@ -606,14 +641,14 @@ class _DevicePageState extends State<DevicePage> {
         children: [
           FloatingActionButton.extended(
             heroTag: 'manualAddDevice',
-            onPressed: () => _showManualAddDialog(context),
+            onPressed: () => _showManualAddDialog(),
             icon: const Icon(Icons.edit),
             label: const Text('Nhập userId'),
           ),
           const SizedBox(height: 12),
           FloatingActionButton.extended(
             heroTag: 'scanAddDevice',
-            onPressed: () => _scanAndAdd(context),
+            onPressed: () => _scanAndAdd(),
             icon: const Icon(Icons.qr_code_scanner),
             label: const Text('Quét QR'),
           ),
@@ -710,6 +745,7 @@ class _DevicePageState extends State<DevicePage> {
                                 child: InkWell(
                                   borderRadius: BorderRadius.circular(16),
                                   onTap: () async {
+                                    if (!_canUseUserId(d.id)) return;
                                     final deviceProv = context
                                         .read<DeviceProvider>();
                                     final realtime = context
@@ -718,7 +754,7 @@ class _DevicePageState extends State<DevicePage> {
                                     await deviceProv.setCurrent(d.id);
                                     await realtime.changeUser(
                                       d.id,
-                                      deviceId: d.resolvedDeviceId,
+                                      deviceId: d.deviceId,
                                     );
 
                                     if (!context.mounted) return;

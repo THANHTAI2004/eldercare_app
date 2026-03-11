@@ -1,17 +1,18 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 
 class Device {
-  Device({
-    required this.id,
-    required this.name,
-    this.deviceId,
-  });
+  Device({required this.id, required this.name, this.deviceId});
 
   /// userId cua nguoi dung duoc theo doi
   final String id;
 
   /// deviceId cua ESP (can cho ECG request), neu null thi fallback = id
   final String? deviceId;
+
+  bool get hasExplicitDeviceId {
+    final d = deviceId?.trim();
+    return d != null && d.isNotEmpty;
+  }
 
   /// Ten hien thi trong app
   String name;
@@ -33,8 +34,10 @@ class Device {
     final text = qrRaw.trim();
     try {
       final data = jsonDecode(text) as Map<String, dynamic>;
-      final uid = (data['userId'] ?? data['user_id'] ?? data['uid'])?.toString();
-      final did = (data['deviceId'] ?? data['device_id'] ?? data['id'])?.toString();
+      final uid = (data['userId'] ?? data['user_id'] ?? data['uid'])
+          ?.toString();
+      final did = (data['deviceId'] ?? data['device_id'] ?? data['id'])
+          ?.toString();
 
       if (uid == null || uid.trim().isEmpty) {
         throw const FormatException('userId missing');
@@ -60,8 +63,8 @@ class Device {
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'name': name,
-        if (deviceId != null && deviceId!.trim().isNotEmpty) 'deviceId': deviceId,
-      };
+    'id': id,
+    'name': name,
+    if (deviceId != null && deviceId!.trim().isNotEmpty) 'deviceId': deviceId,
+  };
 }

@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -28,9 +28,7 @@ class DeviceProvider extends ChangeNotifier {
         final list = jsonDecode(jsonStr) as List<dynamic>;
         _devices
           ..clear()
-          ..addAll(
-            list.map((e) => Device.fromJson(e as Map<String, dynamic>)),
-          );
+          ..addAll(list.map((e) => Device.fromJson(e as Map<String, dynamic>)));
       } catch (_) {
         _devices.clear();
       }
@@ -74,8 +72,14 @@ class DeviceProvider extends ChangeNotifier {
 
     final idx = _devices.indexWhere((d) => d.id == dev.id);
     if (idx >= 0) {
-      _devices[idx].name = dev.name;
-      _current = _devices[idx];
+      final existing = _devices[idx];
+      final merged = Device(
+        id: existing.id,
+        name: dev.name.trim().isEmpty ? existing.name : dev.name,
+        deviceId: dev.deviceId ?? existing.deviceId,
+      );
+      _devices[idx] = merged;
+      _current = merged;
     } else {
       _devices.add(dev);
       _current = dev;

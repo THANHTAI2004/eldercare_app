@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:eldercare_app/src/app/routes.dart';
@@ -35,15 +35,16 @@ class _HomePageState extends State<HomePage> {
   void _syncRealtime() {
     final current = context.read<DeviceProvider>().current;
     final userId = current?.id ?? '';
-    final deviceId = current?.resolvedDeviceId ?? '';
+    final deviceId = current?.deviceId?.trim() ?? '';
     if (_boundUserId == userId) return;
     _boundUserId = userId;
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
-      await context
-          .read<RealtimeProvider>()
-          .init(userId: userId, deviceId: deviceId);
+      await context.read<RealtimeProvider>().init(
+        userId: userId,
+        deviceId: deviceId,
+      );
     });
   }
 
@@ -84,9 +85,9 @@ class _HomePageState extends State<HomePage> {
               _deviceLabel(device),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Colors.black54,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: Colors.black54),
             ),
           ),
         ),
@@ -113,23 +114,31 @@ class _HomePageState extends State<HomePage> {
                     Align(
                       alignment: Alignment.centerLeft,
                       child: Text(
-                        rt.hasUser ? 'Cập nhật: ${rt.lastSeenText}' : 'Chưa có user đang theo dõi',
+                        rt.hasUser
+                            ? 'Cập nhật: ${rt.lastSeenText}'
+                            : 'Chưa có user đang theo dõi',
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                     ),
+                    if (rt.error != null && rt.error!.trim().isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      _ErrorBanner(message: rt.error!),
+                    ],
                     const SizedBox(height: 16),
                     FeatureButton(
                       icon: Icons.history,
                       title: 'History',
                       subtitle: 'Xem lịch sử theo ngày',
-                      onTap: () => Navigator.pushNamed(context, AppRoutes.history),
+                      onTap: () =>
+                          Navigator.pushNamed(context, AppRoutes.history),
                     ),
                     const SizedBox(height: 16),
                     FeatureButton(
                       icon: Icons.devices,
                       title: 'Thiết bị',
                       subtitle: 'Quản lý thiết bị của bạn',
-                      onTap: () => Navigator.pushNamed(context, AppRoutes.devices),
+                      onTap: () =>
+                          Navigator.pushNamed(context, AppRoutes.devices),
                     ),
                   ],
                 ),
@@ -161,6 +170,41 @@ class _HomePageState extends State<HomePage> {
             onPressed: () => Navigator.pushNamed(context, AppRoutes.devices),
             icon: const Icon(Icons.settings_input_antenna),
             label: const Text('Quản lý thiết bị'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ErrorBanner extends StatelessWidget {
+  const _ErrorBanner({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: scheme.errorContainer,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.error_outline, color: scheme.onErrorContainer),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: scheme.onErrorContainer,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
         ],
       ),

@@ -12,7 +12,6 @@ Backend moi dung JWT cho luong app nguoi dung. `X-API-Key` khong con la header m
 API_BASE_URL=https://api.yourdomain.com
 LOGIN_USER_ID=patient-001
 LOGIN_PASSWORD=your-password
-ADMIN_API_KEY=replace-with-admin-api-key
 USER_ID=patient-001
 DEVICE_ID=dev-esp-001
 REQUEST_TIMEOUT_MS=15000
@@ -22,7 +21,7 @@ POLL_INTERVAL_MS=2000
 Ghi chu:
 - `LOGIN_USER_ID` va `LOGIN_PASSWORD` duoc app dung de goi `POST /api/v1/auth/login` va lay `access_token`.
 - `access_token` duoc luu bang `SharedPreferences` va duoc restore khi mo lai app.
-- `ADMIN_API_KEY`/`API_KEY` chi nen dung cho bootstrap hoac admin flow rieng, khong phai luong doc du lieu chinh cua app.
+- App release cho user thong thuong khong can nhung `ADMIN_API_KEY`.
 
 2. Cai dependencies:
 

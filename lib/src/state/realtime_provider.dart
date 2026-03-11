@@ -40,6 +40,13 @@ class RealtimeProvider extends ChangeNotifier {
   bool get isAuthenticated => accessToken != null && accessToken!.isNotEmpty;
   String get authenticatedUserId =>
       currentUser?['user_id']?.toString().trim() ?? '';
+  String get authenticatedRole =>
+      currentUser?['role']?.toString().trim().toLowerCase() ?? '';
+  bool get isUserScopedSession =>
+      isAuthenticated &&
+      authenticatedUserId.isNotEmpty &&
+      authenticatedRole != 'admin' &&
+      authenticatedRole != 'caregiver';
 
   bool _initialized = false;
   Future<void>? _bootstrapFuture;
@@ -89,6 +96,16 @@ class RealtimeProvider extends ChangeNotifier {
 
   void _resetSeen() {
     _lastSeenUtc = null;
+  }
+
+  bool _canAccessUserId(String candidateUserId) {
+    final trimmed = candidateUserId.trim();
+    if (!isUserScopedSession) return true;
+    return trimmed.isEmpty || trimmed == authenticatedUserId;
+  }
+
+  String _userScopeError() {
+    return 'Tai khoan hien tai chi duoc xem du lieu cua $authenticatedUserId';
   }
 
   Future<void> bootstrap() {
@@ -273,6 +290,15 @@ class RealtimeProvider extends ChangeNotifier {
     _initialized = true;
 
     if (nextUserId != null) {
+      if (!_canAccessUserId(nextUserId)) {
+        latest = null;
+        _livePoints.clear();
+        _historyPoints.clear();
+        error = _userScopeError();
+        _resetSeen();
+        notifyListeners();
+        return;
+      }
       this.userId = nextUserId;
     }
     if (nextDeviceId != null) {
@@ -319,6 +345,12 @@ class RealtimeProvider extends ChangeNotifier {
       _historyPoints.clear();
       error = null;
       _resetSeen();
+      notifyListeners();
+      return;
+    }
+
+    if (!_canAccessUserId(newUserId)) {
+      error = _userScopeError();
       notifyListeners();
       return;
     }
