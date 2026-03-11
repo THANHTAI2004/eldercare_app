@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -33,6 +34,12 @@ class _DevicePageState extends State<DevicePage> {
   void dispose() {
     _searchCtrl.dispose();
     super.dispose();
+  }
+
+  bool get _supportsQrScan {
+    if (kIsWeb) return true;
+    return defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS;
   }
 
   void _syncRealtimeWithCurrent() {
@@ -419,6 +426,17 @@ class _DevicePageState extends State<DevicePage> {
   }
 
   Future<void> _scanAndAdd() async {
+    if (!_supportsQrScan) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Windows chua ho tro quet QR. Hay dung "Them thiet bi" de nhap tay.',
+          ),
+        ),
+      );
+      return;
+    }
+
     final code = await Navigator.push<String>(
       context,
       MaterialPageRoute(builder: (_) => const DeviceQrScannerPage()),
@@ -710,7 +728,7 @@ class _DevicePageState extends State<DevicePage> {
             heroTag: 'scanAddDevice',
             onPressed: () => _scanAndAdd(),
             icon: const Icon(Icons.qr_code_scanner),
-            label: const Text('Quét QR'),
+            label: Text(_supportsQrScan ? 'Quet QR' : 'QR khong ho tro'),
           ),
         ],
       ),
