@@ -1,10 +1,11 @@
-import 'package:eldercare_app/src/core/utils.dart';
+﻿import 'package:eldercare_app/src/core/utils.dart';
 import 'package:eldercare_app/src/domain/models/metric.dart';
 
 class VitalPoint {
   VitalPoint({
     required this.time,
     this.userId,
+    this.deviceId,
     this.gatewayId,
     this.hr,
     this.spo2,
@@ -15,6 +16,7 @@ class VitalPoint {
 
   final DateTime time;
   final String? userId;
+  final String? deviceId;
   final String? gatewayId;
 
   final int? hr;
@@ -39,18 +41,71 @@ class VitalPoint {
   }
 
   static VitalPoint fromJson(Map<String, dynamic> json) {
-    // ưu tiên ts, _time
-    final t = parseTime(json['ts']) ?? parseTime(json['_time']) ?? DateTime.now().toUtc();
+    final vitals = _readMap(json['vitals']);
+
+    final t =
+        parseTime(json['ts']) ??
+        parseTime(json['timestamp']) ??
+        parseTime(json['_time']) ??
+        parseTime(json['time']) ??
+        parseTime(vitals['ts']) ??
+        parseTime(vitals['timestamp']) ??
+        DateTime.now().toUtc();
 
     return VitalPoint(
       time: t,
-      userId: (json['userId'] ?? json['user_id'])?.toString(),
-      gatewayId: (json['gatewayId'] ?? json['gateway_id'])?.toString(),
-      hr: toInt(json['hr']),
-      spo2: toInt(json['spo2']),
-      temp: toDouble(json['temp']),
-      rr: toInt(json['rr']),
-      leadOff: toInt(json['leadOff']),
+      userId: _readString(
+        json['userId'] ?? json['user_id'] ?? json['uid'] ?? vitals['user_id'],
+      ),
+      deviceId: _readString(
+        json['deviceId'] ?? json['device_id'] ?? json['device'],
+      ),
+      gatewayId: _readString(json['gatewayId'] ?? json['gateway_id']),
+      hr: _readInt(json, vitals, const ['hr', 'heart_rate', 'pulse']),
+      spo2: _readInt(json, vitals, const ['spo2', 'sp_o2', 'oxygen_saturation']),
+      temp: _readDouble(json, vitals, const ['temp', 'temperature', 'body_temp']),
+      rr: _readInt(json, vitals, const ['rr', 'respiratory_rate', 'resp_rate']),
+      leadOff: _readInt(json, vitals, const ['leadOff', 'lead_off', 'leadoff']),
     );
+  }
+
+  static int? _readInt(
+    Map<String, dynamic> root,
+    Map<String, dynamic> vitals,
+    List<String> keys,
+  ) {
+    for (final key in keys) {
+      final direct = toInt(root[key]);
+      if (direct != null) return direct;
+      final nested = toInt(vitals[key]);
+      if (nested != null) return nested;
+    }
+    return null;
+  }
+
+  static double? _readDouble(
+    Map<String, dynamic> root,
+    Map<String, dynamic> vitals,
+    List<String> keys,
+  ) {
+    for (final key in keys) {
+      final direct = toDouble(root[key]);
+      if (direct != null) return direct;
+      final nested = toDouble(vitals[key]);
+      if (nested != null) return nested;
+    }
+    return null;
+  }
+
+  static Map<String, dynamic> _readMap(dynamic value) {
+    if (value is Map<String, dynamic>) return value;
+    if (value is Map) return Map<String, dynamic>.from(value);
+    return <String, dynamic>{};
+  }
+
+  static String? _readString(dynamic value) {
+    final s = value?.toString().trim();
+    if (s == null || s.isEmpty) return null;
+    return s;
   }
 }

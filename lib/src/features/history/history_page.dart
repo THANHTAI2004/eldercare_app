@@ -1,11 +1,12 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:eldercare_app/src/domain/models/metric.dart';
+import 'package:eldercare_app/src/state/device_provider.dart';
 import 'package:eldercare_app/src/state/realtime_provider.dart';
 import 'package:eldercare_app/src/widgets/date_picker_button.dart';
-import 'package:eldercare_app/src/widgets/metric_dropdown.dart';
 import 'package:eldercare_app/src/widgets/line_chart_card.dart';
+import 'package:eldercare_app/src/widgets/metric_dropdown.dart';
 
 class HistoryPage extends StatefulWidget {
   const HistoryPage({super.key});
@@ -15,7 +16,6 @@ class HistoryPage extends StatefulWidget {
 }
 
 class _HistoryPageState extends State<HistoryPage> {
-  /// Ngày đang xem (local)
   DateTime _dayLocal = DateTime(
     DateTime.now().year,
     DateTime.now().month,
@@ -32,8 +32,12 @@ class _HistoryPageState extends State<HistoryPage> {
     _didInit = true;
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final current = context.read<DeviceProvider>().current;
       final p = context.read<RealtimeProvider>();
-      await p.init(); // đảm bảo đã init để có userId
+      await p.init(
+        userId: current?.id,
+        deviceId: current?.resolvedDeviceId,
+      );
       await p.loadHistoryForLocalDay(dayLocal: _dayLocal);
     });
   }
@@ -42,30 +46,24 @@ class _HistoryPageState extends State<HistoryPage> {
     final dayLocal = DateTime(d.year, d.month, d.day);
     setState(() => _dayLocal = dayLocal);
 
-    await context
-        .read<RealtimeProvider>()
-        .loadHistoryForLocalDay(dayLocal: dayLocal);
+    await context.read<RealtimeProvider>().loadHistoryForLocalDay(dayLocal: dayLocal);
   }
 
   @override
   Widget build(BuildContext context) {
     final p = context.watch<RealtimeProvider>();
 
-    // Dữ liệu trong ngày cho metric đang chọn
-    final dayPoints = p
-        .historyForLocalDay(_dayLocal)
-        .where((e) {
+    final dayPoints = p.historyForLocalDay(_dayLocal).where((e) {
       final v = e.valueOf(_metric);
       return v != null && v.isFinite;
-    })
-        .toList();
+    }).toList();
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('History'),
+        title: const Text('Lịch sử'),
         actions: [
           IconButton(
-            tooltip: 'Làm mới ngày này',
+            tooltip: 'Làm mới ngày đang chọn',
             onPressed: p.isLoadingHistory
                 ? null
                 : () => p.loadHistoryForLocalDay(dayLocal: _dayLocal),
@@ -97,11 +95,11 @@ class _HistoryPageState extends State<HistoryPage> {
               child: p.isLoadingHistory && dayPoints.isEmpty
                   ? const Center(child: CircularProgressIndicator())
                   : LineChartCard(
-                title: 'Theo giờ trong ngày',
-                metric: _metric,
-                points: dayPoints,
-                showHourAxis: true,
-              ),
+                      title: 'Theo giờ trong ngày',
+                      metric: _metric,
+                      points: dayPoints,
+                      showHourAxis: true,
+                    ),
             ),
           ],
         ),

@@ -15,7 +15,7 @@ class MetricDropdown extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DropdownButtonFormField<Metric>(
-      value: value,
+      initialValue: value,
       items: AppConstants.allMetrics
           .map((m) => DropdownMenuItem(value: m, child: Text(m.label)))
           .toList(),

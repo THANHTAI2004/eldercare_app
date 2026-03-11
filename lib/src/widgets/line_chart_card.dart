@@ -141,7 +141,7 @@ class _InteractiveChartState extends State<_InteractiveChart> {
           painter: _ChartPainter(
             data: widget.data,
             lineColor: scheme.primary,
-            gridColor: scheme.outline.withOpacity(0.3),
+            gridColor: scheme.outline.withValues(alpha: 0.3),
             highlightX: _selectedX,
             highlightPoint: _selected,
           ),
@@ -324,7 +324,7 @@ class _ChartPainter extends CustomPainter {
           : h - (value - plotMin) * scaleY;
 
       final crossPaint = Paint()
-        ..color = lineColor.withOpacity(0.7)
+        ..color = lineColor.withValues(alpha: 0.7)
         ..strokeWidth = 1.5;
 
       canvas.drawLine(
@@ -398,3 +398,4 @@ class _TimeAxis extends StatelessWidget {
     );
   }
 }
+

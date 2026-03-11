@@ -21,8 +21,8 @@ class HistoryDetailPage extends StatelessWidget {
       body: ListView.separated(
         padding: const EdgeInsets.all(16),
         itemCount: points.length,
-        separatorBuilder: (_, __) => const Divider(height: 16),
-        itemBuilder: (_, i) {
+        separatorBuilder: (context, index) => const Divider(height: 16),
+        itemBuilder: (context, i) {
           final p = points[i];
           final v = p.valueOf(metric);
           return ListTile(

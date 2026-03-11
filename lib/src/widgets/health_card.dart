@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-
 import 'package:eldercare_app/src/domain/models/vital_point.dart';
 
 class HealthCard extends StatelessWidget {
-  const HealthCard({super.key, required this.point});
+  const HealthCard({
+    super.key,
+    this.point, // giờ cho phép null hoàn toàn
+  });
 
   final VitalPoint? point;
 
-  Color _a(Color c, double alpha) => c.withValues(alpha: alpha); // nếu Flutter cũ -> đổi withOpacity
+  Color _a(Color c, double alpha) => c.withValues(alpha: alpha);
 
   Widget _prettyItem({
     required BuildContext context,
@@ -110,7 +112,6 @@ class HealthCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header có “nhấn màu” nhẹ
             Row(
               children: [
                 Container(
@@ -121,14 +122,14 @@ class HealthCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(14),
                   ),
                   child: Icon(
-                    Icons.monitor_heart_rounded,
+                    Icons.health_and_safety_rounded,
                     color: scheme.onPrimaryContainer,
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    'Thông số mới nhất',
+                    'Thông số sức khoẻ',
                     style: t.titleMedium?.copyWith(fontWeight: FontWeight.w800),
                   ),
                 ),
@@ -144,7 +145,7 @@ class HealthCard extends StatelessWidget {
                   value: hr,
                   unit: 'bpm',
                   icon: Icons.favorite_rounded,
-                  accent: const Color(0xFFFF4D6D), // đỏ hồng
+                  accent: const Color(0xFFFF4D6D),
                 ),
                 const SizedBox(width: 12),
                 _prettyItem(
@@ -153,7 +154,7 @@ class HealthCard extends StatelessWidget {
                   value: spo2,
                   unit: '%',
                   icon: Icons.bloodtype_rounded,
-                  accent: const Color(0xFF3B82F6), // xanh
+                  accent: const Color(0xFF3B82F6),
                 ),
               ],
             ),
@@ -166,7 +167,7 @@ class HealthCard extends StatelessWidget {
                   value: temp,
                   unit: '°C',
                   icon: Icons.thermostat_rounded,
-                  accent: const Color(0xFFFFA726), // cam
+                  accent: const Color(0xFFFFA726),
                 ),
                 const SizedBox(width: 12),
                 _prettyItem(
@@ -175,14 +176,13 @@ class HealthCard extends StatelessWidget {
                   value: rr,
                   unit: 'rpm',
                   icon: Icons.air_rounded,
-                  accent: const Color(0xFF8B5CF6), // tím
+                  accent: const Color(0xFF8B5CF6),
                 ),
               ],
             ),
 
             const SizedBox(height: 14),
 
-            // Footer: thời gian cập nhật dạng pill
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
@@ -206,3 +206,4 @@ class HealthCard extends StatelessWidget {
     );
   }
 }
+

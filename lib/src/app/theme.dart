@@ -18,7 +18,6 @@ class AppTheme {
     final scheme = brightness == Brightness.light
         ? schemeBase.copyWith(
       surface: Colors.white,
-      background: Colors.white,
       surfaceContainerHighest: const Color(0xFFF4F6F8), // nền input/khối nhẹ
       outlineVariant: const Color(0xFFE6E8EC), // viền card nhẹ
     )

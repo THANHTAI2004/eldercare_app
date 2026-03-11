@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -16,7 +16,6 @@ class DeviceProvider extends ChangeNotifier {
   List<Device> get devices => List.unmodifiable(_devices);
   Device? get current => _current;
 
-  /// Load danh sách thiết bị + current từ SharedPreferences (chỉ 1 lần)
   Future<void> load() async {
     if (_loaded) return;
     _loaded = true;
@@ -45,7 +44,7 @@ class DeviceProvider extends ChangeNotifier {
       final currentId = prefs.getString(_currentIdKey);
       if (currentId != null) {
         _current = _devices.firstWhere(
-              (d) => d.id == currentId,
+          (d) => d.id == currentId,
           orElse: () => _devices.first,
         );
       } else {
@@ -70,17 +69,14 @@ class DeviceProvider extends ChangeNotifier {
     await prefs.setString(_currentIdKey, _current?.id ?? _devices.first.id);
   }
 
-  /// Thêm / cập nhật thiết bị từ QR hoặc userId
   Future<void> addFromQr(String qrRaw) async {
     final dev = Device.fromQr(qrRaw);
 
     final idx = _devices.indexWhere((d) => d.id == dev.id);
     if (idx >= 0) {
-      // đã tồn tại → cập nhật name
       _devices[idx].name = dev.name;
       _current = _devices[idx];
     } else {
-      // thêm mới
       _devices.add(dev);
       _current = dev;
     }
@@ -94,7 +90,7 @@ class DeviceProvider extends ChangeNotifier {
     if (name.isEmpty) return;
 
     final d = _devices.firstWhere(
-          (e) => e.id == id,
+      (e) => e.id == id,
       orElse: () => _current ?? (throw StateError('No devices')),
     );
     d.name = name;
@@ -103,7 +99,6 @@ class DeviceProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Xoá thiết bị – cho phép xoá hết (không giữ device mặc định)
   Future<void> remove(String id) async {
     if (_devices.isEmpty) return;
 
@@ -119,7 +114,6 @@ class DeviceProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Chọn thiết bị hiện tại
   Future<void> setCurrent(String id) async {
     if (_devices.isEmpty) {
       _current = null;
@@ -129,7 +123,7 @@ class DeviceProvider extends ChangeNotifier {
     }
 
     final d = _devices.firstWhere(
-          (e) => e.id == id,
+      (e) => e.id == id,
       orElse: () => _devices.first,
     );
     _current = d;

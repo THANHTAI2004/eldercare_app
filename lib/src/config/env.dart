@@ -1,18 +1,31 @@
+﻿import 'package:flutter_dotenv/flutter_dotenv.dart';
+
 class Env {
   Env._();
 
-  // API (server api container)
-  static const String apiBaseUrl = 'http://159.223.89.90:8080';
+  static String _read(String key, {String fallback = ''}) {
+    try {
+      final value = dotenv.env[key]?.trim();
+      if (value == null || value.isEmpty) return fallback;
+      return value;
+    } catch (_) {
+      return fallback;
+    }
+  }
 
-  // MQTT (mosquitto)
-  static const String mqttHost = '159.223.89.90';
-  static const String mqttUsername = 'esp32';
-  static const String mqttPassword = 'Thi@200797';
+  static int _readInt(String key, {required int fallback}) {
+    final raw = _read(key);
+    return int.tryParse(raw) ?? fallback;
+  }
 
-  static const int mqttTcpPort = 1883;   // Android/Windows
-  static const int mqttWsPort = 9001;    // Web
-  static const String mqttWsPath = '/mqtt';
+  static String get apiBaseUrl =>
+      _read('API_BASE_URL', fallback: 'https://api.yourdomain.com');
+  static String get apiKey => _read('API_KEY', fallback: 'replace-with-api-key');
 
-  // ❗ Không có user mặc định
-  static const String defaultUserId = '';
+  static String get defaultUserId => _read('USER_ID', fallback: 'dev-user-001');
+  static String get defaultDeviceId => _read('DEVICE_ID', fallback: 'dev-esp-001');
+
+  static int get requestTimeoutMs =>
+      _readInt('REQUEST_TIMEOUT_MS', fallback: 15000);
+  static int get pollIntervalMs => _readInt('POLL_INTERVAL_MS', fallback: 2000);
 }

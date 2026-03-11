@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import 'package:eldercare_app/src/app/routes.dart';
 import 'package:eldercare_app/src/domain/models/device.dart';
 import 'package:eldercare_app/src/features/devices/device_qr_scanner_page.dart';
 import 'package:eldercare_app/src/features/home/home_page.dart';
@@ -18,6 +17,7 @@ class DevicePage extends StatefulWidget {
 class _DevicePageState extends State<DevicePage> {
   final _searchCtrl = TextEditingController();
   String _query = '';
+  String? _lastBoundUserId;
 
   @override
   void initState() {
@@ -31,6 +31,21 @@ class _DevicePageState extends State<DevicePage> {
   void dispose() {
     _searchCtrl.dispose();
     super.dispose();
+  }
+
+  void _syncRealtimeWithCurrent() {
+    final device = context.read<DeviceProvider>().current;
+    final rt = context.read<RealtimeProvider>();
+    final userId = device?.id ?? '';
+    final deviceId = device?.resolvedDeviceId ?? '';
+
+    if (_lastBoundUserId == userId) return;
+    _lastBoundUserId = userId;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      await rt.init(userId: userId, deviceId: deviceId);
+    });
   }
 
   /// ---------------------- MENU (☰) ----------------------
@@ -135,7 +150,7 @@ class _DevicePageState extends State<DevicePage> {
                                     _MenuItem(
                                       icon: Icons.wifi_tethering_outlined,
                                       title: 'Kiểm tra kết nối',
-                                      subtitle: 'MQTT / API server',
+                                      subtitle: 'API server',
                                       onTap: () async {
                                         Navigator.pop(ctx);
                                         await _showConnectionCheck(context);
@@ -145,13 +160,13 @@ class _DevicePageState extends State<DevicePage> {
                                     _MenuItem(
                                       icon: Icons.refresh_rounded,
                                       title: 'Làm mới & Kết nối lại',
-                                      subtitle: 'Refresh dữ liệu + reconnect MQTT',
+                                      subtitle: 'Refresh du lieu REST',
                                       onTap: () async {
                                         Navigator.pop(ctx);
                                         final rt = context.read<RealtimeProvider>();
                                         if (rt.hasUser) {
                                           await rt.refreshLatest();
-                                          await rt.connectMqtt();
+                                          await rt.reconnectApi();
                                         }
                                         if (!context.mounted) return;
                                         ScaffoldMessenger.of(context).showSnackBar(
@@ -212,7 +227,7 @@ class _DevicePageState extends State<DevicePage> {
       builder: (ctx) => AlertDialog(
         title: const Text('Giao diện'),
         content: const Text(
-          'Hiện tại app đang dùng ThemeMode.system.\n'
+          'Hiện tại app đang dùng ThemeMode.light.\n'
               'Nếu muốn đổi nhanh Sáng/Tối trong app, mình có thể làm thêm SettingsProvider để lưu setting.',
         ),
         actions: [
@@ -230,16 +245,18 @@ class _DevicePageState extends State<DevicePage> {
 
     String result;
     try {
-      if (!rt.hasUser) {
-        result = 'Chưa chọn thiết bị để kiểm tra.';
+      final serverOk = await rt.checkServer();
+      if (!serverOk) {
+        result = 'Khong the ket noi server. Kiem tra API_BASE_URL/API_KEY va mang.';
+      } else if (!rt.hasUser) {
+        result = 'Server OK, nhung chua chon user/device de kiem tra du lieu.';
       } else {
         await rt.refreshLatest();
-        await rt.connectMqtt();
-        result =
-        'Đã gửi yêu cầu kiểm tra.\nNếu vẫn Offline, hãy xem lại host/port MQTT và mạng.';
+        await rt.reconnectApi();
+        result = 'Ket noi server thanh cong va da refresh latest.';
       }
     } catch (e) {
-      result = 'Lỗi kiểm tra kết nối: $e';
+      result = 'Loi kiem tra ket noi: $e';
     }
 
     if (!context.mounted) return;
@@ -320,12 +337,14 @@ class _DevicePageState extends State<DevicePage> {
       MaterialPageRoute(builder: (_) => const DeviceQrScannerPage()),
     );
     if (code == null || code.trim().isEmpty) return;
+    if (!context.mounted) return;
 
     final devFromQr = Device.fromQr(code);
     final userId = devFromQr.id;
 
     final ok = await _validateUserOnServer(context, userId);
     if (!ok) return;
+    if (!context.mounted) return;
 
     final deviceProv = context.read<DeviceProvider>();
     final realtime = context.read<RealtimeProvider>();
@@ -334,7 +353,7 @@ class _DevicePageState extends State<DevicePage> {
 
     final current = deviceProv.current;
     if (current != null) {
-      await realtime.changeUser(current.id);
+      await realtime.changeUser(current.id, deviceId: current.resolvedDeviceId);
     }
   }
 
@@ -394,6 +413,7 @@ class _DevicePageState extends State<DevicePage> {
     );
 
     if (ok != true) return;
+    if (!context.mounted) return;
 
     final userId = userIdController.text.trim();
     final name = nameController.text.trim();
@@ -401,6 +421,7 @@ class _DevicePageState extends State<DevicePage> {
 
     final exists = await _validateUserOnServer(context, userId);
     if (!exists) return;
+    if (!context.mounted) return;
 
     final deviceProv = context.read<DeviceProvider>();
     final realtime = context.read<RealtimeProvider>();
@@ -411,7 +432,7 @@ class _DevicePageState extends State<DevicePage> {
       await deviceProv.rename(userId, name);
     }
 
-    await realtime.changeUser(userId);
+    await realtime.changeUser(userId, deviceId: userId);
   }
 
   Future<void> _renameDialog(BuildContext context, String id, String oldName) async {
@@ -475,13 +496,13 @@ class _DevicePageState extends State<DevicePage> {
 
       final devices = provider.devices;
       if (devices.isEmpty) {
-        await realtime.changeUser('');
+        await realtime.changeUser('', deviceId: '');
       } else {
         final current = provider.current;
         if (current == null) {
           final d0 = devices.first;
           await provider.setCurrent(d0.id);
-          await realtime.changeUser(d0.id);
+          await realtime.changeUser(d0.id, deviceId: d0.resolvedDeviceId);
         }
       }
     }
@@ -499,6 +520,8 @@ class _DevicePageState extends State<DevicePage> {
     final textTheme = Theme.of(context).textTheme;
 
     final rt = context.watch<RealtimeProvider>();
+    context.watch<DeviceProvider>().current;
+    _syncRealtimeWithCurrent();
 
     return Scaffold(
       appBar: AppBar(
@@ -519,7 +542,7 @@ class _DevicePageState extends State<DevicePage> {
               ),
               const SizedBox(height: 6),
               Consumer<DeviceProvider>(
-                builder: (_, p, __) => _CountChip(text: '${p.devices.length} thiết bị'),
+                builder: (context, p, child) => _CountChip(text: '${p.devices.length} thiết bị'),
               ),
             ],
           ),
@@ -653,7 +676,10 @@ class _DevicePageState extends State<DevicePage> {
                                     final realtime = context.read<RealtimeProvider>();
 
                                     await deviceProv.setCurrent(d.id);
-                                    await realtime.changeUser(d.id);
+                                    await realtime.changeUser(
+                                      d.id,
+                                      deviceId: d.resolvedDeviceId,
+                                    );
 
                                     if (!context.mounted) return;
                                     Navigator.push(
@@ -736,8 +762,8 @@ class _LogoCircle extends StatelessWidget {
         shape: BoxShape.circle,
         gradient: LinearGradient(
           colors: [
-            color.withOpacity(0.20),
-            color.withOpacity(0.95),
+            color.withValues(alpha: 0.20),
+            color.withValues(alpha: 0.95),
           ],
         ),
       ),
@@ -941,7 +967,7 @@ class _WatchingChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
       decoration: BoxDecoration(
-        color: scheme.primaryContainer.withOpacity(0.65),
+        color: scheme.primaryContainer.withValues(alpha: 0.65),
         borderRadius: BorderRadius.circular(999),
         border: Border.all(color: scheme.outlineVariant),
       ),
@@ -979,7 +1005,7 @@ class _ActionPill extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
 
-    final bg = isDanger ? scheme.errorContainer.withOpacity(0.35) : scheme.surfaceContainerHighest;
+    final bg = isDanger ? scheme.errorContainer.withValues(alpha: 0.35) : scheme.surfaceContainerHighest;
     final fg = isDanger ? scheme.error : scheme.primary;
 
     return InkWell(
@@ -1023,7 +1049,7 @@ class _SheetHandle extends StatelessWidget {
       width: 46,
       height: 5,
       decoration: BoxDecoration(
-        color: scheme.outlineVariant.withOpacity(0.9),
+        color: scheme.outlineVariant.withValues(alpha: 0.9),
         borderRadius: BorderRadius.circular(99),
       ),
     );
@@ -1045,7 +1071,7 @@ class _MenuSection extends StatelessWidget {
       decoration: BoxDecoration(
         color: scheme.surfaceContainerLowest,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: scheme.outlineVariant.withOpacity(0.9)),
+        border: Border.all(color: scheme.outlineVariant.withValues(alpha: 0.9)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1073,7 +1099,7 @@ class _MenuSection extends StatelessWidget {
         out.add(
           Padding(
             padding: const EdgeInsets.only(left: 54, right: 6),
-            child: Divider(height: 14, color: scheme.outlineVariant.withOpacity(0.7)),
+            child: Divider(height: 14, color: scheme.outlineVariant.withValues(alpha: 0.7)),
           ),
         );
       }
@@ -1089,8 +1115,6 @@ class _MenuItem extends StatelessWidget {
     required this.subtitle,
     required this.onTap,
     this.trailing = Icons.chevron_right_rounded,
-    this.iconBg,
-    this.iconColor,
   });
 
   final IconData icon;
@@ -1098,14 +1122,12 @@ class _MenuItem extends StatelessWidget {
   final String subtitle;
   final VoidCallback onTap;
   final IconData trailing;
-  final Color? iconBg;
-  final Color? iconColor;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final bg = iconBg ?? scheme.surfaceContainerHighest;
-    final fg = iconColor ?? scheme.onSurface;
+    final bg = scheme.surfaceContainerHighest;
+    final fg = scheme.onSurface;
 
     return InkWell(
       borderRadius: BorderRadius.circular(14),
@@ -1169,7 +1191,7 @@ class _MiniStatusPill extends StatelessWidget {
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: scheme.outlineVariant.withOpacity(0.9)),
+        border: Border.all(color: scheme.outlineVariant.withValues(alpha: 0.9)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1192,3 +1214,5 @@ class _MiniStatusPill extends StatelessWidget {
     );
   }
 }
+
+

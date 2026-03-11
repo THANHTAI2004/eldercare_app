@@ -1,27 +1,161 @@
-import 'dart:convert';
-import 'package:http/http.dart' as http;
+import 'package:dio/dio.dart';
+
+import 'package:eldercare_app/src/config/env.dart';
+
+class ApiRequestException implements Exception {
+  ApiRequestException({
+    required this.method,
+    required this.path,
+    required this.message,
+    this.statusCode,
+    this.retryAfterSeconds,
+    this.responseBody,
+  });
+
+  final String method;
+  final String path;
+  final String message;
+  final int? statusCode;
+  final int? retryAfterSeconds;
+  final Map<String, dynamic>? responseBody;
+
+  @override
+  String toString() {
+    final status = statusCode?.toString() ?? 'network';
+    return '$method $path failed: $status $message';
+  }
+}
 
 class ApiClient {
-  ApiClient({required this.baseUrl});
+  ApiClient._(this._dio);
 
-  final String baseUrl;
-
-  Uri _uri(String path, [Map<String, String>? query]) {
-    final p = path.startsWith('/') ? path : '/$path';
-    return Uri.parse('$baseUrl$p').replace(queryParameters: query);
+  factory ApiClient({
+    required String baseUrl,
+    required String apiKey,
+    required int timeoutMs,
+  }) {
+    return ApiClient._(
+      Dio(
+        BaseOptions(
+          baseUrl: _normalizeBaseUrl(baseUrl),
+          connectTimeout: Duration(milliseconds: timeoutMs),
+          receiveTimeout: Duration(milliseconds: timeoutMs),
+          sendTimeout: Duration(milliseconds: timeoutMs),
+          headers: <String, dynamic>{
+            'X-API-Key': apiKey.trim(),
+            'Content-Type': 'application/json',
+          },
+        ),
+      ),
+    );
   }
 
+  factory ApiClient.fromEnv() {
+    return ApiClient(
+      baseUrl: Env.apiBaseUrl,
+      apiKey: Env.apiKey,
+      timeoutMs: Env.requestTimeoutMs,
+    );
+  }
+
+  final Dio _dio;
+
+  Dio get dio => _dio;
+
   Future<Map<String, dynamic>> getJson(
-      String path, {
-        Map<String, String>? query,
-        Duration timeout = const Duration(seconds: 10),
-      }) async {
-    final res = await http.get(_uri(path, query)).timeout(timeout);
-    if (res.statusCode < 200 || res.statusCode >= 300) {
-      throw Exception('HTTP ${res.statusCode}: ${res.body}');
+    String path, {
+    Map<String, dynamic>? query,
+  }) async {
+    try {
+      final res = await _dio.get<dynamic>(path, queryParameters: query);
+      return _asMap(res.data);
+    } on DioException catch (e) {
+      throw _toApiException(e, method: 'GET', path: path);
     }
-    final data = jsonDecode(res.body);
-    if (data is Map<String, dynamic>) return data;
+  }
+
+  Future<Map<String, dynamic>> postJson(
+    String path, {
+    Object? data,
+    Map<String, dynamic>? query,
+  }) async {
+    try {
+      final res = await _dio.post<dynamic>(
+        path,
+        data: data,
+        queryParameters: query,
+      );
+      return _asMap(res.data);
+    } on DioException catch (e) {
+      throw _toApiException(e, method: 'POST', path: path);
+    }
+  }
+
+  Map<String, dynamic> _asMap(dynamic value) {
+    if (value is Map<String, dynamic>) return value;
+    if (value is Map) return Map<String, dynamic>.from(value);
     return <String, dynamic>{};
+  }
+
+  static String _normalizeBaseUrl(String raw) {
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) {
+      throw ArgumentError.value(raw, 'baseUrl', 'API_BASE_URL must not be empty');
+    }
+    return trimmed.endsWith('/') ? trimmed.substring(0, trimmed.length - 1) : trimmed;
+  }
+
+  ApiRequestException _toApiException(
+    DioException e, {
+    required String method,
+    required String path,
+  }) {
+    final status = e.response?.statusCode;
+    final body = _asNullableMap(e.response?.data);
+    final message = _readErrorMessage(status, body, fallback: e.message);
+    final retryAfter = int.tryParse(e.response?.headers.value('Retry-After') ?? '');
+
+    return ApiRequestException(
+      method: method,
+      path: path,
+      message: message,
+      statusCode: status,
+      retryAfterSeconds: retryAfter,
+      responseBody: body,
+    );
+  }
+
+  Map<String, dynamic>? _asNullableMap(dynamic value) {
+    if (value is Map<String, dynamic>) return value;
+    if (value is Map) return Map<String, dynamic>.from(value);
+    return null;
+  }
+
+  String _readErrorMessage(
+    int? status,
+    Map<String, dynamic>? body, {
+    String? fallback,
+  }) {
+    final detail = body?['detail'];
+    if (detail is String && detail.trim().isNotEmpty) return detail.trim();
+    if (detail is List && detail.isNotEmpty) {
+      final first = detail.first;
+      if (first is Map && first['msg'] != null) {
+        return first['msg'].toString();
+      }
+    }
+
+    final message = body?['message']?.toString().trim();
+    if (message != null && message.isNotEmpty) return message;
+
+    if (status == 401) return 'Invalid or missing API key';
+    if (status == 404) return 'No data found';
+    if (status == 422) return 'Invalid request data';
+    if (status == 429) return 'Too many requests';
+
+    if (fallback != null && fallback.trim().isNotEmpty) {
+      return fallback.trim();
+    }
+    return 'Request failed';
   }
 }

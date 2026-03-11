@@ -1,50 +1,67 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 
 class Device {
   Device({
     required this.id,
     required this.name,
+    this.deviceId,
   });
 
-  /// userId của ESP (lấy từ QR)
+  /// userId cua nguoi dung duoc theo doi
   final String id;
-  /// Tên hiển thị trong app
+
+  /// deviceId cua ESP (can cho ECG request), neu null thi fallback = id
+  final String? deviceId;
+
+  /// Ten hien thi trong app
   String name;
 
-  /// Tạo Device từ nội dung QR
-  /// - Nếu QR là JSON: {"userId":"u01","name":"Chest 01"}
-  /// - Nếu QR chỉ là "u01" thì dùng làm id luôn
+  String get resolvedDeviceId {
+    final d = deviceId?.trim();
+    if (d == null || d.isEmpty) return id;
+    return d;
+  }
+
+  /// Tao Device tu noi dung QR.
+  /// - JSON: {"userId":"u01","deviceId":"dev-esp-001","name":"Chest 01"}
+  /// - Chuoi thuong: "u01"
   factory Device.fromQr(String qrRaw) {
     String id;
+    String? deviceId;
     String name;
 
     final text = qrRaw.trim();
     try {
       final data = jsonDecode(text) as Map<String, dynamic>;
-      final uid = (data['userId'] ?? data['id'])?.toString();
-      if (uid == null || uid.isEmpty) {
+      final uid = (data['userId'] ?? data['user_id'] ?? data['uid'])?.toString();
+      final did = (data['deviceId'] ?? data['device_id'] ?? data['id'])?.toString();
+
+      if (uid == null || uid.trim().isEmpty) {
         throw const FormatException('userId missing');
       }
-      id = uid;
-      name = (data['name'] ?? 'Thiết bị $id').toString();
+
+      id = uid.trim();
+      deviceId = did?.trim();
+      name = (data['name'] ?? 'Thiet bi $id').toString();
     } catch (_) {
-      // QR chỉ chứa userId thuần
       id = text;
-      name = 'Thiết bị $id';
+      name = 'Thiet bi $id';
     }
 
-    return Device(id: id, name: name);
+    return Device(id: id, name: name, deviceId: deviceId);
   }
 
   factory Device.fromJson(Map<String, dynamic> json) {
     return Device(
       id: json['id'] as String,
       name: (json['name'] ?? json['id']).toString(),
+      deviceId: json['deviceId']?.toString(),
     );
   }
 
   Map<String, dynamic> toJson() => {
-    'id': id,
-    'name': name,
-  };
+        'id': id,
+        'name': name,
+        if (deviceId != null && deviceId!.trim().isNotEmpty) 'deviceId': deviceId,
+      };
 }

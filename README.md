@@ -1,16 +1,52 @@
-# eldercare_app
+# Eldercare App
 
-A new Flutter project.
+Flutter app theo doi suc khoe, doc du lieu tu backend FastAPI qua HTTPS REST.
 
-## Getting Started
+## Cau hinh moi theo server
 
-This project is a starting point for a Flutter application.
+1. Tao file `.env` o root project:
 
-A few resources to get you started if this is your first Flutter project:
+```env
+API_BASE_URL=https://api.yourdomain.com
+API_KEY=replace-with-api-key
+USER_ID=dev-user-001
+DEVICE_ID=dev-esp-001
+REQUEST_TIMEOUT_MS=15000
+POLL_INTERVAL_MS=2000
+```
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+2. Cai dependencies:
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+```bash
+flutter pub get
+```
+
+3. Chay app:
+
+```bash
+flutter run
+```
+
+## Luong ket noi
+
+- Flutter chi doc du lieu qua HTTPS REST, khong truy cap MongoDB truc tiep.
+- Moi request app gui header `X-API-Key`.
+- ECG on-demand: app goi `POST /ecg/request`, sau do poll `GET /api/v1/users/{user_id}/ecg` den khi co ket qua.
+
+## Endpoint dang duoc app su dung
+
+- `GET /health`
+- `GET /api/v1/users/{user_id}/latest`
+- `GET /api/v1/users/{user_id}/vitals?limit=...`
+- `GET /api/v1/users/{user_id}/ecg?limit=...`
+- `GET /api/v1/users/{user_id}/summary?period=24h`
+- `POST /api/v1/devices/{device_id}/ecg/request`
+- `GET /api/v1/devices/{device_id}/latest`
+- `GET /api/v1/devices/{device_id}/history?limit=...`
+
+## Cau truc code lien quan
+
+- `lib/src/data/api/api_client.dart`: tao Dio client, timeout, header `X-API-Key`.
+- `lib/src/data/api/health_api_service.dart`: cac API theo user/device + ECG polling.
+- `lib/src/state/realtime_provider.dart`: load latest/history qua REST API, request ECG va cap nhat UI.
+
