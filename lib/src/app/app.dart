@@ -14,8 +14,18 @@ class EldercareApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => DeviceProvider()..load()),
         ChangeNotifierProvider(create: (_) => RealtimeProvider()..bootstrap()),
+        ChangeNotifierProxyProvider<RealtimeProvider, DeviceProvider>(
+          create: (_) => DeviceProvider()..load(),
+          update: (_, realtime, deviceProvider) {
+            final provider = deviceProvider ?? DeviceProvider();
+            provider.handleSessionState(
+              isAuthenticated: realtime.isAuthenticated,
+              authenticatedUserId: realtime.authenticatedUserId,
+            );
+            return provider;
+          },
+        ),
       ],
       child: MaterialApp(
         debugShowCheckedModeBanner: false,

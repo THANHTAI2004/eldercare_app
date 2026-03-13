@@ -18,12 +18,27 @@ class DeviceProvider extends ChangeNotifier {
   final List<Device> _devices = <Device>[];
   Device? _current;
   bool _loaded = false;
+  String _sessionUserId = '';
+  Future<void>? _sessionSyncFuture;
 
   bool isSyncing = false;
   String? error;
 
   List<Device> get devices => List.unmodifiable(_devices);
   Device? get current => _current;
+
+  Future<void> handleSessionState({
+    required bool isAuthenticated,
+    required String authenticatedUserId,
+  }) {
+    return _sessionSyncFuture ??=
+        _handleSessionState(
+          isAuthenticated: isAuthenticated,
+          authenticatedUserId: authenticatedUserId,
+        ).whenComplete(() {
+          _sessionSyncFuture = null;
+        });
+  }
 
   Future<void> load() async {
     if (_loaded) return;
@@ -85,6 +100,7 @@ class DeviceProvider extends ChangeNotifier {
     _devices.clear();
     _current = null;
     error = null;
+    _sessionUserId = '';
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_devicesKey);
@@ -189,6 +205,31 @@ class DeviceProvider extends ChangeNotifier {
       (device) => device.id == currentId,
       orElse: () => _devices.first,
     );
+  }
+
+  Future<void> _handleSessionState({
+    required bool isAuthenticated,
+    required String authenticatedUserId,
+  }) async {
+    await load();
+
+    if (!isAuthenticated || authenticatedUserId.trim().isEmpty) {
+      _sessionUserId = '';
+      if (_devices.isEmpty || _devices.every((device) => device.isLocalOnly)) {
+        await ensureDevFallback();
+      }
+      return;
+    }
+
+    final normalizedUserId = authenticatedUserId.trim();
+    if (_sessionUserId == normalizedUserId &&
+        _devices.isNotEmpty &&
+        _devices.any((device) => !device.isLocalOnly)) {
+      return;
+    }
+
+    _sessionUserId = normalizedUserId;
+    await syncFromServer(authenticatedUserId: normalizedUserId);
   }
 
   Future<void> _save() async {

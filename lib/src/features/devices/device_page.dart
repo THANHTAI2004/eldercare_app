@@ -30,7 +30,7 @@ class _DevicePageState extends State<DevicePage> {
   );
 
   String _query = '';
-  String? _lastSessionSyncKey;
+  String? _lastRealtimeBindingKey;
 
   @override
   void initState() {
@@ -54,35 +54,19 @@ class _DevicePageState extends State<DevicePage> {
         defaultTargetPlatform == TargetPlatform.iOS;
   }
 
-  void _syncSessionDevices() {
+  void _bindCurrentDeviceToRealtime() {
     final realtime = context.read<RealtimeProvider>();
-    final deviceProvider = context.read<DeviceProvider>();
-    final sessionKey = realtime.isAuthenticated
-        ? realtime.authenticatedUserId
-        : (kDebugMode ? 'dev-fallback' : 'guest');
+    final current = context.read<DeviceProvider>().current;
+    final userId = current?.primaryUserId ?? realtime.authenticatedUserId;
+    final deviceId = current?.resolvedDeviceId ?? '';
+    final bindingKey = '$userId::$deviceId';
 
-    if (_lastSessionSyncKey == sessionKey) return;
-    _lastSessionSyncKey = sessionKey;
+    if (_lastRealtimeBindingKey == bindingKey) return;
+    _lastRealtimeBindingKey = bindingKey;
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (!mounted) return;
-
-      if (realtime.isAuthenticated) {
-        await deviceProvider.syncFromServer(
-          authenticatedUserId: realtime.authenticatedUserId,
-        );
-      } else {
-        await deviceProvider.ensureDevFallback();
-      }
-
-      if (!mounted) return;
-      final current = deviceProvider.current;
-      if (current != null) {
-        await realtime.init(
-          userId: current.primaryUserId ?? realtime.authenticatedUserId,
-          deviceId: current.resolvedDeviceId,
-        );
-      }
+      if (!mounted || current == null) return;
+      await realtime.init(userId: userId, deviceId: deviceId);
     });
   }
 
@@ -108,7 +92,6 @@ class _DevicePageState extends State<DevicePage> {
       return;
     }
 
-    _lastSessionSyncKey = null;
     await deviceProvider.syncFromServer(
       authenticatedUserId: realtime.authenticatedUserId,
     );
@@ -153,7 +136,7 @@ class _DevicePageState extends State<DevicePage> {
       await deviceProvider.ensureDevFallback();
     }
 
-    _lastSessionSyncKey = null;
+    _lastRealtimeBindingKey = null;
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Da dang xuat phien hien tai.')),
@@ -320,7 +303,7 @@ class _DevicePageState extends State<DevicePage> {
   Widget build(BuildContext context) {
     final realtime = context.watch<RealtimeProvider>();
     final deviceProvider = context.watch<DeviceProvider>();
-    _syncSessionDevices();
+    _bindCurrentDeviceToRealtime();
 
     return Scaffold(
       appBar: AppBar(
