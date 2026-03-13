@@ -1,4 +1,4 @@
-﻿import 'package:eldercare_app/src/data/api/api_client.dart';
+import 'package:eldercare_app/src/data/api/api_client.dart';
 import 'package:eldercare_app/src/domain/models/vital_point.dart';
 
 class VitalsApi {
@@ -10,24 +10,35 @@ class VitalsApi {
     return _client.getJson('/health');
   }
 
-  Future<VitalPoint> latest({required String userId}) async {
-    final json = await _client.getJson('/api/v1/users/$userId/latest');
+  Future<VitalPoint> latest({required String userId, String? deviceId}) async {
+    final json = await _client.getJson(
+      '/api/v1/users/$userId/latest',
+      query: {
+        if (deviceId != null && deviceId.trim().isNotEmpty)
+          'device_id': deviceId,
+      },
+    );
     final item = _extractOne(json);
     return VitalPoint.fromJson(item);
   }
 
   Future<List<VitalPoint>> vitals({
     required String userId,
+    String? deviceId,
     int limit = 300,
   }) async {
     final json = await _client.getJson(
       '/api/v1/users/$userId/vitals',
-      query: {'limit': limit},
+      query: {
+        'limit': limit,
+        if (deviceId != null && deviceId.trim().isNotEmpty)
+          'device_id': deviceId,
+      },
     );
 
-    return _extractMany(json)
-        .map((e) => VitalPoint.fromJson(e))
-        .toList(growable: false);
+    return _extractMany(
+      json,
+    ).map((e) => VitalPoint.fromJson(e)).toList(growable: false);
   }
 
   Future<List<Map<String, dynamic>>> ecg({
@@ -36,6 +47,17 @@ class VitalsApi {
   }) async {
     final json = await _client.getJson(
       '/api/v1/users/$userId/ecg',
+      query: {'limit': limit},
+    );
+    return _extractMany(json);
+  }
+
+  Future<List<Map<String, dynamic>>> ecgByDevice({
+    required String deviceId,
+    int limit = 10,
+  }) async {
+    final json = await _client.getJson(
+      '/public/devices/$deviceId/ecg',
       query: {'limit': limit},
     );
     return _extractMany(json);
@@ -53,14 +75,12 @@ class VitalsApi {
 
   Future<Map<String, dynamic>> requestEcg({
     required String deviceId,
-    required String userId,
     int durationSeconds = 10,
     int samplingRate = 250,
   }) {
     return _client.postJson(
       '/api/v1/devices/$deviceId/ecg/request',
       data: {
-        'user_id': userId,
         'duration_seconds': durationSeconds,
         'sampling_rate': samplingRate,
       },
@@ -68,13 +88,13 @@ class VitalsApi {
   }
 
   Future<Map<String, dynamic>?> waitForEcgResult({
-    required String userId,
+    required String deviceId,
     required int pollIntervalMs,
     Duration timeout = const Duration(seconds: 45),
   }) async {
     final deadline = DateTime.now().add(timeout);
     while (DateTime.now().isBefore(deadline)) {
-      final items = await ecg(userId: userId, limit: 1);
+      final items = await ecgByDevice(deviceId: deviceId, limit: 1);
       if (items.isNotEmpty) return items.first;
       await Future<void>.delayed(Duration(milliseconds: pollIntervalMs));
     }

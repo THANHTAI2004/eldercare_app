@@ -79,7 +79,7 @@ class ApiClient {
   factory ApiClient.fromEnv({bool sendDefaultApiKey = false}) {
     return ApiClient(
       baseUrl: Env.apiBaseUrl,
-      apiKey: Env.apiKey,
+      apiKey: Env.optionalApiKeyForDevOnly,
       timeoutMs: Env.requestTimeoutMs,
       sendDefaultApiKey: sendDefaultApiKey,
     );

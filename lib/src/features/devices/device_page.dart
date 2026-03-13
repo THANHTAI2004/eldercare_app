@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'package:eldercare_app/src/config/env.dart';
 import 'package:eldercare_app/src/domain/models/device.dart';
 import 'package:eldercare_app/src/features/devices/device_qr_scanner_page.dart';
 import 'package:eldercare_app/src/features/home/home_page.dart';
@@ -19,8 +20,17 @@ class DevicePage extends StatefulWidget {
 
 class _DevicePageState extends State<DevicePage> {
   final _searchCtrl = TextEditingController();
+  final _loginUserCtrl = TextEditingController(
+    text: kDebugMode ? Env.loginUserId : '',
+  );
+  final _loginPasswordCtrl = TextEditingController(
+    text: kDebugMode && Env.loginPassword != 'replace-with-password'
+        ? Env.loginPassword
+        : '',
+  );
+
   String _query = '';
-  String? _lastBindingKey;
+  String? _lastSessionSyncKey;
 
   @override
   void initState() {
@@ -33,6 +43,8 @@ class _DevicePageState extends State<DevicePage> {
   @override
   void dispose() {
     _searchCtrl.dispose();
+    _loginUserCtrl.dispose();
+    _loginPasswordCtrl.dispose();
     super.dispose();
   }
 
@@ -42,397 +54,242 @@ class _DevicePageState extends State<DevicePage> {
         defaultTargetPlatform == TargetPlatform.iOS;
   }
 
-  void _syncRealtimeWithCurrent() {
-    final device = context.read<DeviceProvider>().current;
-    final rt = context.read<RealtimeProvider>();
-    final userId = device?.id ?? '';
-    final deviceId = device?.deviceId?.trim() ?? '';
+  void _syncSessionDevices() {
+    final realtime = context.read<RealtimeProvider>();
+    final deviceProvider = context.read<DeviceProvider>();
+    final sessionKey = realtime.isAuthenticated
+        ? realtime.authenticatedUserId
+        : (kDebugMode ? 'dev-fallback' : 'guest');
 
-    final bindingKey = '$userId::$deviceId';
-    if (_lastBindingKey == bindingKey) return;
-    _lastBindingKey = bindingKey;
+    if (_lastSessionSyncKey == sessionKey) return;
+    _lastSessionSyncKey = sessionKey;
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
-      await rt.init(userId: userId, deviceId: deviceId);
+
+      if (realtime.isAuthenticated) {
+        await deviceProvider.syncFromServer(
+          authenticatedUserId: realtime.authenticatedUserId,
+        );
+      } else {
+        await deviceProvider.ensureDevFallback();
+      }
+
+      if (!mounted) return;
+      final current = deviceProvider.current;
+      if (current != null) {
+        await realtime.init(
+          userId: current.primaryUserId ?? realtime.authenticatedUserId,
+          deviceId: current.resolvedDeviceId,
+        );
+      }
     });
   }
 
-  /// ---------------------- MENU (☰) ----------------------
-
-  void _openMenu(BuildContext context) {
-    final current = context.read<DeviceProvider>().current;
-    final rt = context.read<RealtimeProvider>();
-    final watchingText = current == null
-        ? 'Chưa theo dõi thiết bị'
-        : 'Đang theo dõi: ${_displayName(current)}';
-
-    showModalBottomSheet(
-      context: context,
-      useSafeArea: true,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) {
-        final scheme = Theme.of(ctx).colorScheme;
-        final t = Theme.of(ctx).textTheme;
-
-        return LayoutBuilder(
-          builder: (ctx, constraints) {
-            // Giới hạn chiều cao sheet để không overflow
-            final maxH = (constraints.maxHeight * 0.88).clamp(320.0, 760.0);
-
-            return Align(
-              alignment: Alignment.bottomCenter,
-              child: ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: 560, maxHeight: maxH),
-                child: Material(
-                  color: scheme.surface,
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(24),
-                  ),
-                  clipBehavior: Clip.antiAlias,
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 10, 16, 18),
-                    child: Column(
-                      children: [
-                        const _SheetHandle(),
-                        const SizedBox(height: 10),
-
-                        // Header
-                        Row(
-                          children: [
-                            Container(
-                              width: 40,
-                              height: 40,
-                              decoration: BoxDecoration(
-                                color: scheme.primaryContainer,
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                              child: Icon(
-                                Icons.menu_rounded,
-                                color: scheme.onPrimaryContainer,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Menu',
-                                    style: t.titleMedium?.copyWith(
-                                      fontWeight: FontWeight.w900,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    watchingText,
-                                    style: t.bodySmall?.copyWith(
-                                      color: scheme.onSurfaceVariant,
-                                    ),
-                                  ),
-                                  if (rt.isAuthenticated) ...[
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      'User hien tai: ${rt.authenticatedUserId}',
-                                      style: t.bodySmall?.copyWith(
-                                        color: scheme.onSurfaceVariant,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                  ],
-                                  const SizedBox(height: 6),
-                                  if (current != null)
-                                    _MiniStatusPill(
-                                      isOnline: rt.isOnline,
-                                      text: rt.lastSeenText,
-                                    ),
-                                ],
-                              ),
-                            ),
-                            IconButton(
-                              tooltip: 'Đóng',
-                              onPressed: () => Navigator.pop(ctx),
-                              icon: const Icon(Icons.close_rounded),
-                            ),
-                          ],
-                        ),
-
-                        const SizedBox(height: 14),
-
-                        // ✅ Quan trọng: phần dưới cho cuộn để không overflow
-                        Expanded(
-                          child: SingleChildScrollView(
-                            physics: const BouncingScrollPhysics(),
-                            child: Column(
-                              children: [
-                                _MenuSection(
-                                  title: 'Hệ thống',
-                                  children: [
-                                    _MenuItem(
-                                      icon: Icons.dark_mode_outlined,
-                                      title: 'Giao diện',
-                                      subtitle: 'Sáng / Tối / Theo hệ thống',
-                                      onTap: () {
-                                        Navigator.pop(ctx);
-                                        _showThemeDialog(context);
-                                      },
-                                      trailing: Icons.chevron_right_rounded,
-                                    ),
-                                    _MenuItem(
-                                      icon: Icons.wifi_tethering_outlined,
-                                      title: 'Kiểm tra kết nối',
-                                      subtitle: 'API server',
-                                      onTap: () async {
-                                        Navigator.pop(ctx);
-                                        await _showConnectionCheck();
-                                      },
-                                      trailing: Icons.chevron_right_rounded,
-                                    ),
-                                    _MenuItem(
-                                      icon: Icons.refresh_rounded,
-                                      title: 'Làm mới & Kết nối lại',
-                                      subtitle: 'Refresh du lieu REST',
-                                      onTap: () async {
-                                        Navigator.pop(ctx);
-                                        final rt = context
-                                            .read<RealtimeProvider>();
-                                        if (rt.hasUser) {
-                                          await rt.refreshLatest();
-                                          await rt.reconnectApi();
-                                        }
-                                        if (!context.mounted) return;
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          const SnackBar(
-                                            content: Text(
-                                              'Đã làm mới & kết nối lại',
-                                            ),
-                                          ),
-                                        );
-                                      },
-                                      trailing: Icons.chevron_right_rounded,
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 12),
-                                _MenuSection(
-                                  title: 'Trợ giúp',
-                                  children: [
-                                    _MenuItem(
-                                      icon: Icons.help_outline_rounded,
-                                      title: 'Hướng dẫn sử dụng',
-                                      subtitle:
-                                          'Quét QR • Gắn điện cực ECG • Xem History',
-                                      onTap: () {
-                                        Navigator.pop(ctx);
-                                        _showHelp(context);
-                                      },
-                                      trailing: Icons.chevron_right_rounded,
-                                    ),
-                                    _MenuItem(
-                                      icon: Icons.info_outline_rounded,
-                                      title: 'Thông tin ứng dụng',
-                                      subtitle: 'Phiên bản • tác giả',
-                                      onTap: () {
-                                        Navigator.pop(ctx);
-                                        _showAbout(context);
-                                      },
-                                      trailing: Icons.chevron_right_rounded,
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 12),
-                                _MenuSection(
-                                  title: 'Tai khoan',
-                                  children: [
-                                    _MenuItem(
-                                      icon: Icons.logout_rounded,
-                                      title: 'Dang xuat',
-                                      subtitle: 'Xoa phien dang nhap hien tai',
-                                      onTap: () async {
-                                        Navigator.pop(ctx);
-                                        await context
-                                            .read<RealtimeProvider>()
-                                            .logout();
-                                        if (!context.mounted) return;
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          const SnackBar(
-                                            content: Text(
-                                              'Da dang xuat phien hien tai',
-                                            ),
-                                          ),
-                                        );
-                                      },
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 6),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  void _showThemeDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Giao diện'),
-        content: const Text(
-          'Hiện tại app đang dùng ThemeMode.light.\n'
-          'Nếu muốn đổi nhanh Sáng/Tối trong app, mình có thể làm thêm SettingsProvider để lưu setting.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Đóng'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _showConnectionCheck() async {
-    final rt = context.read<RealtimeProvider>();
-
-    String result;
-    try {
-      final serverOk = await rt.checkServer();
-      if (!serverOk) {
-        result = 'Khong the ket noi server. Kiem tra API_BASE_URL va mang.';
-      } else if (!rt.isAuthenticated) {
-        final loggedIn = await rt.ensureAuthenticated(silent: false);
-        if (!loggedIn) {
-          result =
-              rt.error ??
-              'Server OK nhung khong dang nhap duoc. Kiem tra LOGIN_USER_ID va LOGIN_PASSWORD.';
-        } else if (!rt.hasUser) {
-          result =
-              'Dang nhap thanh cong nhung chua chon user/device de kiem tra du lieu.';
-        } else {
-          await rt.refreshLatest();
-          await rt.reconnectApi();
-          result = 'Dang nhap va ket noi server thanh cong. Da refresh latest.';
-        }
-      } else if (!rt.hasUser) {
-        result = 'Server OK, nhung chua chon user/device de kiem tra du lieu.';
-      } else {
-        await rt.refreshLatest();
-        await rt.reconnectApi();
-        result = 'Dang nhap va ket noi server thanh cong. Da refresh latest.';
-      }
-    } catch (e) {
-      result = 'Loi kiem tra ket noi: $e';
+  Future<void> _login() async {
+    final userId = _loginUserCtrl.text.trim();
+    final password = _loginPasswordCtrl.text;
+    if (userId.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nhap user ID va mat khau de dang nhap.')),
+      );
+      return;
     }
 
-    if (!mounted) return;
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Kiểm tra kết nối'),
-        content: Text(result),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showHelp(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Hướng dẫn nhanh'),
-        content: const Text(
-          '• Thêm thiết bị: nhấn “Quét QR” hoặc “Them user/device”.\n'
-          '• Chọn thiết bị: nhấn vào thẻ thiết bị để xem chỉ số.\n'
-          '• ECG can deviceId that. Neu thieu deviceId, app chi xem du lieu theo user.\n'
-          '• History: xem theo ngày/giờ trong mục History.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Đóng'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showAbout(BuildContext context) {
-    showAboutDialog(
-      context: context,
-      applicationName: 'Eldercare',
-      applicationVersion: '1.0.0',
-      applicationIcon: const Icon(Icons.health_and_safety_rounded),
-      children: const [
-        SizedBox(height: 8),
-        Text('Ứng dụng theo dõi chỉ số sức khỏe & ECG (AD8232).'),
-      ],
-    );
-  }
-
-  /// ---------------------- LOGIC THIẾT BỊ ----------------------
-
-  Future<bool> _ensureAuthenticated() async {
     final realtime = context.read<RealtimeProvider>();
-    final ok = await realtime.ensureAuthenticated(silent: false);
-    if (!mounted) return false;
+    final deviceProvider = context.read<DeviceProvider>();
+    final ok = await realtime.login(userId: userId, password: password);
+    if (!mounted) return;
 
     if (!ok) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            realtime.error ??
-                'Khong the dang nhap vao server. Kiem tra LOGIN_USER_ID va LOGIN_PASSWORD.',
-          ),
-        ),
+        SnackBar(content: Text(realtime.error ?? 'Dang nhap that bai.')),
+      );
+      return;
+    }
+
+    _lastSessionSyncKey = null;
+    await deviceProvider.syncFromServer(
+      authenticatedUserId: realtime.authenticatedUserId,
+    );
+
+    final current = deviceProvider.current;
+    if (current != null) {
+      await realtime.init(
+        userId: current.primaryUserId ?? realtime.authenticatedUserId,
+        deviceId: current.resolvedDeviceId,
       );
     }
-    return ok;
   }
 
-  bool _canUseUserId(String userId) {
+  Future<void> _refreshDevices() async {
     final realtime = context.read<RealtimeProvider>();
-    final trimmed = userId.trim();
-    if (!realtime.isUserScopedSession || trimmed.isEmpty) return true;
-    if (trimmed == realtime.authenticatedUserId) return true;
+    final deviceProvider = context.read<DeviceProvider>();
+
+    if (realtime.isAuthenticated) {
+      await deviceProvider.syncFromServer(
+        authenticatedUserId: realtime.authenticatedUserId,
+      );
+      final current = deviceProvider.current;
+      if (current != null) {
+        await realtime.init(
+          userId: current.primaryUserId ?? realtime.authenticatedUserId,
+          deviceId: current.resolvedDeviceId,
+        );
+      }
+      return;
+    }
+
+    await deviceProvider.ensureDevFallback();
+  }
+
+  Future<void> _logout() async {
+    final realtime = context.read<RealtimeProvider>();
+    final deviceProvider = context.read<DeviceProvider>();
+
+    await realtime.logout();
+    await deviceProvider.clear();
+    if (kDebugMode) {
+      await deviceProvider.ensureDevFallback();
+    }
+
+    _lastSessionSyncKey = null;
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Da dang xuat phien hien tai.')),
+    );
+  }
+
+  bool _canUseUserId(String? userId) {
+    final realtime = context.read<RealtimeProvider>();
+    final normalizedUserId = userId?.trim() ?? '';
+    if (!realtime.isUserScopedSession || normalizedUserId.isEmpty) return true;
+    if (normalizedUserId == realtime.authenticatedUserId) return true;
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          'Tai khoan hien tai chi duoc xem du lieu cua ${realtime.authenticatedUserId}.',
+          'Session hien tai chi duoc theo doi user ${realtime.authenticatedUserId}.',
         ),
       ),
     );
     return false;
   }
 
-  Future<void> _scanAndAdd() async {
-    if (!_supportsQrScan) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Windows chua ho tro quet QR. Hay dung "Them thiet bi" de nhap tay.',
+  Future<void> _selectDevice(Device device) async {
+    if (!_canUseUserId(device.primaryUserId)) return;
+
+    final deviceProvider = context.read<DeviceProvider>();
+    final realtime = context.read<RealtimeProvider>();
+
+    await deviceProvider.setCurrent(device.id);
+    await realtime.changeUser(
+      device.primaryUserId ?? realtime.authenticatedUserId,
+      deviceId: device.resolvedDeviceId,
+    );
+
+    if (!mounted) return;
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const HomePage()),
+    );
+  }
+
+  Future<void> _showManualAddDialog() async {
+    if (!kDebugMode) return;
+
+    final realtime = context.read<RealtimeProvider>();
+    final formKey = GlobalKey<FormState>();
+    final lockedUserId = realtime.isUserScopedSession
+        ? realtime.authenticatedUserId
+        : '';
+    final userCtrl = TextEditingController(text: lockedUserId);
+    final deviceCtrl = TextEditingController(text: Env.defaultDeviceId);
+    final nameCtrl = TextEditingController();
+
+    final shouldSave = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Them device fallback'),
+        content: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                controller: userCtrl,
+                readOnly: lockedUserId.isNotEmpty,
+                decoration: const InputDecoration(labelText: 'user_id'),
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Nhap user_id';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: deviceCtrl,
+                decoration: const InputDecoration(labelText: 'device_id'),
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Nhap device_id';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: nameCtrl,
+                decoration: const InputDecoration(labelText: 'Ten hien thi'),
+              ),
+            ],
           ),
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Huy'),
+          ),
+          FilledButton(
+            onPressed: () {
+              if (formKey.currentState?.validate() ?? false) {
+                Navigator.pop(ctx, true);
+              }
+            },
+            child: const Text('Luu'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldSave != true || !mounted) return;
+    if (!_canUseUserId(userCtrl.text)) return;
+
+    final payload = <String, dynamic>{
+      'userId': userCtrl.text.trim(),
+      'deviceId': deviceCtrl.text.trim(),
+      if (nameCtrl.text.trim().isNotEmpty) 'name': nameCtrl.text.trim(),
+    };
+
+    final deviceProvider = context.read<DeviceProvider>();
+    final realtimeProvider = context.read<RealtimeProvider>();
+    await deviceProvider.addFromQr(jsonEncode(payload));
+
+    final current = deviceProvider.current;
+    if (current != null) {
+      await realtimeProvider.init(
+        userId: current.primaryUserId ?? realtimeProvider.authenticatedUserId,
+        deviceId: current.resolvedDeviceId,
+      );
+    }
+  }
+
+  Future<void> _scanAndAdd() async {
+    if (!kDebugMode) return;
+    if (!_supportsQrScan) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nen tang hien tai chua ho tro quet QR.')),
       );
       return;
     }
@@ -441,574 +298,414 @@ class _DevicePageState extends State<DevicePage> {
       context,
       MaterialPageRoute(builder: (_) => const DeviceQrScannerPage()),
     );
-    if (code == null || code.trim().isEmpty) return;
-    if (!mounted) return;
+    if (code == null || code.trim().isEmpty || !mounted) return;
 
-    final ok = await _ensureAuthenticated();
-    if (!ok) return;
     final parsed = Device.fromQr(code);
-    if (!_canUseUserId(parsed.id)) return;
-    if (!mounted) return;
+    if (!_canUseUserId(parsed.primaryUserId)) return;
 
-    final deviceProv = context.read<DeviceProvider>();
-    final realtime = context.read<RealtimeProvider>();
+    final deviceProvider = context.read<DeviceProvider>();
+    final realtimeProvider = context.read<RealtimeProvider>();
+    await deviceProvider.addFromQr(code);
 
-    await deviceProv.addFromQr(code);
-
-    final current = deviceProv.current;
+    final current = deviceProvider.current;
     if (current != null) {
-      await realtime.changeUser(current.id, deviceId: current.deviceId);
+      await realtimeProvider.init(
+        userId: current.primaryUserId ?? realtimeProvider.authenticatedUserId,
+        deviceId: current.resolvedDeviceId,
+      );
     }
-  }
-
-  Future<void> _showManualAddDialog() async {
-    final formKey = GlobalKey<FormState>();
-    final realtime = context.read<RealtimeProvider>();
-    final lockedUserId = realtime.isUserScopedSession
-        ? realtime.authenticatedUserId
-        : '';
-    final userIdController = TextEditingController(text: lockedUserId);
-    final deviceIdController = TextEditingController();
-    final nameController = TextEditingController();
-
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          title: const Text('Thêm thiết bị'),
-          content: Form(
-            key: formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (lockedUserId.isEmpty)
-                  TextFormField(
-                    controller: userIdController,
-                    decoration: const InputDecoration(
-                      labelText: 'userId',
-                      hintText: 'VD: u01',
-                    ),
-                    validator: (v) {
-                      if (v == null || v.trim().isEmpty) return 'Nhap userId';
-                      return null;
-                    },
-                  )
-                else
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Theme.of(ctx).colorScheme.primaryContainer,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      'Session nay chi duoc them device cho user $lockedUserId.',
-                      style: Theme.of(ctx).textTheme.bodyMedium?.copyWith(
-                        color: Theme.of(ctx).colorScheme.onPrimaryContainer,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: deviceIdController,
-                  decoration: const InputDecoration(
-                    labelText: 'deviceId',
-                    hintText: 'VD: dev-esp-001',
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: nameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Tên thiết bị (tuỳ chọn)',
-                    hintText: 'VD: Thiết bị phòng ngủ',
-                  ),
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  'Neu khong nhap deviceId, app van doc du lieu theo user nhung ECG co the khong hoat dong.',
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Hủy'),
-            ),
-            FilledButton(
-              onPressed: () {
-                if (formKey.currentState?.validate() ?? false) {
-                  Navigator.pop(ctx, true);
-                }
-              },
-              child: const Text('Lưu'),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (ok != true) return;
-    if (!mounted) return;
-
-    final userId = userIdController.text.trim();
-    final deviceId = deviceIdController.text.trim();
-    final name = nameController.text.trim();
-    if (userId.isEmpty) return;
-
-    final authenticated = await _ensureAuthenticated();
-    if (!authenticated) return;
-    if (!_canUseUserId(userId)) return;
-    if (!mounted) return;
-
-    final deviceProv = context.read<DeviceProvider>();
-    final payload = <String, dynamic>{
-      'userId': userId,
-      if (deviceId.isNotEmpty) 'deviceId': deviceId,
-      if (name.isNotEmpty) 'name': name,
-    };
-
-    await deviceProv.addFromQr(jsonEncode(payload));
-    await realtime.changeUser(userId, deviceId: deviceId);
-  }
-
-  Future<void> _renameDialog(
-    BuildContext context,
-    String id,
-    String oldName,
-  ) async {
-    final ctrl = TextEditingController(text: oldName);
-    final provider = context.read<DeviceProvider>();
-
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Sửa tên thiết bị'),
-        content: TextField(
-          controller: ctrl,
-          autofocus: true,
-          decoration: const InputDecoration(labelText: 'Tên hiển thị'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Hủy'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Lưu'),
-          ),
-        ],
-      ),
-    );
-
-    if (ok == true) {
-      await provider.rename(id, ctrl.text);
-    }
-  }
-
-  Future<void> _confirmDelete(BuildContext context, String id) async {
-    final provider = context.read<DeviceProvider>();
-    final realtime = context.read<RealtimeProvider>();
-
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Xóa thiết bị?'),
-        content: const Text(
-          'Thiết bị sẽ bị xóa khỏi danh sách trên app (không ảnh hưởng ESP).',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Hủy'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(ctx).colorScheme.error,
-            ),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Xóa'),
-          ),
-        ],
-      ),
-    );
-
-    if (ok == true) {
-      await provider.remove(id);
-
-      final devices = provider.devices;
-      if (devices.isEmpty) {
-        await realtime.changeUser('', deviceId: '');
-      } else {
-        final current = provider.current;
-        if (current == null) {
-          final d0 = devices.first;
-          await provider.setCurrent(d0.id);
-          await realtime.changeUser(d0.id, deviceId: d0.deviceId);
-        }
-      }
-    }
-  }
-
-  String _displayName(Device d) {
-    final n = d.name.trim();
-    if (n.isNotEmpty) return n;
-    return 'Thiết bị ${d.id}';
   }
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-
-    final rt = context.watch<RealtimeProvider>();
-    context.watch<DeviceProvider>().current;
-    _syncRealtimeWithCurrent();
+    final realtime = context.watch<RealtimeProvider>();
+    final deviceProvider = context.watch<DeviceProvider>();
+    _syncSessionDevices();
 
     return Scaffold(
       appBar: AppBar(
-        centerTitle: true,
-        toolbarHeight: 92,
-        title: Padding(
-          padding: const EdgeInsets.only(top: 6),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _LogoCircle(color: scheme.primary),
-                  const SizedBox(width: 10),
-                  const Text('Danh sách thiết bị'),
-                ],
-              ),
-              const SizedBox(height: 6),
-              Consumer<DeviceProvider>(
-                builder: (context, p, child) =>
-                    _CountChip(text: '${p.devices.length} thiết bị'),
-              ),
-            ],
-          ),
+        title: Text(
+          realtime.isAuthenticated ? 'Thiet bi da lien ket' : 'Dang nhap',
         ),
         actions: [
           IconButton(
-            tooltip: 'Thông báo',
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Chưa có thông báo')),
-              );
-            },
-            icon: const Icon(Icons.notifications_none_rounded),
+            tooltip: 'Lam moi',
+            onPressed: _refreshDevices,
+            icon: const Icon(Icons.refresh),
           ),
-          IconButton(
-            tooltip: 'Menu',
-            onPressed: () => _openMenu(context),
-            icon: const Icon(Icons.menu_rounded),
-          ),
-        ],
-      ),
-
-      floatingActionButton: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          FloatingActionButton.extended(
-            heroTag: 'manualAddDevice',
-            onPressed: () => _showManualAddDialog(),
-            icon: const Icon(Icons.edit),
-            label: Text(
-              rt.isUserScopedSession ? 'Them thiet bi' : 'Them user/device',
+          if (realtime.isAuthenticated)
+            IconButton(
+              tooltip: 'Dang xuat',
+              onPressed: _logout,
+              icon: const Icon(Icons.logout),
             ),
-          ),
-          const SizedBox(height: 12),
-          FloatingActionButton.extended(
-            heroTag: 'scanAddDevice',
-            onPressed: () => _scanAndAdd(),
-            icon: const Icon(Icons.qr_code_scanner),
-            label: Text(_supportsQrScan ? 'Quet QR' : 'QR khong ho tro'),
-          ),
         ],
       ),
-
-      body: SafeArea(
-        child: Consumer<DeviceProvider>(
-          builder: (context, p, _) {
-            final devices = rt.isUserScopedSession
-                ? p.devices
-                      .where((d) => d.id == rt.authenticatedUserId)
-                      .toList(growable: false)
-                : p.devices;
-            final current = p.current;
-
-            final filtered = _query.isEmpty
-                ? devices
-                : devices.where((d) {
-                    final name = d.name.toLowerCase();
-                    final id = d.id.toLowerCase();
-                    return name.contains(_query) || id.contains(_query);
-                  }).toList();
-
-            return ListView(
-              padding: const EdgeInsets.fromLTRB(16, 24, 16, 140),
+      floatingActionButton: kDebugMode && realtime.isAuthenticated
+          ? Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                _SummaryCard(
-                  total: devices.length,
-                  watchingName: current == null ? null : _displayName(current),
+                FloatingActionButton.extended(
+                  heroTag: 'manual-fallback-device',
+                  onPressed: _showManualAddDialog,
+                  icon: const Icon(Icons.add),
+                  label: const Text('Them fallback'),
                 ),
                 const SizedBox(height: 12),
-
-                _SearchBar(
-                  controller: _searchCtrl,
-                  hintText: 'Tìm thiết bị...',
-                  onClear: () => _searchCtrl.clear(),
+                FloatingActionButton.extended(
+                  heroTag: 'scan-fallback-device',
+                  onPressed: _scanAndAdd,
+                  icon: const Icon(Icons.qr_code_scanner),
+                  label: Text(_supportsQrScan ? 'Quet QR' : 'Khong co QR'),
                 ),
-                const SizedBox(height: 12),
-
-                if (devices.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 24),
-                    child: Center(
-                      child: Text(
-                        'Chua co thiet bi nao.\nNhan "Quet QR" hoac "Them user/device" de them.',
-                        textAlign: TextAlign.center,
-                        style: textTheme.bodyMedium,
-                      ),
-                    ),
-                  )
-                else if (filtered.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 24),
-                    child: Center(
-                      child: Text(
-                        'Không tìm thấy thiết bị phù hợp.',
-                        style: textTheme.bodyMedium,
-                      ),
-                    ),
-                  )
-                else
-                  ...List.generate(filtered.length, (index) {
-                    final d = filtered[index];
-                    final isCurrent = current?.id == d.id;
-
-                    final chip = isCurrent
-                        ? _StatusChip(
-                            isOnline: rt.isOnline,
-                            text: rt.lastSeenText,
-                          )
-                        : const _NeutralChip(text: 'Chưa theo dõi');
-
-                    final initial =
-                        (_displayName(d).isNotEmpty
-                                ? _displayName(d)[0]
-                                : (d.id.isNotEmpty ? d.id[0] : '?'))
-                            .toUpperCase();
-
-                    return Padding(
-                      padding: EdgeInsets.only(
-                        bottom: index == filtered.length - 1 ? 0 : 12,
-                      ),
-                      child: Card(
-                        child: Padding(
-                          padding: const EdgeInsets.all(14),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              CircleAvatar(
-                                radius: 22,
-                                backgroundColor: scheme.primaryContainer,
-                                foregroundColor: scheme.onPrimaryContainer,
-                                child: Text(initial),
-                              ),
-                              const SizedBox(width: 14),
-                              Expanded(
-                                child: InkWell(
-                                  borderRadius: BorderRadius.circular(16),
-                                  onTap: () async {
-                                    if (!_canUseUserId(d.id)) return;
-                                    final deviceProv = context
-                                        .read<DeviceProvider>();
-                                    final realtime = context
-                                        .read<RealtimeProvider>();
-
-                                    await deviceProv.setCurrent(d.id);
-                                    await realtime.changeUser(
-                                      d.id,
-                                      deviceId: d.deviceId,
-                                    );
-
-                                    if (!context.mounted) return;
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (_) => const HomePage(),
-                                      ),
-                                    );
-                                  },
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        _displayName(d),
-                                        style: textTheme.titleMedium?.copyWith(
-                                          fontWeight: FontWeight.w800,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        'Nhấn để xem chỉ số',
-                                        style: textTheme.bodySmall?.copyWith(
-                                          color: scheme.onSurfaceVariant,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 10),
-                                      Row(
-                                        children: [
-                                          chip,
-                                          const SizedBox(width: 10),
-                                          if (isCurrent) const _WatchingChip(),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Column(
-                                children: [
-                                  _ActionPill(
-                                    icon: Icons.edit,
-                                    label: 'Sửa tên',
-                                    onTap: () =>
-                                        _renameDialog(context, d.id, d.name),
-                                  ),
-                                  const SizedBox(height: 10),
-                                  _ActionPill(
-                                    icon: Icons.delete_outline,
-                                    label: 'Xóa',
-                                    isDanger: true,
-                                    onTap: () => _confirmDelete(context, d.id),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
-                  }),
               ],
-            );
-          },
-        ),
-      ),
+            )
+          : null,
+      body: realtime.isAuthenticated
+          ? _AuthenticatedBody(
+              query: _query,
+              searchCtrl: _searchCtrl,
+              deviceProvider: deviceProvider,
+              realtime: realtime,
+              onRefresh: _refreshDevices,
+              onSelectDevice: _selectDevice,
+            )
+          : _LoginBody(
+              userCtrl: _loginUserCtrl,
+              passwordCtrl: _loginPasswordCtrl,
+              isAuthenticating: realtime.isAuthenticating,
+              errorMessage: realtime.error,
+              onLogin: _login,
+            ),
     );
   }
 }
 
-/// ---------------- UI widgets ----------------
+class _LoginBody extends StatelessWidget {
+  const _LoginBody({
+    required this.userCtrl,
+    required this.passwordCtrl,
+    required this.isAuthenticating,
+    required this.errorMessage,
+    required this.onLogin,
+  });
 
-class _LogoCircle extends StatelessWidget {
-  const _LogoCircle({required this.color});
-  final Color color;
+  final TextEditingController userCtrl;
+  final TextEditingController passwordCtrl;
+  final bool isAuthenticating;
+  final String? errorMessage;
+  final Future<void> Function() onLogin;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 34,
-      height: 34,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: LinearGradient(
-          colors: [
-            color.withValues(alpha: 0.20),
-            color.withValues(alpha: 0.95),
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 460),
+        child: ListView(
+          padding: const EdgeInsets.all(24),
+          shrinkWrap: true,
+          children: [
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Dang nhap de tai danh sach thiet bi da lien ket',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Sau khi dang nhap, app se goi /api/v1/auth/me va /api/v1/me/devices de lay session user va thiet bi.',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    const SizedBox(height: 20),
+                    TextField(
+                      controller: userCtrl,
+                      decoration: const InputDecoration(labelText: 'User ID'),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: passwordCtrl,
+                      obscureText: true,
+                      decoration: const InputDecoration(labelText: 'Mat khau'),
+                      onSubmitted: (_) => onLogin(),
+                    ),
+                    if (errorMessage != null &&
+                        errorMessage!.trim().isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      _InlineBanner(
+                        color: Theme.of(context).colorScheme.errorContainer,
+                        textColor: Theme.of(
+                          context,
+                        ).colorScheme.onErrorContainer,
+                        message: errorMessage!,
+                      ),
+                    ],
+                    const SizedBox(height: 20),
+                    FilledButton.icon(
+                      onPressed: isAuthenticating ? null : onLogin,
+                      icon: isAuthenticating
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.login),
+                      label: Text(
+                        isAuthenticating ? 'Dang dang nhap...' : 'Dang nhap',
+                      ),
+                    ),
+                    if (kDebugMode) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        'Che do debug van giu USER_ID / DEVICE_ID lam fallback neu tai khoan chua co device.',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
           ],
         ),
       ),
-      child: const Icon(
-        Icons.health_and_safety_rounded,
-        size: 18,
-        color: Colors.white,
+    );
+  }
+}
+
+class _AuthenticatedBody extends StatelessWidget {
+  const _AuthenticatedBody({
+    required this.query,
+    required this.searchCtrl,
+    required this.deviceProvider,
+    required this.realtime,
+    required this.onRefresh,
+    required this.onSelectDevice,
+  });
+
+  final String query;
+  final TextEditingController searchCtrl;
+  final DeviceProvider deviceProvider;
+  final RealtimeProvider realtime;
+  final Future<void> Function() onRefresh;
+  final Future<void> Function(Device device) onSelectDevice;
+
+  @override
+  Widget build(BuildContext context) {
+    final devices = deviceProvider.devices
+        .where((device) {
+          if (query.isEmpty) return true;
+
+          final haystacks = <String>[
+            device.name.toLowerCase(),
+            device.resolvedDeviceId.toLowerCase(),
+            if (device.primaryUserId != null)
+              device.primaryUserId!.toLowerCase(),
+            ...device.linkedUsers.map((user) => user.displayName.toLowerCase()),
+          ];
+          return haystacks.any((entry) => entry.contains(query));
+        })
+        .toList(growable: false);
+
+    return RefreshIndicator(
+      onRefresh: onRefresh,
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
+        children: [
+          _SessionCard(
+            userId: realtime.authenticatedUserId,
+            role: realtime.authenticatedRole,
+            totalDevices: deviceProvider.devices.length,
+            currentDevice: deviceProvider.current,
+          ),
+          if (realtime.error != null && realtime.error!.trim().isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _InlineBanner(
+              color: Theme.of(context).colorScheme.errorContainer,
+              textColor: Theme.of(context).colorScheme.onErrorContainer,
+              message: realtime.error!,
+            ),
+          ],
+          if (deviceProvider.error != null &&
+              deviceProvider.error!.trim().isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _InlineBanner(
+              color: Theme.of(context).colorScheme.errorContainer,
+              textColor: Theme.of(context).colorScheme.onErrorContainer,
+              message: deviceProvider.error!,
+            ),
+          ],
+          const SizedBox(height: 12),
+          TextField(
+            controller: searchCtrl,
+            decoration: const InputDecoration(
+              prefixIcon: Icon(Icons.search),
+              hintText: 'Tim theo ten device, device_id, user lien ket...',
+            ),
+          ),
+          const SizedBox(height: 16),
+          if (deviceProvider.isSyncing && deviceProvider.devices.isEmpty)
+            const Center(child: CircularProgressIndicator())
+          else if (devices.isEmpty)
+            _EmptyState(
+              message: deviceProvider.devices.isEmpty
+                  ? 'Tai khoan nay chua co thiet bi lien ket.'
+                  : 'Khong co thiet bi nao khop bo loc hien tai.',
+            )
+          else
+            ...devices.map(
+              (device) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: _DeviceCard(
+                  device: device,
+                  isCurrent: deviceProvider.current?.id == device.id,
+                  onSelect: () => onSelectDevice(device),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
 }
 
-class _CountChip extends StatelessWidget {
-  const _CountChip({required this.text});
-  final String text;
+class _SessionCard extends StatelessWidget {
+  const _SessionCard({
+    required this.userId,
+    required this.role,
+    required this.totalDevices,
+    required this.currentDevice,
+  });
+
+  final String userId;
+  final String role;
+  final int totalDevices;
+  final Device? currentDevice;
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: scheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: scheme.outlineVariant),
-      ),
-      child: Text(
-        text,
-        style: Theme.of(
-          context,
-        ).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w800),
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Session hien tai',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 8),
+            Text('User: $userId'),
+            Text('Role: ${role.isEmpty ? 'unknown' : role}'),
+            Text('So thiet bi linked: $totalDevices'),
+            const SizedBox(height: 8),
+            Text(
+              currentDevice == null
+                  ? 'Chua chon thiet bi nao.'
+                  : 'Dang theo doi: ${currentDevice!.name} (${currentDevice!.resolvedDeviceId})',
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-class _SummaryCard extends StatelessWidget {
-  const _SummaryCard({required this.total, this.watchingName});
-  final int total;
-  final String? watchingName;
+class _DeviceCard extends StatelessWidget {
+  const _DeviceCard({
+    required this.device,
+    required this.isCurrent,
+    required this.onSelect,
+  });
+
+  final Device device;
+  final bool isCurrent;
+  final VoidCallback onSelect;
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final t = Theme.of(context).textTheme;
+    final theme = Theme.of(context);
+    final linkedUsers = device.linkedUsers;
 
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 54,
-              height: 54,
-              decoration: BoxDecoration(
-                color: scheme.primaryContainer,
-                borderRadius: BorderRadius.circular(18),
-              ),
-              child: Icon(
-                Icons.desktop_windows_rounded,
-                color: scheme.onPrimaryContainer,
-              ),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                CircleAvatar(
+                  child: Text(
+                    device.name.trim().isEmpty
+                        ? '?'
+                        : device.name.trim()[0].toUpperCase(),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(device.name, style: theme.textTheme.titleMedium),
+                      const SizedBox(height: 4),
+                      Text('device_id: ${device.resolvedDeviceId}'),
+                      if (device.primaryUserId != null)
+                        Text('user chinh: ${device.primaryUserId}'),
+                    ],
+                  ),
+                ),
+                if (isCurrent)
+                  Chip(
+                    avatar: const Icon(Icons.check, size: 18),
+                    label: const Text('Dang theo doi'),
+                  ),
+              ],
             ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Tổng: $total thiết bị',
-                    style: t.titleMedium?.copyWith(fontWeight: FontWeight.w900),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    watchingName == null
-                        ? 'Chưa theo dõi thiết bị nào'
-                        : 'Đang theo dõi: $watchingName',
-                    style: t.bodyMedium?.copyWith(
-                      color: scheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
+            if (device.isLocalOnly) ...[
+              const SizedBox(height: 12),
+              _InlineBanner(
+                color: theme.colorScheme.primaryContainer,
+                textColor: theme.colorScheme.onPrimaryContainer,
+                message:
+                    'Device nay dang duoc giu lam fallback debug, khong phai linked device chinh tu server.',
               ),
+            ],
+            const SizedBox(height: 12),
+            Text(
+              'Nguoi da lien ket voi thiet bi',
+              style: theme.textTheme.titleSmall,
+            ),
+            const SizedBox(height: 8),
+            if (linkedUsers.isEmpty)
+              Text(
+                'Response hien tai chua tra danh sach linked users cho device nay.',
+                style: theme.textTheme.bodySmall,
+              )
+            else
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: linkedUsers
+                    .map(
+                      (user) => Chip(
+                        label: Text(
+                          user.role == null || user.role!.trim().isEmpty
+                              ? user.displayName
+                              : '${user.displayName} (${user.role})',
+                        ),
+                      ),
+                    )
+                    .toList(growable: false),
+              ),
+            const SizedBox(height: 12),
+            FilledButton.icon(
+              onPressed: onSelect,
+              icon: const Icon(Icons.monitor_heart_outlined),
+              label: const Text('Theo doi device nay'),
             ),
           ],
         ),
@@ -1017,381 +714,53 @@ class _SummaryCard extends StatelessWidget {
   }
 }
 
-class _SearchBar extends StatelessWidget {
-  const _SearchBar({
-    required this.controller,
-    required this.hintText,
-    required this.onClear,
+class _InlineBanner extends StatelessWidget {
+  const _InlineBanner({
+    required this.color,
+    required this.textColor,
+    required this.message,
   });
 
-  final TextEditingController controller;
-  final String hintText;
-  final VoidCallback onClear;
+  final Color color;
+  final Color textColor;
+  final String message;
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: scheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: scheme.outlineVariant),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.search_rounded, color: scheme.onSurfaceVariant),
-          const SizedBox(width: 10),
-          Expanded(
-            child: TextField(
-              controller: controller,
-              decoration: InputDecoration(
-                hintText: hintText,
-                border: InputBorder.none,
-              ),
-            ),
-          ),
-          if (controller.text.isNotEmpty)
-            IconButton(
-              onPressed: onClear,
-              tooltip: 'Xóa',
-              icon: const Icon(Icons.close_rounded),
-            ),
-          IconButton(
-            onPressed: () {},
-            tooltip: 'Sắp xếp',
-            icon: const Icon(Icons.tune_rounded),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StatusChip extends StatelessWidget {
-  const _StatusChip({required this.isOnline, required this.text});
-  final bool isOnline;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-
-    final bg = isOnline ? scheme.primaryContainer : scheme.errorContainer;
-    final fg = isOnline ? scheme.onPrimaryContainer : scheme.onErrorContainer;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: scheme.outlineVariant),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.circle,
-            size: 10,
-            color: isOnline ? scheme.primary : scheme.error,
-          ),
-          const SizedBox(width: 8),
-          Text(
-            isOnline ? 'Online · cập nhật $text' : 'Offline · $text',
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              color: fg,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _NeutralChip extends StatelessWidget {
-  const _NeutralChip({required this.text});
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-      decoration: BoxDecoration(
-        color: scheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: scheme.outlineVariant),
+        color: color,
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Text(
-        text,
-        style: Theme.of(context).textTheme.labelMedium?.copyWith(
-          color: scheme.onSurfaceVariant,
-          fontWeight: FontWeight.w800,
-        ),
+        message,
+        style: Theme.of(
+          context,
+        ).textTheme.bodyMedium?.copyWith(color: textColor),
       ),
     );
   }
 }
 
-class _WatchingChip extends StatelessWidget {
-  const _WatchingChip();
+class _EmptyState extends StatelessWidget {
+  const _EmptyState({required this.message});
+
+  final String message;
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-      decoration: BoxDecoration(
-        color: scheme.primaryContainer.withValues(alpha: 0.65),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: scheme.outlineVariant),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.check_circle, size: 16, color: scheme.primary),
-          const SizedBox(width: 6),
-          Text(
-            'Đang theo dõi',
-            style: Theme.of(
-              context,
-            ).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w900),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ActionPill extends StatelessWidget {
-  const _ActionPill({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-    this.isDanger = false,
-  });
-
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-  final bool isDanger;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-
-    final bg = isDanger
-        ? scheme.errorContainer.withValues(alpha: 0.35)
-        : scheme.surfaceContainerHighest;
-    final fg = isDanger ? scheme.error : scheme.primary;
-
-    return InkWell(
-      borderRadius: BorderRadius.circular(14),
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: scheme.outlineVariant),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 18, color: fg),
-            const SizedBox(width: 8),
-            Text(
-              label,
-              style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                fontWeight: FontWeight.w900,
-                color: fg,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// ---------------- MENU UI helpers (đẹp hơn) ----------------
-
-class _SheetHandle extends StatelessWidget {
-  const _SheetHandle();
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Container(
-      width: 46,
-      height: 5,
-      decoration: BoxDecoration(
-        color: scheme.outlineVariant.withValues(alpha: 0.9),
-        borderRadius: BorderRadius.circular(99),
-      ),
-    );
-  }
-}
-
-class _MenuSection extends StatelessWidget {
-  const _MenuSection({required this.title, required this.children});
-
-  final String title;
-  final List<Widget> children;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-
-    return Container(
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-      decoration: BoxDecoration(
-        color: scheme.surfaceContainerLowest,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: scheme.outlineVariant.withValues(alpha: 0.9)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title.toUpperCase(),
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: scheme.onSurfaceVariant,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 0.8,
-            ),
-          ),
-          const SizedBox(height: 8),
-          ..._withDividers(children, scheme),
-        ],
-      ),
-    );
-  }
-
-  List<Widget> _withDividers(List<Widget> items, ColorScheme scheme) {
-    final out = <Widget>[];
-    for (int i = 0; i < items.length; i++) {
-      out.add(items[i]);
-      if (i != items.length - 1) {
-        out.add(
-          Padding(
-            padding: const EdgeInsets.only(left: 54, right: 6),
-            child: Divider(
-              height: 14,
-              color: scheme.outlineVariant.withValues(alpha: 0.7),
-            ),
-          ),
-        );
-      }
-    }
-    return out;
-  }
-}
-
-class _MenuItem extends StatelessWidget {
-  const _MenuItem({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-    this.trailing = Icons.chevron_right_rounded,
-  });
-
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
-  final IconData trailing;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final bg = scheme.surfaceContainerHighest;
-    final fg = scheme.onSurface;
-
-    return InkWell(
-      borderRadius: BorderRadius.circular(14),
-      onTap: onTap,
+    return Card(
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Row(
+        padding: const EdgeInsets.all(24),
+        child: Column(
           children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: bg,
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Icon(icon, color: fg, size: 20),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: scheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Icon(trailing, color: scheme.onSurfaceVariant),
+            const Icon(Icons.devices_other_outlined, size: 48),
+            const SizedBox(height: 12),
+            Text(message, textAlign: TextAlign.center),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _MiniStatusPill extends StatelessWidget {
-  const _MiniStatusPill({required this.isOnline, required this.text});
-
-  final bool isOnline;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final bg = isOnline ? scheme.primaryContainer : scheme.errorContainer;
-    final fg = isOnline ? scheme.onPrimaryContainer : scheme.onErrorContainer;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: scheme.outlineVariant.withValues(alpha: 0.9)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            isOnline ? Icons.wifi_rounded : Icons.wifi_off_rounded,
-            size: 16,
-            color: fg,
-          ),
-          const SizedBox(width: 6),
-          Text(
-            isOnline ? 'Hoạt động • $text' : 'Mất kết nối • $text',
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              color: fg,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ],
       ),
     );
   }

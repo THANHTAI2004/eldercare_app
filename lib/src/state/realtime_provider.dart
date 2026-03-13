@@ -38,8 +38,20 @@ class RealtimeProvider extends ChangeNotifier {
   bool get hasUser => userId.isNotEmpty;
   bool get hasDevice => deviceId.isNotEmpty;
   bool get isAuthenticated => accessToken != null && accessToken!.isNotEmpty;
-  String get authenticatedUserId =>
-      currentUser?['user_id']?.toString().trim() ?? '';
+  String get authenticatedUserId {
+    final candidates = <dynamic>[
+      currentUser?['user_id'],
+      currentUser?['userId'],
+      currentUser?['id'],
+      currentUser?['username'],
+    ];
+    for (final candidate in candidates) {
+      final text = candidate?.toString().trim() ?? '';
+      if (text.isNotEmpty) return text;
+    }
+    return '';
+  }
+
   String get authenticatedRole =>
       currentUser?['role']?.toString().trim().toLowerCase() ?? '';
   bool get isUserScopedSession =>
@@ -284,7 +296,9 @@ class RealtimeProvider extends ChangeNotifier {
     if (_initialized) {
       if (nextUserId != null && nextUserId != this.userId) {
         await changeUser(nextUserId, deviceId: nextDeviceId);
-      } else if (hasUser) {
+      } else if (nextDeviceId != null && nextDeviceId != this.deviceId) {
+        await changeUser(this.userId, deviceId: nextDeviceId);
+      } else if (hasUser || hasDevice) {
         await refreshLatest();
       }
       return;
@@ -307,7 +321,11 @@ class RealtimeProvider extends ChangeNotifier {
       this.deviceId = nextDeviceId;
     }
 
-    if (!hasUser) {
+    if (!hasUser && authenticatedUserId.isNotEmpty) {
+      this.userId = authenticatedUserId;
+    }
+
+    if (!hasUser && !hasDevice) {
       latest = null;
       _livePoints.clear();
       _historyPoints.clear();
@@ -358,7 +376,7 @@ class RealtimeProvider extends ChangeNotifier {
     }
 
     userId = newUserId;
-    if (newDeviceId != null && newDeviceId.isNotEmpty) {
+    if (newDeviceId != null) {
       this.deviceId = newDeviceId;
     }
 
@@ -381,7 +399,7 @@ class RealtimeProvider extends ChangeNotifier {
   }
 
   Future<void> refreshLatest({bool silent = false}) async {
-    if (!hasUser) {
+    if (!hasUser && !hasDevice) {
       latest = null;
       _resetSeen();
       notifyListeners();
@@ -406,7 +424,9 @@ class RealtimeProvider extends ChangeNotifier {
         notifyListeners();
       }
 
-      final p = await _api.getLatestByUser(userId: userId);
+      final p = hasDevice
+          ? await _api.getLatestByDevice(deviceId: deviceId)
+          : await _api.getLatestByUser(userId: userId, deviceId: deviceId);
       final isNew = latest == null || latest!.time != p.time;
 
       latest = p;
@@ -435,7 +455,7 @@ class RealtimeProvider extends ChangeNotifier {
     String window = '',
     int limit = 500,
   }) async {
-    if (!hasUser) {
+    if (!hasUser && !hasDevice) {
       _historyPoints.clear();
       notifyListeners();
       return;
@@ -454,7 +474,13 @@ class RealtimeProvider extends ChangeNotifier {
       error = null;
       notifyListeners();
 
-      final points = await _api.getVitalsByUser(userId: userId, limit: limit);
+      final points = hasDevice
+          ? await _api.getHistoryByDevice(deviceId: deviceId, limit: limit)
+          : await _api.getVitalsByUser(
+              userId: userId,
+              deviceId: deviceId,
+              limit: limit,
+            );
       points.sort((a, b) => a.time.compareTo(b.time));
 
       _historyPoints
@@ -485,9 +511,6 @@ class RealtimeProvider extends ChangeNotifier {
     int durationSeconds = 10,
     int samplingRate = 250,
   }) async {
-    if (!hasUser) {
-      throw StateError('User ID is empty');
-    }
     if (!hasDevice) {
       throw StateError('Device ID is empty');
     }
@@ -505,13 +528,12 @@ class RealtimeProvider extends ChangeNotifier {
       final requestStartedAt = DateTime.now().toUtc();
       final req = await _api.requestEcg(
         deviceId: deviceId,
-        userId: userId,
         durationSeconds: durationSeconds,
         samplingRate: samplingRate,
       );
 
       final ecgResult = await _api.waitForEcgResult(
-        userId: userId,
+        deviceId: deviceId,
         pollIntervalMs: Env.pollIntervalMs,
         notBefore: requestStartedAt,
       );

@@ -34,7 +34,10 @@ class _HistoryPageState extends State<HistoryPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final current = context.read<DeviceProvider>().current;
       final p = context.read<RealtimeProvider>();
-      await p.init(userId: current?.id, deviceId: current?.deviceId);
+      await p.init(
+        userId: current?.primaryUserId,
+        deviceId: current?.resolvedDeviceId,
+      );
       await p.loadHistoryForLocalDay(dayLocal: _dayLocal);
     });
   }

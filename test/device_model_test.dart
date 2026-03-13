@@ -9,8 +9,9 @@ void main() {
         '{"userId":"patient-001","deviceId":"dev-esp-001","name":"Phong ngu"}',
       );
 
-      expect(device.id, 'patient-001');
-      expect(device.deviceId, 'dev-esp-001');
+      expect(device.id, 'dev-esp-001');
+      expect(device.resolvedDeviceId, 'dev-esp-001');
+      expect(device.primaryUserId, 'patient-001');
       expect(device.hasExplicitDeviceId, isTrue);
       expect(device.name, 'Phong ngu');
     });
@@ -19,8 +20,35 @@ void main() {
       final device = Device.fromQr('patient-002');
 
       expect(device.id, 'patient-002');
-      expect(device.deviceId, isNull);
+      expect(device.primaryUserId, 'patient-002');
       expect(device.hasExplicitDeviceId, isFalse);
+    });
+  });
+
+  group('Device.fromServerJson', () {
+    test('parses linked users from me/devices response item', () {
+      final device = Device.fromServerJson({
+        'device_id': 'dev-esp-009',
+        'name': 'Phong khach',
+        'linked_users': [
+          {
+            'user_id': 'patient-009',
+            'full_name': 'Patient 009',
+            'role': 'owner',
+          },
+          {
+            'user_id': 'caregiver-001',
+            'name': 'Caregiver',
+            'role': 'caregiver',
+          },
+        ],
+      });
+
+      expect(device.id, 'dev-esp-009');
+      expect(device.name, 'Phong khach');
+      expect(device.primaryUserId, 'patient-009');
+      expect(device.linkedUsers, hasLength(2));
+      expect(device.linkedUsers.first.displayName, 'Patient 009');
     });
   });
 }

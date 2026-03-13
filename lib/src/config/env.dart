@@ -19,8 +19,8 @@ class Env {
   }
 
   static String get apiBaseUrl =>
-      _read('API_BASE_URL', fallback: 'https://api.yourdomain.com');
-  static String get apiKey =>
+      _read('API_BASE_URL', fallback: 'https://api.eldercare.io.vn');
+  static String get optionalApiKeyForDevOnly =>
       _read('ADMIN_API_KEY', fallback: _read('API_KEY'));
 
   static String get loginUserId => _read('LOGIN_USER_ID');
@@ -28,9 +28,8 @@ class Env {
   static bool get hasLoginCredentials =>
       loginUserId.isNotEmpty && loginPassword.isNotEmpty;
 
-  static String get defaultUserId => _read('USER_ID', fallback: 'dev-user-001');
-  static String get defaultDeviceId =>
-      _read('DEVICE_ID', fallback: 'dev-esp-001');
+  static String get defaultUserId => _read('USER_ID');
+  static String get defaultDeviceId => _read('DEVICE_ID');
 
   static int get requestTimeoutMs =>
       _readInt('REQUEST_TIMEOUT_MS', fallback: 15000);

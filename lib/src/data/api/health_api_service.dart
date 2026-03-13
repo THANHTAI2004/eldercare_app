@@ -9,18 +9,32 @@ class HealthApiService {
 
   Future<Map<String, dynamic>> health() => _client.getJson('/health');
 
-  Future<VitalPoint> getLatestByUser({required String userId}) async {
-    final json = await _client.getJson('/api/v1/users/$userId/latest');
+  Future<VitalPoint> getLatestByUser({
+    required String userId,
+    String? deviceId,
+  }) async {
+    final json = await _client.getJson(
+      '/api/v1/users/$userId/latest',
+      query: <String, dynamic>{
+        if (deviceId != null && deviceId.trim().isNotEmpty)
+          'device_id': deviceId,
+      },
+    );
     return VitalPoint.fromJson(_extractOne(json));
   }
 
   Future<List<VitalPoint>> getVitalsByUser({
     required String userId,
+    String? deviceId,
     int limit = 100,
   }) async {
     final json = await _client.getJson(
       '/api/v1/users/$userId/vitals',
-      query: <String, dynamic>{'limit': limit},
+      query: <String, dynamic>{
+        'limit': limit,
+        if (deviceId != null && deviceId.trim().isNotEmpty)
+          'device_id': deviceId,
+      },
     );
     return _extractMany(json).map(VitalPoint.fromJson).toList(growable: false);
   }
@@ -31,6 +45,17 @@ class HealthApiService {
   }) async {
     final json = await _client.getJson(
       '/api/v1/users/$userId/ecg',
+      query: <String, dynamic>{'limit': limit},
+    );
+    return _extractMany(json);
+  }
+
+  Future<List<Map<String, dynamic>>> getEcgByDevice({
+    required String deviceId,
+    int limit = 10,
+  }) async {
+    final json = await _client.getJson(
+      '/public/devices/$deviceId/ecg',
       query: <String, dynamic>{'limit': limit},
     );
     return _extractMany(json);
@@ -63,7 +88,6 @@ class HealthApiService {
   }
 
   Future<Map<String, dynamic>> requestEcg({
-    required String userId,
     required String deviceId,
     int durationSeconds = 10,
     int samplingRate = 250,
@@ -71,7 +95,6 @@ class HealthApiService {
     return _client.postJson(
       '/api/v1/devices/$deviceId/ecg/request',
       data: <String, dynamic>{
-        'user_id': userId,
         'duration_seconds': durationSeconds,
         'sampling_rate': samplingRate,
       },
@@ -79,14 +102,14 @@ class HealthApiService {
   }
 
   Future<Map<String, dynamic>?> waitForEcgResult({
-    required String userId,
+    required String deviceId,
     required int pollIntervalMs,
     DateTime? notBefore,
     Duration timeout = const Duration(seconds: 45),
   }) async {
     final deadline = DateTime.now().add(timeout);
     while (DateTime.now().isBefore(deadline)) {
-      final items = await getEcgByUser(userId: userId, limit: 5);
+      final items = await getEcgByDevice(deviceId: deviceId, limit: 5);
       for (final item in items) {
         final itemTime = _readItemTime(item);
         if (notBefore == null ||

@@ -22,7 +22,7 @@ class _HomePageState extends State<HomePage> {
     if (device == null) return 'Chua chon thiet bi';
 
     final name = device.name.trim();
-    final id = device.id.trim();
+    final id = device.resolvedDeviceId;
 
     if (name.isEmpty) return 'Thiet bi $id';
 
@@ -35,8 +35,8 @@ class _HomePageState extends State<HomePage> {
 
   void _syncRealtime() {
     final current = context.read<DeviceProvider>().current;
-    final userId = current?.id ?? '';
-    final deviceId = current?.deviceId?.trim() ?? '';
+    final userId = current?.primaryUserId ?? '';
+    final deviceId = current?.resolvedDeviceId ?? '';
     final bindingKey = '$userId::$deviceId';
     if (_lastBindingKey == bindingKey) return;
     _lastBindingKey = bindingKey;
@@ -52,14 +52,6 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _requestEcg(Device device) async {
     final rt = context.read<RealtimeProvider>();
-    if (!device.hasExplicitDeviceId) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Thiet bi nay chua co deviceId that de gui lenh ECG.'),
-        ),
-      );
-      return;
-    }
 
     try {
       final result = await rt.requestEcg();
@@ -175,7 +167,7 @@ class _HomePageState extends State<HomePage> {
                       const SizedBox(height: 12),
                       const _InfoBanner(
                         message:
-                            'Thiet bi nay chi xem du lieu theo user, chua co deviceId de gui lenh ECG.',
+                            'Thiet bi nay dang o che do fallback dev, ECG co the khong hoat dong dung contract server.',
                       ),
                     ],
                     if (!hasLatest && rt.isLoadingLatest) ...[
