@@ -31,6 +31,7 @@ class _DevicePageState extends State<DevicePage> {
 
   String _query = '';
   String? _lastRealtimeBindingKey;
+  DeviceProvider? _deviceProvider;
 
   @override
   void initState() {
@@ -41,7 +42,25 @@ class _DevicePageState extends State<DevicePage> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    final nextDeviceProvider = context.read<DeviceProvider>();
+    if (identical(_deviceProvider, nextDeviceProvider)) return;
+
+    _deviceProvider?.removeListener(_handleDeviceProviderChanged);
+    _deviceProvider = nextDeviceProvider;
+    _deviceProvider?.addListener(_handleDeviceProviderChanged);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _handleDeviceProviderChanged();
+    });
+  }
+
+  @override
   void dispose() {
+    _deviceProvider?.removeListener(_handleDeviceProviderChanged);
     _searchCtrl.dispose();
     _loginUserCtrl.dispose();
     _loginPasswordCtrl.dispose();
@@ -52,6 +71,10 @@ class _DevicePageState extends State<DevicePage> {
     if (kIsWeb) return true;
     return defaultTargetPlatform == TargetPlatform.android ||
         defaultTargetPlatform == TargetPlatform.iOS;
+  }
+
+  void _handleDeviceProviderChanged() {
+    _bindCurrentDeviceToRealtime();
   }
 
   void _bindCurrentDeviceToRealtime() {
@@ -92,17 +115,10 @@ class _DevicePageState extends State<DevicePage> {
       return;
     }
 
-    await deviceProvider.syncFromServer(
+    await deviceProvider.handleSessionState(
+      isAuthenticated: realtime.isAuthenticated,
       authenticatedUserId: realtime.authenticatedUserId,
     );
-
-    final current = deviceProvider.current;
-    if (current != null) {
-      await realtime.init(
-        userId: current.primaryUserId ?? realtime.authenticatedUserId,
-        deviceId: current.resolvedDeviceId,
-      );
-    }
   }
 
   Future<void> _refreshDevices() async {
@@ -113,13 +129,6 @@ class _DevicePageState extends State<DevicePage> {
       await deviceProvider.syncFromServer(
         authenticatedUserId: realtime.authenticatedUserId,
       );
-      final current = deviceProvider.current;
-      if (current != null) {
-        await realtime.init(
-          userId: current.primaryUserId ?? realtime.authenticatedUserId,
-          deviceId: current.resolvedDeviceId,
-        );
-      }
       return;
     }
 
@@ -256,16 +265,7 @@ class _DevicePageState extends State<DevicePage> {
     };
 
     final deviceProvider = context.read<DeviceProvider>();
-    final realtimeProvider = context.read<RealtimeProvider>();
     await deviceProvider.addFromQr(jsonEncode(payload));
-
-    final current = deviceProvider.current;
-    if (current != null) {
-      await realtimeProvider.init(
-        userId: current.primaryUserId ?? realtimeProvider.authenticatedUserId,
-        deviceId: current.resolvedDeviceId,
-      );
-    }
   }
 
   Future<void> _scanAndAdd() async {
@@ -287,23 +287,13 @@ class _DevicePageState extends State<DevicePage> {
     if (!_canUseUserId(parsed.primaryUserId)) return;
 
     final deviceProvider = context.read<DeviceProvider>();
-    final realtimeProvider = context.read<RealtimeProvider>();
     await deviceProvider.addFromQr(code);
-
-    final current = deviceProvider.current;
-    if (current != null) {
-      await realtimeProvider.init(
-        userId: current.primaryUserId ?? realtimeProvider.authenticatedUserId,
-        deviceId: current.resolvedDeviceId,
-      );
-    }
   }
 
   @override
   Widget build(BuildContext context) {
     final realtime = context.watch<RealtimeProvider>();
     final deviceProvider = context.watch<DeviceProvider>();
-    _bindCurrentDeviceToRealtime();
 
     return Scaffold(
       appBar: AppBar(
