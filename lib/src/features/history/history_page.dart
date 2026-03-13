@@ -54,6 +54,7 @@ class _HistoryPageState extends State<HistoryPage> {
   @override
   Widget build(BuildContext context) {
     final p = context.watch<RealtimeProvider>();
+    final currentDevice = context.watch<DeviceProvider>().current;
 
     final dayPoints = p.historyForLocalDay(_dayLocal).where((e) {
       final v = e.valueOf(_metric);
@@ -91,7 +92,19 @@ class _HistoryPageState extends State<HistoryPage> {
             ),
             if (p.error != null && p.error!.trim().isNotEmpty) ...[
               const SizedBox(height: 12),
-              _HistoryBanner(message: p.error!),
+              _HistoryBanner(message: p.error!, isError: !p.hasNoDataError),
+            ] else if (!p.isAuthenticated) ...[
+              const SizedBox(height: 12),
+              const _HistoryBanner(
+                message: 'Ban chua dang nhap. Vao muc Thiet bi de dang nhap.',
+                isError: false,
+              ),
+            ] else if (currentDevice == null) ...[
+              const SizedBox(height: 12),
+              const _HistoryBanner(
+                message: 'Chua co device dang theo doi. Hay chon device truoc.',
+                isError: false,
+              ),
             ],
             const SizedBox(height: 16),
             Expanded(
@@ -114,9 +127,10 @@ class _HistoryPageState extends State<HistoryPage> {
 }
 
 class _HistoryBanner extends StatelessWidget {
-  const _HistoryBanner({required this.message});
+  const _HistoryBanner({required this.message, this.isError = true});
 
   final String message;
+  final bool isError;
 
   @override
   Widget build(BuildContext context) {
@@ -126,13 +140,13 @@ class _HistoryBanner extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: scheme.errorContainer,
+        color: isError ? scheme.errorContainer : scheme.primaryContainer,
         borderRadius: BorderRadius.circular(14),
       ),
       child: Text(
         message,
         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-          color: scheme.onErrorContainer,
+          color: isError ? scheme.onErrorContainer : scheme.onPrimaryContainer,
           fontWeight: FontWeight.w600,
         ),
       ),
@@ -146,6 +160,7 @@ class _HistoryEmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final rt = context.watch<RealtimeProvider>();
 
     return Center(
       child: Column(
@@ -158,8 +173,10 @@ class _HistoryEmptyState extends StatelessWidget {
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 6),
-          const Text(
-            'Thu doi ngay khac hoac refresh lai sau khi thiet bi gui du lieu moi.',
+          Text(
+            rt.hasNoDataError
+                ? 'Device da duoc lien ket nhung chua co history tren server.'
+                : 'Thu doi ngay khac hoac refresh lai sau khi thiet bi gui du lieu moi.',
             textAlign: TextAlign.center,
           ),
         ],

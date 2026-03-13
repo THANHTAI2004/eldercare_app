@@ -32,6 +32,12 @@ class RealtimeProvider extends ChangeNotifier {
   final HealthApiService _api;
   final AuthApiService _authApi;
 
+  void _log(String message) {
+    if (kDebugMode) {
+      debugPrint('[RealtimeProvider] $message');
+    }
+  }
+
   String userId = '';
   String deviceId = '';
 
@@ -237,6 +243,7 @@ class RealtimeProvider extends ChangeNotifier {
         userId: nextUserId,
         password: nextPassword,
       );
+      _log('Login succeeded for user=$nextUserId');
 
       accessToken = _client.accessToken;
       currentUser = <String, dynamic>{
@@ -278,6 +285,7 @@ class RealtimeProvider extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    _log('Logging out current session');
     await _authApi.logout();
     accessToken = null;
     currentUser = null;
@@ -399,6 +407,7 @@ class RealtimeProvider extends ChangeNotifier {
     if (newDeviceId != null) {
       this.deviceId = newDeviceId;
     }
+    _log('Binding realtime scope to user=$userId device=${this.deviceId}');
 
     latest = null;
     _livePoints.clear();
@@ -447,6 +456,7 @@ class RealtimeProvider extends ChangeNotifier {
         notifyListeners();
       }
 
+      _log('Refreshing latest for user=$userId device=$deviceId');
       final p = hasDevice
           ? await _api.getLatestByDevice(deviceId: deviceId)
           : await _api.getLatestByUser(userId: userId, deviceId: deviceId);
@@ -500,6 +510,7 @@ class RealtimeProvider extends ChangeNotifier {
       lastErrorStatusCode = null;
       notifyListeners();
 
+      _log('Loading history for user=$userId device=$deviceId limit=$limit');
       final points = hasDevice
           ? await _api.getHistoryByDevice(deviceId: deviceId, limit: limit)
           : await _api.getVitalsByUser(
@@ -555,6 +566,9 @@ class RealtimeProvider extends ChangeNotifier {
 
     try {
       final requestStartedAt = DateTime.now().toUtc();
+      _log(
+        'Requesting ECG for device=$deviceId duration=$durationSeconds sampling=$samplingRate',
+      );
       final req = await _api.requestEcg(
         deviceId: deviceId,
         durationSeconds: durationSeconds,
@@ -572,16 +586,19 @@ class RealtimeProvider extends ChangeNotifier {
       if (ecgResult != null) {
         output['ecg_result'] = ecgResult;
         ecgStatusMessage = 'Da nhan duoc ket qua ECG moi cho device hien tai.';
+        _log('ECG result received for device=$deviceId');
       } else {
         output['message'] =
             'Da gui lenh ECG nhung chua co ket qua moi trong thoi gian cho.';
         ecgStatusMessage = output['message']?.toString();
+        _log('ECG request timed out waiting for device=$deviceId');
       }
       return output;
     } catch (e) {
       error = _friendlyError(e, fallback: 'Yeu cau ECG that bai');
       lastErrorStatusCode = e is ApiRequestException ? e.statusCode : null;
       ecgStatusMessage = null;
+      _log('ECG request failed for device=$deviceId error=$error');
       rethrow;
     } finally {
       isRequestingEcg = false;

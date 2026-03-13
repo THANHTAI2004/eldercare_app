@@ -24,6 +24,7 @@ Ghi chu:
 - `access_token` duoc luu bang `SharedPreferences` va duoc restore khi mo lai app.
 - `USER_ID` va `DEVICE_ID` chi con duoc dung lam fallback debug mode, khong phai luong chinh.
 - App release cho user thong thuong khong can `ADMIN_API_KEY`; bien nay chi la optional dev-only fallback.
+- Release/production can dam bao user van chay duoc khi `.env` khong co `USER_ID` va `DEVICE_ID`.
 
 2. Cai dependencies:
 
@@ -66,4 +67,32 @@ flutter run
 - `lib/src/data/local/auth_storage.dart`: luu, restore va clear access token/current user bang `SharedPreferences`.
 - `lib/src/data/api/health_api_service.dart`: cac API theo user/device + ECG polling.
 - `lib/src/state/realtime_provider.dart`: bootstrap session, login truoc khi load latest/history, request ECG va cap nhat UI.
+- `lib/src/data/api/device_api_service.dart`: goi `GET /api/v1/me/devices`.
+- `lib/src/state/device_provider.dart`: dong bo linked devices, auto-chon current device, fallback debug mode.
+- `lib/src/features/alerts/alerts_page.dart`: danh sach alert, loc severity/trang thai, acknowledge.
+
+## Manual Checklist
+
+1. Auth
+- Login bang `LOGIN_USER_ID` / `LOGIN_PASSWORD` hoac nhap tay trong app.
+- Kill app va mo lai, xac nhan session duoc restore.
+- Logout, xac nhan app quay lai man hinh login.
+
+2. Device sync
+- Sau login, xac nhan app goi `/api/v1/me/devices` va hien linked devices.
+- Neu user chi co 1 device, xac nhan device duoc auto-select.
+- Neu user co nhieu device, doi device trong selector o `HomePage` va xac nhan latest/history doi theo.
+
+3. Data states
+- Kiem tra 4 case UI: chua login, khong co device, device co nhung chua co reading, khong co quyen / server loi.
+
+4. ECG
+- Gui request ECG cho device dang chon.
+- Xac nhan app poll theo `/public/devices/{device_id}/ecg`.
+- Xac nhan UI hien trang thai dang cho ket qua va nhan ket qua moi dung device.
+
+5. Alerts
+- Mo man hinh Alerts.
+- Loc theo severity va trang thai acknowledge.
+- Acknowledge mot alert va xac nhan trang thai cap nhat.
 

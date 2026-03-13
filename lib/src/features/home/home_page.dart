@@ -70,6 +70,29 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  Future<void> _selectDevice(String? selectedDeviceId) async {
+    if (selectedDeviceId == null || selectedDeviceId.trim().isEmpty) return;
+
+    final deviceProvider = context.read<DeviceProvider>();
+    final rt = context.read<RealtimeProvider>();
+    await deviceProvider.setCurrent(selectedDeviceId);
+
+    final current = deviceProvider.current;
+    if (current == null) return;
+
+    await rt.changeUser(
+      current.primaryUserId ?? rt.authenticatedUserId,
+      deviceId: current.resolvedDeviceId,
+    );
+    await rt.loadHistoryForLocalDay(
+      dayLocal: DateTime(
+        DateTime.now().year,
+        DateTime.now().month,
+        DateTime.now().day,
+      ),
+    );
+  }
+
   Future<void> _refreshAll() async {
     final rt = context.read<RealtimeProvider>();
     await rt.refreshLatest();
@@ -84,7 +107,9 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    final device = context.watch<DeviceProvider>().current;
+    final deviceProvider = context.watch<DeviceProvider>();
+    final devices = deviceProvider.devices;
+    final device = deviceProvider.current;
     final rt = context.watch<RealtimeProvider>();
     _syncRealtime();
 
@@ -139,11 +164,20 @@ class _HomePageState extends State<HomePage> {
           child: device == null
               ? ListView(
                   physics: const AlwaysScrollableScrollPhysics(),
-                  children: [_buildNoDeviceView(context)],
+                  children: [_buildNoDeviceView(context, rt)],
                 )
               : ListView(
                   physics: const AlwaysScrollableScrollPhysics(),
                   children: [
+                    _DeviceSelectorCard(
+                      devices: devices,
+                      currentDeviceId: device.id,
+                      isSyncing: deviceProvider.isSyncing,
+                      onChanged: _selectDevice,
+                      onOpenList: () =>
+                          Navigator.pushNamed(context, AppRoutes.devices),
+                    ),
+                    const SizedBox(height: 16),
                     SizedBox(
                       height: 360,
                       child: MedicalMonitorPanel(
@@ -204,10 +238,7 @@ class _HomePageState extends State<HomePage> {
                     ] else if (!hasLatest &&
                         (rt.error == null || rt.error!.trim().isEmpty)) ...[
                       const SizedBox(height: 12),
-                      const _EmptyPanel(
-                        message:
-                            'Chua co du lieu moi nhat cho user nay. Kiem tra thiet bi va server roi thu refresh lai.',
-                      ),
+                      _EmptyPanel(message: _noDataMessage(rt, device)),
                     ],
                     const SizedBox(height: 16),
                     _EcgActionCard(
@@ -226,6 +257,14 @@ class _HomePageState extends State<HomePage> {
                     ),
                     const SizedBox(height: 16),
                     FeatureButton(
+                      icon: Icons.notifications_active_outlined,
+                      title: 'Canh bao',
+                      subtitle: 'Xem va acknowledge alerts',
+                      onTap: () =>
+                          Navigator.pushNamed(context, AppRoutes.alerts),
+                    ),
+                    const SizedBox(height: 16),
+                    FeatureButton(
                       icon: Icons.devices,
                       title: 'Thiet bi',
                       subtitle: 'Quan ly thiet bi cua ban',
@@ -239,7 +278,23 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildNoDeviceView(BuildContext context) {
+  String _noDataMessage(RealtimeProvider rt, Device device) {
+    if (!rt.isAuthenticated) {
+      return 'Ban chua dang nhap. Vao muc Thiet bi de dang nhap va dong bo session.';
+    }
+    if (rt.hasPermissionError) {
+      return 'Tai khoan hien tai khong co quyen xem device nay.';
+    }
+    if (rt.hasNoDataError) {
+      return 'Device da duoc lien ket nhung chua co reading nao tren server.';
+    }
+    if (device.isLocalOnly) {
+      return 'Day la device fallback debug. Neu dang o production, hay dang nhap va sync linked devices tu server.';
+    }
+    return 'Device da duoc chon nhung chua co du lieu moi nhat. Thu refresh lai sau khi thiet bi gui reading.';
+  }
+
+  Widget _buildNoDeviceView(BuildContext context, RealtimeProvider rt) {
     final scheme = Theme.of(context).colorScheme;
     return Center(
       child: Column(
@@ -247,23 +302,117 @@ class _HomePageState extends State<HomePage> {
         children: [
           Icon(Icons.devices_other, size: 64, color: scheme.outline),
           const SizedBox(height: 12),
-          const Text(
-            'Chua chon thiet bi',
+          Text(
+            rt.isAuthenticated ? 'Chua chon thiet bi' : 'Chua dang nhap',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 6),
-          const Text(
-            'Vao muc Thiet bi de them hoac chon mot thiet bi\n'
-            'sau do quay lai day de xem du lieu.',
+          Text(
+            rt.isAuthenticated
+                ? 'Tai khoan da dang nhap nhung chua co device duoc chon.\nMo muc Thiet bi de chon device dang theo doi.'
+                : 'Ban can dang nhap truoc, sau do app se tai danh sach device da lien ket tu server.',
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 16),
           FilledButton.icon(
             onPressed: () => Navigator.pushNamed(context, AppRoutes.devices),
-            icon: const Icon(Icons.settings_input_antenna),
-            label: const Text('Quan ly thiet bi'),
+            icon: Icon(
+              rt.isAuthenticated ? Icons.settings_input_antenna : Icons.login,
+            ),
+            label: Text(rt.isAuthenticated ? 'Quan ly thiet bi' : 'Dang nhap'),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _DeviceSelectorCard extends StatelessWidget {
+  const _DeviceSelectorCard({
+    required this.devices,
+    required this.currentDeviceId,
+    required this.isSyncing,
+    required this.onChanged,
+    required this.onOpenList,
+  });
+
+  final List<Device> devices;
+  final String currentDeviceId;
+  final bool isSyncing;
+  final ValueChanged<String?> onChanged;
+  final VoidCallback onOpenList;
+
+  @override
+  Widget build(BuildContext context) {
+    Device? current;
+    for (final device in devices) {
+      if (device.id == currentDeviceId) {
+        current = device;
+        break;
+      }
+    }
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(
+                  'Thiet bi dang theo doi',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const Spacer(),
+                if (isSyncing)
+                  const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<String>(
+              initialValue:
+                  devices.any((device) => device.id == currentDeviceId)
+                  ? currentDeviceId
+                  : null,
+              decoration: const InputDecoration(
+                labelText: 'Chon device',
+                prefixIcon: Icon(Icons.devices),
+              ),
+              items: devices
+                  .map(
+                    (device) => DropdownMenuItem<String>(
+                      value: device.id,
+                      child: Text(
+                        '${device.name} (${device.resolvedDeviceId})',
+                      ),
+                    ),
+                  )
+                  .toList(growable: false),
+              onChanged: devices.length <= 1 ? null : onChanged,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              current == null
+                  ? 'Chua co device hien tai.'
+                  : 'User chinh: ${current.primaryUserId ?? 'khong ro'} • Linked users: ${current.linkedUsers.length}',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: onOpenList,
+                icon: const Icon(Icons.list_alt),
+                label: const Text('Mo danh sach day du'),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -24,6 +24,12 @@ class DeviceProvider extends ChangeNotifier {
   bool isSyncing = false;
   String? error;
 
+  void _log(String message) {
+    if (kDebugMode) {
+      debugPrint('[DeviceProvider] $message');
+    }
+  }
+
   List<Device> get devices => List.unmodifiable(_devices);
   Device? get current => _current;
 
@@ -52,6 +58,7 @@ class DeviceProvider extends ChangeNotifier {
 
     isSyncing = true;
     error = null;
+    _log('Syncing /api/v1/me/devices for user=$authenticatedUserId');
     notifyListeners();
 
     try {
@@ -67,11 +74,15 @@ class DeviceProvider extends ChangeNotifier {
       }
 
       _selectCurrent(preferredUserId: authenticatedUserId);
+      _log(
+        'Device sync completed: total=${_devices.length}, current=${_current?.id ?? 'none'}',
+      );
       await _save();
     } catch (e) {
       error = e is ApiRequestException
           ? e.message
           : 'Khong tai duoc danh sach thiet bi';
+      _log('Device sync failed: $error');
 
       if (_devices.isEmpty) {
         _applyDevFallbackIfNeeded();
@@ -165,6 +176,7 @@ class DeviceProvider extends ChangeNotifier {
       orElse: () => _devices.first,
     );
     _current = selected;
+    _log('Current device changed to ${selected.id}');
 
     await _save();
     notifyListeners();
@@ -215,6 +227,7 @@ class DeviceProvider extends ChangeNotifier {
 
     if (!isAuthenticated || authenticatedUserId.trim().isEmpty) {
       _sessionUserId = '';
+      _log('Session cleared, evaluating debug fallback');
       if (_devices.isEmpty || _devices.every((device) => device.isLocalOnly)) {
         await ensureDevFallback();
       }
@@ -229,6 +242,7 @@ class DeviceProvider extends ChangeNotifier {
     }
 
     _sessionUserId = normalizedUserId;
+    _log('Session ready for user=$normalizedUserId, starting device sync');
     await syncFromServer(authenticatedUserId: normalizedUserId);
   }
 
@@ -256,6 +270,7 @@ class DeviceProvider extends ChangeNotifier {
       ..clear()
       ..add(fallback);
     _current = fallback;
+    _log('Using debug fallback device=${fallback.id}');
   }
 
   Device? _buildDevFallback() {
