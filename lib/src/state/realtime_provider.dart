@@ -68,8 +68,10 @@ class RealtimeProvider extends ChangeNotifier {
   bool isAuthenticating = false;
 
   String? error;
+  int? lastErrorStatusCode;
   String? accessToken;
   Map<String, dynamic>? currentUser;
+  String? ecgStatusMessage;
 
   VitalPoint? latest;
   Metric selectedMetric = Metric.hr;
@@ -120,6 +122,11 @@ class RealtimeProvider extends ChangeNotifier {
     return 'Tai khoan hien tai chi duoc xem du lieu cua $authenticatedUserId';
   }
 
+  bool get hasSessionExpiredError => lastErrorStatusCode == 401;
+  bool get hasPermissionError => lastErrorStatusCode == 403;
+  bool get hasNoDataError => lastErrorStatusCode == 404;
+  bool get isRateLimited => lastErrorStatusCode == 429;
+
   Future<void> bootstrap() {
     return _bootstrapFuture ??= _bootstrapSession();
   }
@@ -139,6 +146,7 @@ class RealtimeProvider extends ChangeNotifier {
     if (!silent) {
       isAuthenticating = true;
       error = null;
+      lastErrorStatusCode = null;
       notifyListeners();
     }
 
@@ -158,6 +166,7 @@ class RealtimeProvider extends ChangeNotifier {
           await _authApi.logout();
           accessToken = null;
           currentUser = null;
+          lastErrorStatusCode = 401;
           return false;
         }
 
@@ -166,6 +175,7 @@ class RealtimeProvider extends ChangeNotifier {
             e,
             fallback: 'Khong the khoi phuc phien dang nhap',
           );
+          lastErrorStatusCode = e is ApiRequestException ? e.statusCode : null;
         }
       }
 
@@ -189,6 +199,7 @@ class RealtimeProvider extends ChangeNotifier {
     if (!Env.hasLoginCredentials) {
       if (!silent) {
         error = 'Chua cau hinh LOGIN_USER_ID va LOGIN_PASSWORD';
+        lastErrorStatusCode = null;
         notifyListeners();
       }
       return false;
@@ -208,6 +219,7 @@ class RealtimeProvider extends ChangeNotifier {
     if (nextUserId.isEmpty || nextPassword.isEmpty) {
       if (!silent) {
         error = 'Chua cau hinh LOGIN_USER_ID va LOGIN_PASSWORD';
+        lastErrorStatusCode = null;
         notifyListeners();
       }
       return false;
@@ -216,6 +228,7 @@ class RealtimeProvider extends ChangeNotifier {
     if (!silent) {
       isAuthenticating = true;
       error = null;
+      lastErrorStatusCode = null;
       notifyListeners();
     }
 
@@ -253,6 +266,7 @@ class RealtimeProvider extends ChangeNotifier {
 
       if (!silent) {
         error = _friendlyError(e, fallback: 'Dang nhap that bai');
+        lastErrorStatusCode = e is ApiRequestException ? e.statusCode : null;
       }
       return false;
     } finally {
@@ -270,10 +284,12 @@ class RealtimeProvider extends ChangeNotifier {
     userId = '';
     deviceId = '';
     error = null;
+    lastErrorStatusCode = null;
     latest = null;
     _livePoints.clear();
     _historyPoints.clear();
     _resetSeen();
+    ecgStatusMessage = null;
     notifyListeners();
   }
 
@@ -311,6 +327,7 @@ class RealtimeProvider extends ChangeNotifier {
         _livePoints.clear();
         _historyPoints.clear();
         error = _userScopeError();
+        lastErrorStatusCode = 403;
         _resetSeen();
         notifyListeners();
         return;
@@ -330,6 +347,7 @@ class RealtimeProvider extends ChangeNotifier {
       _livePoints.clear();
       _historyPoints.clear();
       error = isAuthenticated ? null : 'Chua dang nhap vao server';
+      lastErrorStatusCode = isAuthenticated ? null : 401;
       _resetSeen();
       notifyListeners();
       return;
@@ -342,6 +360,7 @@ class RealtimeProvider extends ChangeNotifier {
       _historyPoints.clear();
       _resetSeen();
       error ??= 'Phien dang nhap khong hop le hoac da het han';
+      lastErrorStatusCode ??= 401;
       notifyListeners();
       return;
     }
@@ -371,6 +390,7 @@ class RealtimeProvider extends ChangeNotifier {
 
     if (!_canAccessUserId(newUserId)) {
       error = _userScopeError();
+      lastErrorStatusCode = 403;
       notifyListeners();
       return;
     }
@@ -384,12 +404,14 @@ class RealtimeProvider extends ChangeNotifier {
     _livePoints.clear();
     _historyPoints.clear();
     error = null;
+    lastErrorStatusCode = null;
     _resetSeen();
     notifyListeners();
 
     final loggedIn = await ensureAuthenticated(silent: true);
     if (!loggedIn) {
       error ??= 'Phien dang nhap khong hop le hoac da het han';
+      lastErrorStatusCode ??= 401;
       notifyListeners();
       return;
     }
@@ -421,6 +443,7 @@ class RealtimeProvider extends ChangeNotifier {
       if (!silent) {
         isLoadingLatest = true;
         error = null;
+        lastErrorStatusCode = null;
         notifyListeners();
       }
 
@@ -438,6 +461,7 @@ class RealtimeProvider extends ChangeNotifier {
     } catch (e) {
       if (!silent) {
         error = _friendlyError(e, fallback: 'Khong tai duoc du lieu moi nhat');
+        lastErrorStatusCode = e is ApiRequestException ? e.statusCode : null;
       }
     } finally {
       if (!silent) {
@@ -465,6 +489,7 @@ class RealtimeProvider extends ChangeNotifier {
     if (!loggedIn) {
       _historyPoints.clear();
       error ??= 'Phien dang nhap khong hop le hoac da het han';
+      lastErrorStatusCode ??= 401;
       notifyListeners();
       return;
     }
@@ -472,6 +497,7 @@ class RealtimeProvider extends ChangeNotifier {
     try {
       isLoadingHistory = true;
       error = null;
+      lastErrorStatusCode = null;
       notifyListeners();
 
       final points = hasDevice
@@ -488,6 +514,7 @@ class RealtimeProvider extends ChangeNotifier {
         ..addAll(points);
     } catch (e) {
       error = _friendlyError(e, fallback: 'Khong tai duoc lich su');
+      lastErrorStatusCode = e is ApiRequestException ? e.statusCode : null;
     } finally {
       isLoadingHistory = false;
       notifyListeners();
@@ -522,6 +549,8 @@ class RealtimeProvider extends ChangeNotifier {
 
     isRequestingEcg = true;
     error = null;
+    lastErrorStatusCode = null;
+    ecgStatusMessage = 'Da gui lenh ECG, dang cho ket qua moi...';
     notifyListeners();
 
     try {
@@ -542,13 +571,17 @@ class RealtimeProvider extends ChangeNotifier {
       final output = <String, dynamic>{...req};
       if (ecgResult != null) {
         output['ecg_result'] = ecgResult;
+        ecgStatusMessage = 'Da nhan duoc ket qua ECG moi cho device hien tai.';
       } else {
         output['message'] =
             'Da gui lenh ECG nhung chua co ket qua moi trong thoi gian cho.';
+        ecgStatusMessage = output['message']?.toString();
       }
       return output;
     } catch (e) {
       error = _friendlyError(e, fallback: 'Yeu cau ECG that bai');
+      lastErrorStatusCode = e is ApiRequestException ? e.statusCode : null;
+      ecgStatusMessage = null;
       rethrow;
     } finally {
       isRequestingEcg = false;

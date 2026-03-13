@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:eldercare_app/src/features/alerts/alerts_page.dart';
 import 'package:eldercare_app/src/features/history/history_page.dart';
 import 'package:eldercare_app/src/features/devices/device_page.dart';
 
@@ -8,10 +9,12 @@ class AppRoutes {
 
   static const devices = '/devices';
   static const history = '/history';
+  static const alerts = '/alerts';
 
   static final routes = <String, WidgetBuilder>{
     devices: (_) => const DevicePage(),
     history: (_) => const HistoryPage(),
+    alerts: (_) => const AlertsPage(),
   };
 
   static Route<dynamic> unknownRoute(RouteSettings settings) {

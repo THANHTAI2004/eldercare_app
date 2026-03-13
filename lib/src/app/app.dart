@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:eldercare_app/src/app/routes.dart';
 import 'package:eldercare_app/src/app/theme.dart';
 import 'package:eldercare_app/src/features/devices/device_page.dart';
+import 'package:eldercare_app/src/state/alerts_provider.dart';
 import 'package:eldercare_app/src/state/device_provider.dart';
 import 'package:eldercare_app/src/state/realtime_provider.dart';
 
@@ -19,6 +20,17 @@ class EldercareApp extends StatelessWidget {
           create: (_) => DeviceProvider()..load(),
           update: (_, realtime, deviceProvider) {
             final provider = deviceProvider ?? DeviceProvider();
+            provider.handleSessionState(
+              isAuthenticated: realtime.isAuthenticated,
+              authenticatedUserId: realtime.authenticatedUserId,
+            );
+            return provider;
+          },
+        ),
+        ChangeNotifierProxyProvider<RealtimeProvider, AlertsProvider>(
+          create: (_) => AlertsProvider(),
+          update: (_, realtime, alertsProvider) {
+            final provider = alertsProvider ?? AlertsProvider();
             provider.handleSessionState(
               isAuthenticated: realtime.isAuthenticated,
               authenticatedUserId: realtime.authenticatedUserId,

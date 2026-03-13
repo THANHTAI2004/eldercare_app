@@ -102,6 +102,11 @@ class _HomePageState extends State<HomePage> {
         centerTitle: true,
         actions: [
           IconButton(
+            tooltip: 'Canh bao',
+            onPressed: () => Navigator.pushNamed(context, AppRoutes.alerts),
+            icon: const Icon(Icons.notifications_none),
+          ),
+          IconButton(
             tooltip: 'Doi thiet bi',
             onPressed: () => Navigator.pushNamed(context, AppRoutes.devices),
             icon: const Icon(Icons.devices),
@@ -161,7 +166,30 @@ class _HomePageState extends State<HomePage> {
                     ),
                     if (rt.error != null && rt.error!.trim().isNotEmpty) ...[
                       const SizedBox(height: 12),
-                      _ErrorBanner(message: rt.error!),
+                      _ErrorBanner(
+                        message: rt.error!,
+                        actionLabel: rt.hasSessionExpiredError
+                            ? 'Dang nhap lai'
+                            : rt.hasPermissionError
+                            ? 'Doi thiet bi'
+                            : null,
+                        onAction: rt.hasSessionExpiredError
+                            ? () => Navigator.pushNamed(
+                                context,
+                                AppRoutes.devices,
+                              )
+                            : rt.hasPermissionError
+                            ? () => Navigator.pushNamed(
+                                context,
+                                AppRoutes.devices,
+                              )
+                            : null,
+                      ),
+                    ],
+                    if (rt.ecgStatusMessage != null &&
+                        rt.ecgStatusMessage!.trim().isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      _InfoBanner(message: rt.ecgStatusMessage!),
                     ],
                     if (!device.hasExplicitDeviceId) ...[
                       const SizedBox(height: 12),
@@ -242,9 +270,11 @@ class _HomePageState extends State<HomePage> {
 }
 
 class _ErrorBanner extends StatelessWidget {
-  const _ErrorBanner({required this.message});
+  const _ErrorBanner({required this.message, this.actionLabel, this.onAction});
 
   final String message;
+  final String? actionLabel;
+  final VoidCallback? onAction;
 
   @override
   Widget build(BuildContext context) {
@@ -270,6 +300,10 @@ class _ErrorBanner extends StatelessWidget {
               ),
             ),
           ),
+          if (actionLabel != null && onAction != null) ...[
+            const SizedBox(width: 8),
+            TextButton(onPressed: onAction, child: Text(actionLabel!)),
+          ],
         ],
       ),
     );
