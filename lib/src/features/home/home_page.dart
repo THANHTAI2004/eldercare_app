@@ -3,7 +3,10 @@ import 'package:provider/provider.dart';
 
 import 'package:eldercare_app/src/app/routes.dart';
 import 'package:eldercare_app/src/domain/models/device.dart';
+import 'package:eldercare_app/src/state/async_status.dart';
 import 'package:eldercare_app/src/state/device_provider.dart';
+import 'package:eldercare_app/src/state/ecg_provider.dart';
+import 'package:eldercare_app/src/state/history_provider.dart';
 import 'package:eldercare_app/src/state/realtime_provider.dart';
 import 'package:eldercare_app/src/state/session_provider.dart';
 import 'package:eldercare_app/src/widgets/feature_button.dart';
@@ -37,6 +40,8 @@ class _HomePageState extends State<HomePage> {
   void _syncRealtime() {
     final current = context.read<DeviceProvider>().current;
     final session = context.read<SessionProvider>();
+    final history = context.read<HistoryProvider>();
+    final ecg = context.read<EcgProvider>();
     final userId = current?.primaryUserId ?? session.authenticatedUserId;
     final deviceId = current?.resolvedDeviceId ?? '';
     final bindingKey = '$userId::$deviceId';
@@ -49,17 +54,35 @@ class _HomePageState extends State<HomePage> {
         userId: userId,
         deviceId: deviceId,
       );
+      await history.bindScope(
+        userId: userId,
+        deviceId: deviceId,
+        dayLocal: DateTime(
+          DateTime.now().year,
+          DateTime.now().month,
+          DateTime.now().day,
+        ),
+        load: true,
+      );
+      ecg.bindScope(userId: userId, deviceId: deviceId);
     });
   }
 
   Future<void> _requestEcg(Device device) async {
     final rt = context.read<RealtimeProvider>();
+    final ecg = context.read<EcgProvider>();
 
     try {
-      final result = await rt.requestEcg();
+      ecg.bindScope(
+        userId: device.primaryUserId,
+        deviceId: device.resolvedDeviceId,
+      );
+      final result = await ecg.requestEcg();
+      await rt.refreshLatest(silent: true);
       if (!mounted) return;
       final message =
           result['message']?.toString() ??
+          ecg.message ??
           'Da gui lenh ECG thanh cong. Dang cho ket qua moi.';
       ScaffoldMessenger.of(
         context,
@@ -68,7 +91,7 @@ class _HomePageState extends State<HomePage> {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text(rt.error ?? '$e')));
+      ).showSnackBar(SnackBar(content: Text(ecg.error ?? '$e')));
     }
   }
 
@@ -76,6 +99,8 @@ class _HomePageState extends State<HomePage> {
     if (selectedDeviceId == null || selectedDeviceId.trim().isEmpty) return;
 
     final deviceProvider = context.read<DeviceProvider>();
+    final history = context.read<HistoryProvider>();
+    final ecg = context.read<EcgProvider>();
     final rt = context.read<RealtimeProvider>();
     final session = context.read<SessionProvider>();
     await deviceProvider.setCurrent(selectedDeviceId);
@@ -87,20 +112,28 @@ class _HomePageState extends State<HomePage> {
       current.primaryUserId ?? session.authenticatedUserId,
       deviceId: current.resolvedDeviceId,
     );
-    await rt.loadHistoryForLocalDay(
+    await history.bindScope(
+      userId: current.primaryUserId ?? session.authenticatedUserId,
+      deviceId: current.resolvedDeviceId,
       dayLocal: DateTime(
         DateTime.now().year,
         DateTime.now().month,
         DateTime.now().day,
       ),
+      load: true,
+    );
+    ecg.bindScope(
+      userId: current.primaryUserId ?? session.authenticatedUserId,
+      deviceId: current.resolvedDeviceId,
     );
   }
 
   Future<void> _refreshAll() async {
     final rt = context.read<RealtimeProvider>();
+    final history = context.read<HistoryProvider>();
     await rt.refreshLatest();
-    await rt.loadHistoryForLocalDay(
-      dayLocal: DateTime(
+    await history.loadForDay(
+      DateTime(
         DateTime.now().year,
         DateTime.now().month,
         DateTime.now().day,
@@ -113,6 +146,8 @@ class _HomePageState extends State<HomePage> {
     final deviceProvider = context.watch<DeviceProvider>();
     final devices = deviceProvider.devices;
     final device = deviceProvider.current;
+    final ecg = context.watch<EcgProvider>();
+    final history = context.watch<HistoryProvider>();
     final session = context.watch<SessionProvider>();
     final rt = context.watch<RealtimeProvider>();
     _syncRealtime();
@@ -204,32 +239,42 @@ class _HomePageState extends State<HomePage> {
                     ),
                     if (rt.error != null && rt.error!.trim().isNotEmpty) ...[
                       const SizedBox(height: 12),
-                      _ErrorBanner(
-                        message: rt.error!,
-                        actionLabel: rt.hasSessionExpiredError ||
-                                !session.isAuthenticated
-                            ? 'Dang nhap lai'
-                            : rt.hasPermissionError
-                            ? 'Doi thiet bi'
-                            : null,
-                        onAction: rt.hasSessionExpiredError ||
-                                !session.isAuthenticated
-                            ? () => Navigator.pushNamed(
-                                context,
-                                AppRoutes.devices,
-                              )
-                            : rt.hasPermissionError
-                            ? () => Navigator.pushNamed(
-                                context,
-                                AppRoutes.devices,
-                              )
-                            : null,
+                      if (rt.isShowingCachedLatest)
+                        _InfoBanner(message: rt.error!)
+                      else
+                        _ErrorBanner(
+                          message: rt.error!,
+                          actionLabel: rt.hasSessionExpiredError ||
+                                  !session.isAuthenticated
+                              ? 'Dang nhap lai'
+                              : rt.hasPermissionError
+                              ? 'Doi thiet bi'
+                              : null,
+                          onAction: rt.hasSessionExpiredError ||
+                                  !session.isAuthenticated
+                              ? () => Navigator.pushNamed(
+                                  context,
+                                  AppRoutes.devices,
+                                )
+                              : rt.hasPermissionError
+                              ? () => Navigator.pushNamed(
+                                  context,
+                                  AppRoutes.devices,
+                                )
+                              : null,
+                        ),
+                    ],
+                    if (history.isShowingCachedHistory &&
+                        (rt.error == null || rt.error!.trim().isEmpty)) ...[
+                      const SizedBox(height: 12),
+                      const _InfoBanner(
+                        message:
+                            'Lich su trong ngay hien dang dung du lieu luu tam.',
                       ),
                     ],
-                    if (rt.ecgStatusMessage != null &&
-                        rt.ecgStatusMessage!.trim().isNotEmpty) ...[
+                    if (ecg.message != null && ecg.message!.trim().isNotEmpty) ...[
                       const SizedBox(height: 12),
-                      _InfoBanner(message: rt.ecgStatusMessage!),
+                      _InfoBanner(message: ecg.message!),
                     ],
                     if (!device.hasExplicitDeviceId) ...[
                       const SizedBox(height: 12),
@@ -241,8 +286,7 @@ class _HomePageState extends State<HomePage> {
                     if (!hasLatest && rt.isLoadingLatest) ...[
                       const SizedBox(height: 12),
                       const _LoadingPanel(),
-                    ] else if (!hasLatest &&
-                        (rt.error == null || rt.error!.trim().isEmpty)) ...[
+                    ] else if (!hasLatest && rt.latestStatus.isEmpty) ...[
                       const SizedBox(height: 12),
                       _EmptyPanel(
                         message: _noDataMessage(
@@ -255,8 +299,8 @@ class _HomePageState extends State<HomePage> {
                     const SizedBox(height: 16),
                     _EcgActionCard(
                       enabled:
-                          device.hasExplicitDeviceId && !rt.isRequestingEcg,
-                      isLoading: rt.isRequestingEcg,
+                          device.hasExplicitDeviceId && !ecg.isLoading,
+                      isLoading: ecg.isLoading,
                       onTap: () => _requestEcg(device),
                     ),
                     const SizedBox(height: 16),

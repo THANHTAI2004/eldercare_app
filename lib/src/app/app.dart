@@ -8,9 +8,12 @@ import 'package:eldercare_app/src/data/api/api_client.dart';
 import 'package:eldercare_app/src/data/api/auth_api_service.dart';
 import 'package:eldercare_app/src/data/api/device_api_service.dart';
 import 'package:eldercare_app/src/data/local/auth_storage.dart';
+import 'package:eldercare_app/src/data/local/vitals_cache_storage.dart';
 import 'package:eldercare_app/src/features/devices/device_page.dart';
 import 'package:eldercare_app/src/state/alerts_provider.dart';
 import 'package:eldercare_app/src/state/device_provider.dart';
+import 'package:eldercare_app/src/state/ecg_provider.dart';
+import 'package:eldercare_app/src/state/history_provider.dart';
 import 'package:eldercare_app/src/state/realtime_provider.dart';
 import 'package:eldercare_app/src/state/session_provider.dart';
 
@@ -23,6 +26,7 @@ class EldercareApp extends StatelessWidget {
       providers: [
         Provider<ApiClient>(create: (_) => ApiClient.fromEnv()),
         Provider<AuthStorage>(create: (_) => AuthStorage()),
+        Provider<VitalsCacheStorage>(create: (_) => VitalsCacheStorage()),
         ChangeNotifierProvider(
           create: (context) => SessionProvider(
             client: context.read<ApiClient>(),
@@ -34,10 +38,16 @@ class EldercareApp extends StatelessWidget {
         ),
         ChangeNotifierProxyProvider<SessionProvider, RealtimeProvider>(
           create: (context) =>
-              RealtimeProvider(client: context.read<ApiClient>()),
+              RealtimeProvider(
+                client: context.read<ApiClient>(),
+                cacheStorage: context.read<VitalsCacheStorage>(),
+              ),
           update: (context, session, realtime) {
-            final provider =
-                realtime ?? RealtimeProvider(client: context.read<ApiClient>());
+            final provider = realtime ??
+                RealtimeProvider(
+                  client: context.read<ApiClient>(),
+                  cacheStorage: context.read<VitalsCacheStorage>(),
+                );
             provider.handleSessionState(
               isAuthenticated: session.isAuthenticated,
               authenticatedUserId: session.authenticatedUserId,
@@ -55,6 +65,38 @@ class EldercareApp extends StatelessWidget {
                 DeviceProvider(
                   api: DeviceApiService(client: context.read<ApiClient>()),
                 );
+            provider.handleSessionState(
+              isAuthenticated: session.isAuthenticated,
+              authenticatedUserId: session.authenticatedUserId,
+            );
+            return provider;
+          },
+        ),
+        ChangeNotifierProxyProvider<SessionProvider, HistoryProvider>(
+          create: (context) =>
+              HistoryProvider(
+                client: context.read<ApiClient>(),
+                cacheStorage: context.read<VitalsCacheStorage>(),
+              ),
+          update: (context, session, historyProvider) {
+            final provider = historyProvider ??
+                HistoryProvider(
+                  client: context.read<ApiClient>(),
+                  cacheStorage: context.read<VitalsCacheStorage>(),
+                );
+            provider.handleSessionState(
+              isAuthenticated: session.isAuthenticated,
+              authenticatedUserId: session.authenticatedUserId,
+              authenticatedRole: session.authenticatedRole,
+            );
+            return provider;
+          },
+        ),
+        ChangeNotifierProxyProvider<SessionProvider, EcgProvider>(
+          create: (context) => EcgProvider(client: context.read<ApiClient>()),
+          update: (context, session, ecgProvider) {
+            final provider =
+                ecgProvider ?? EcgProvider(client: context.read<ApiClient>());
             provider.handleSessionState(
               isAuthenticated: session.isAuthenticated,
               authenticatedUserId: session.authenticatedUserId,

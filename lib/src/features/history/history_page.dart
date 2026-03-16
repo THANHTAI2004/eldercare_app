@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:eldercare_app/src/domain/models/metric.dart';
+import 'package:eldercare_app/src/state/async_status.dart';
 import 'package:eldercare_app/src/state/device_provider.dart';
+import 'package:eldercare_app/src/state/history_provider.dart';
 import 'package:eldercare_app/src/state/realtime_provider.dart';
+import 'package:eldercare_app/src/state/session_provider.dart';
 import 'package:eldercare_app/src/widgets/date_picker_button.dart';
 import 'package:eldercare_app/src/widgets/line_chart_card.dart';
 import 'package:eldercare_app/src/widgets/metric_dropdown.dart';
@@ -33,12 +36,19 @@ class _HistoryPageState extends State<HistoryPage> {
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final current = context.read<DeviceProvider>().current;
-      final p = context.read<RealtimeProvider>();
-      await p.init(
+      final session = context.read<SessionProvider>();
+      final realtime = context.read<RealtimeProvider>();
+      final history = context.read<HistoryProvider>();
+      await realtime.init(
         userId: current?.primaryUserId,
         deviceId: current?.resolvedDeviceId,
       );
-      await p.loadHistoryForLocalDay(dayLocal: _dayLocal);
+      await history.bindScope(
+        userId: current?.primaryUserId ?? session.authenticatedUserId,
+        deviceId: current?.resolvedDeviceId,
+        dayLocal: _dayLocal,
+        load: true,
+      );
     });
   }
 
@@ -46,20 +56,16 @@ class _HistoryPageState extends State<HistoryPage> {
     final dayLocal = DateTime(d.year, d.month, d.day);
     setState(() => _dayLocal = dayLocal);
 
-    await context.read<RealtimeProvider>().loadHistoryForLocalDay(
-      dayLocal: dayLocal,
-    );
+    await context.read<HistoryProvider>().loadForDay(dayLocal);
   }
 
   @override
   Widget build(BuildContext context) {
-    final p = context.watch<RealtimeProvider>();
+    final history = context.watch<HistoryProvider>();
+    final session = context.watch<SessionProvider>();
     final currentDevice = context.watch<DeviceProvider>().current;
 
-    final dayPoints = p.historyForLocalDay(_dayLocal).where((e) {
-      final v = e.valueOf(_metric);
-      return v != null && v.isFinite;
-    }).toList()..sort((a, b) => a.time.compareTo(b.time));
+    final dayPoints = history.metricPointsForSelectedDay(_metric);
 
     return Scaffold(
       appBar: AppBar(
@@ -67,9 +73,9 @@ class _HistoryPageState extends State<HistoryPage> {
         actions: [
           IconButton(
             tooltip: 'Lam moi ngay dang chon',
-            onPressed: p.isLoadingHistory
+            onPressed: history.status.isLoading
                 ? null
-                : () => p.loadHistoryForLocalDay(dayLocal: _dayLocal),
+                : () => history.loadForDay(_dayLocal),
             icon: const Icon(Icons.refresh),
           ),
         ],
@@ -90,10 +96,14 @@ class _HistoryPageState extends State<HistoryPage> {
                 ),
               ],
             ),
-            if (p.error != null && p.error!.trim().isNotEmpty) ...[
+            if (history.error != null && history.error!.trim().isNotEmpty) ...[
               const SizedBox(height: 12),
-              _HistoryBanner(message: p.error!, isError: !p.hasNoDataError),
-            ] else if (!p.isAuthenticated) ...[
+              _HistoryBanner(
+                message: history.error!,
+                isError:
+                    !history.hasNoDataError && !history.isShowingCachedHistory,
+              ),
+            ] else if (!session.isAuthenticated) ...[
               const SizedBox(height: 12),
               const _HistoryBanner(
                 message: 'Ban chua dang nhap. Vao muc Thiet bi de dang nhap.',
@@ -108,7 +118,7 @@ class _HistoryPageState extends State<HistoryPage> {
             ],
             const SizedBox(height: 16),
             Expanded(
-              child: p.isLoadingHistory && dayPoints.isEmpty
+              child: history.status.isLoading && dayPoints.isEmpty
                   ? const Center(child: CircularProgressIndicator())
                   : dayPoints.isEmpty
                   ? const _HistoryEmptyState()
@@ -160,7 +170,7 @@ class _HistoryEmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final rt = context.watch<RealtimeProvider>();
+    final history = context.watch<HistoryProvider>();
 
     return Center(
       child: Column(
@@ -174,7 +184,7 @@ class _HistoryEmptyState extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            rt.hasNoDataError
+            history.hasNoDataError
                 ? 'Device da duoc lien ket nhung chua co history tren server.'
                 : 'Thu doi ngay khac hoac refresh lai sau khi thiet bi gui du lieu moi.',
             textAlign: TextAlign.center,

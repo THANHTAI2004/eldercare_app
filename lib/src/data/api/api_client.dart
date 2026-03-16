@@ -18,6 +18,7 @@ class ApiRequestException implements Exception {
   final int? statusCode;
   final int? retryAfterSeconds;
   final Map<String, dynamic>? responseBody;
+  bool get isNetworkError => statusCode == null;
 
   @override
   String toString() {
@@ -269,6 +270,10 @@ class ApiClient {
     if (status == 404) return 'No data found';
     if (status == 422) return 'Invalid request data';
     if (status == 429) return 'Too many requests';
+
+    if (status == null) {
+      return 'Khong the ket noi den server';
+    }
 
     if (fallback != null && fallback.trim().isNotEmpty) {
       return fallback.trim();

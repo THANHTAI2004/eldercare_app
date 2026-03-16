@@ -40,6 +40,21 @@ class VitalPoint {
     }
   }
 
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{
+      'time': time.toUtc().toIso8601String(),
+      if (userId != null && userId!.trim().isNotEmpty) 'user_id': userId,
+      if (deviceId != null && deviceId!.trim().isNotEmpty) 'device_id': deviceId,
+      if (gatewayId != null && gatewayId!.trim().isNotEmpty)
+        'gateway_id': gatewayId,
+      if (hr != null) 'hr': hr,
+      if (spo2 != null) 'spo2': spo2,
+      if (temp != null) 'temp': temp,
+      if (rr != null) 'rr': rr,
+      if (leadOff != null) 'leadOff': leadOff,
+    };
+  }
+
   static VitalPoint fromJson(Map<String, dynamic> json) {
     final vitals = _readMap(json['vitals']);
 
