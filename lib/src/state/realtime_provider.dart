@@ -3,80 +3,47 @@ import 'package:flutter/foundation.dart';
 import 'package:eldercare_app/src/config/env.dart';
 import 'package:eldercare_app/src/core/constants.dart';
 import 'package:eldercare_app/src/data/api/api_client.dart';
-import 'package:eldercare_app/src/data/api/auth_api_service.dart';
 import 'package:eldercare_app/src/data/api/health_api_service.dart';
-import 'package:eldercare_app/src/data/local/auth_storage.dart';
 import 'package:eldercare_app/src/domain/models/metric.dart';
 import 'package:eldercare_app/src/domain/models/vital_point.dart';
 
 class RealtimeProvider extends ChangeNotifier {
-  factory RealtimeProvider({ApiClient? client, AuthStorage? authStorage}) {
+  factory RealtimeProvider({ApiClient? client}) {
     final resolvedClient = client ?? ApiClient.fromEnv();
-    final resolvedStorage = authStorage ?? AuthStorage();
     return RealtimeProvider._(
-      client: resolvedClient,
       api: HealthApiService(client: resolvedClient),
-      authApi: AuthApiService(client: resolvedClient, storage: resolvedStorage),
     );
   }
 
-  RealtimeProvider._({
-    required ApiClient client,
-    required HealthApiService api,
-    required AuthApiService authApi,
-  }) : _client = client,
-       _api = api,
-       _authApi = authApi;
+  RealtimeProvider._({required HealthApiService api}) : _api = api;
 
-  final ApiClient _client;
   final HealthApiService _api;
-  final AuthApiService _authApi;
 
-  void _log(String message) {
-    if (kDebugMode) {
-      debugPrint('[RealtimeProvider] $message');
-    }
-  }
+  String _authenticatedUserId = '';
+  String _authenticatedRole = '';
+  bool _isAuthenticated = false;
+  bool _initialized = false;
 
   String userId = '';
   String deviceId = '';
 
   bool get hasUser => userId.isNotEmpty;
   bool get hasDevice => deviceId.isNotEmpty;
-  bool get isAuthenticated => accessToken != null && accessToken!.isNotEmpty;
-  String get authenticatedUserId {
-    final candidates = <dynamic>[
-      currentUser?['user_id'],
-      currentUser?['userId'],
-      currentUser?['id'],
-      currentUser?['username'],
-    ];
-    for (final candidate in candidates) {
-      final text = candidate?.toString().trim() ?? '';
-      if (text.isNotEmpty) return text;
-    }
-    return '';
-  }
-
-  String get authenticatedRole =>
-      currentUser?['role']?.toString().trim().toLowerCase() ?? '';
+  bool get isAuthenticated => _isAuthenticated;
+  String get authenticatedUserId => _authenticatedUserId;
+  String get authenticatedRole => _authenticatedRole;
   bool get isUserScopedSession =>
-      isAuthenticated &&
-      authenticatedUserId.isNotEmpty &&
-      authenticatedRole != 'admin' &&
-      authenticatedRole != 'caregiver';
+      _isAuthenticated &&
+      _authenticatedUserId.isNotEmpty &&
+      _authenticatedRole != 'admin' &&
+      _authenticatedRole != 'caregiver';
 
-  bool _initialized = false;
-  Future<void>? _bootstrapFuture;
   bool isLoadingLatest = false;
   bool isLoadingHistory = false;
   bool isRequestingEcg = false;
-  bool isAuthenticating = false;
 
   String? error;
   int? lastErrorStatusCode;
-  String? accessToken;
-  Map<String, dynamic>? currentUser;
   String? ecgStatusMessage;
 
   VitalPoint? latest;
@@ -110,194 +77,39 @@ class RealtimeProvider extends ChangeNotifier {
     return '${diff.inHours}h truoc';
   }
 
-  void _markSeen([DateTime? time]) {
-    _lastSeenUtc = (time ?? DateTime.now()).toUtc();
-  }
-
-  void _resetSeen() {
-    _lastSeenUtc = null;
-  }
-
-  bool _canAccessUserId(String candidateUserId) {
-    final trimmed = candidateUserId.trim();
-    if (!isUserScopedSession) return true;
-    return trimmed.isEmpty || trimmed == authenticatedUserId;
-  }
-
-  String _userScopeError() {
-    return 'Tai khoan hien tai chi duoc xem du lieu cua $authenticatedUserId';
-  }
-
   bool get hasSessionExpiredError => lastErrorStatusCode == 401;
   bool get hasPermissionError => lastErrorStatusCode == 403;
   bool get hasNoDataError => lastErrorStatusCode == 404;
   bool get isRateLimited => lastErrorStatusCode == 429;
 
-  Future<void> bootstrap() {
-    return _bootstrapFuture ??= _bootstrapSession();
-  }
+  void handleSessionState({
+    required bool isAuthenticated,
+    required String authenticatedUserId,
+    required String authenticatedRole,
+  }) {
+    final authChanged =
+        _isAuthenticated != isAuthenticated ||
+        _authenticatedUserId != authenticatedUserId ||
+        _authenticatedRole != authenticatedRole;
 
-  Future<void> _bootstrapSession() async {
-    final restored = await restoreSession(silent: true);
-    if (restored) return;
+    if (!authChanged) return;
 
-    if (Env.hasLoginCredentials) {
-      await login(silent: true);
-    } else {
-      notifyListeners();
-    }
-  }
+    final previousUserId = _authenticatedUserId;
+    _isAuthenticated = isAuthenticated;
+    _authenticatedUserId = authenticatedUserId.trim();
+    _authenticatedRole = authenticatedRole.trim().toLowerCase();
 
-  Future<bool> restoreSession({bool silent = false}) async {
-    if (!silent) {
-      isAuthenticating = true;
-      error = null;
-      lastErrorStatusCode = null;
-      notifyListeners();
-    }
-
-    try {
-      final token = await _authApi.restoreAccessToken();
-      accessToken = token;
-      currentUser = await _authApi.loadSavedCurrentUser();
-
-      if (token == null || token.isEmpty) {
-        return false;
-      }
-
-      try {
-        currentUser = await _authApi.me();
-      } catch (e) {
-        if (e is ApiRequestException && e.statusCode == 401) {
-          await _authApi.logout();
-          accessToken = null;
-          currentUser = null;
-          lastErrorStatusCode = 401;
-          return false;
-        }
-
-        if (!silent) {
-          error = _friendlyError(
-            e,
-            fallback: 'Khong the khoi phuc phien dang nhap',
-          );
-          lastErrorStatusCode = e is ApiRequestException ? e.statusCode : null;
-        }
-      }
-
-      if (userId.isEmpty && authenticatedUserId.isNotEmpty) {
-        userId = authenticatedUserId;
-      }
-
-      return true;
-    } finally {
-      if (!silent) {
-        isAuthenticating = false;
-        notifyListeners();
-      }
-    }
-  }
-
-  Future<bool> ensureAuthenticated({bool silent = true}) async {
-    await bootstrap();
-    if (isAuthenticated) return true;
-
-    if (!Env.hasLoginCredentials) {
-      if (!silent) {
-        error = 'Chua cau hinh LOGIN_USER_ID va LOGIN_PASSWORD';
-        lastErrorStatusCode = null;
-        notifyListeners();
-      }
-      return false;
+    final shouldResetData =
+        !_isAuthenticated ||
+        (previousUserId.isNotEmpty && previousUserId != _authenticatedUserId);
+    if (shouldResetData) {
+      _clearRealtimeState();
     }
 
-    return login(silent: silent);
-  }
-
-  Future<bool> login({
-    String? userId,
-    String? password,
-    bool silent = false,
-  }) async {
-    final nextUserId = (userId ?? Env.loginUserId).trim();
-    final nextPassword = password ?? Env.loginPassword;
-
-    if (nextUserId.isEmpty || nextPassword.isEmpty) {
-      if (!silent) {
-        error = 'Chua cau hinh LOGIN_USER_ID va LOGIN_PASSWORD';
-        lastErrorStatusCode = null;
-        notifyListeners();
-      }
-      return false;
+    if (_isAuthenticated && userId.isEmpty && _authenticatedUserId.isNotEmpty) {
+      userId = _authenticatedUserId;
     }
 
-    if (!silent) {
-      isAuthenticating = true;
-      error = null;
-      lastErrorStatusCode = null;
-      notifyListeners();
-    }
-
-    try {
-      final session = await _authApi.login(
-        userId: nextUserId,
-        password: nextPassword,
-      );
-      _log('Login succeeded for user=$nextUserId');
-
-      accessToken = _client.accessToken;
-      currentUser = <String, dynamic>{
-        'user_id': session['user_id'],
-        'role': session['role'],
-      };
-      await _authApi.saveCurrentUser(currentUser!);
-
-      try {
-        currentUser = await _authApi.me();
-      } catch (e) {
-        if (e is ApiRequestException && e.statusCode == 401) rethrow;
-        if (kDebugMode) {
-          debugPrint('login -> me warning: $e');
-        }
-      }
-
-      if (this.userId.isEmpty && authenticatedUserId.isNotEmpty) {
-        this.userId = authenticatedUserId;
-      }
-
-      return true;
-    } catch (e) {
-      accessToken = null;
-      currentUser = null;
-      await _authApi.logout();
-
-      if (!silent) {
-        error = _friendlyError(e, fallback: 'Dang nhap that bai');
-        lastErrorStatusCode = e is ApiRequestException ? e.statusCode : null;
-      }
-      return false;
-    } finally {
-      if (!silent) {
-        isAuthenticating = false;
-        notifyListeners();
-      }
-    }
-  }
-
-  Future<void> logout() async {
-    _log('Logging out current session');
-    await _authApi.logout();
-    accessToken = null;
-    currentUser = null;
-    userId = '';
-    deviceId = '';
-    error = null;
-    lastErrorStatusCode = null;
-    latest = null;
-    _livePoints.clear();
-    _historyPoints.clear();
-    _resetSeen();
-    ecgStatusMessage = null;
     notifyListeners();
   }
 
@@ -311,9 +123,38 @@ class RealtimeProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> init({String? userId, String? deviceId}) async {
-    await bootstrap();
+  void _markSeen([DateTime? time]) {
+    _lastSeenUtc = (time ?? DateTime.now()).toUtc();
+  }
 
+  void _resetSeen() {
+    _lastSeenUtc = null;
+  }
+
+  void _clearRealtimeState() {
+    _initialized = false;
+    userId = '';
+    deviceId = '';
+    latest = null;
+    error = null;
+    lastErrorStatusCode = null;
+    ecgStatusMessage = null;
+    _livePoints.clear();
+    _historyPoints.clear();
+    _resetSeen();
+  }
+
+  bool _canAccessUserId(String candidateUserId) {
+    final trimmed = candidateUserId.trim();
+    if (!isUserScopedSession) return true;
+    return trimmed.isEmpty || trimmed == authenticatedUserId;
+  }
+
+  String _userScopeError() {
+    return 'Tai khoan hien tai chi duoc xem du lieu cua $authenticatedUserId';
+  }
+
+  Future<void> init({String? userId, String? deviceId}) async {
     final nextUserId = userId?.trim();
     final nextDeviceId = deviceId?.trim();
 
@@ -350,25 +191,24 @@ class RealtimeProvider extends ChangeNotifier {
       this.userId = authenticatedUserId;
     }
 
-    if (!hasUser && !hasDevice) {
+    if (!isAuthenticated) {
       latest = null;
       _livePoints.clear();
       _historyPoints.clear();
-      error = isAuthenticated ? null : 'Chua dang nhap vao server';
-      lastErrorStatusCode = isAuthenticated ? null : 401;
+      error = 'Chua dang nhap vao server';
+      lastErrorStatusCode = 401;
       _resetSeen();
       notifyListeners();
       return;
     }
 
-    final loggedIn = await ensureAuthenticated(silent: true);
-    if (!loggedIn) {
+    if (!hasUser && !hasDevice) {
       latest = null;
       _livePoints.clear();
       _historyPoints.clear();
+      error = null;
+      lastErrorStatusCode = null;
       _resetSeen();
-      error ??= 'Phien dang nhap khong hop le hoac da het han';
-      lastErrorStatusCode ??= 401;
       notifyListeners();
       return;
     }
@@ -407,7 +247,6 @@ class RealtimeProvider extends ChangeNotifier {
     if (newDeviceId != null) {
       this.deviceId = newDeviceId;
     }
-    _log('Binding realtime scope to user=$userId device=${this.deviceId}');
 
     latest = null;
     _livePoints.clear();
@@ -417,10 +256,9 @@ class RealtimeProvider extends ChangeNotifier {
     _resetSeen();
     notifyListeners();
 
-    final loggedIn = await ensureAuthenticated(silent: true);
-    if (!loggedIn) {
-      error ??= 'Phien dang nhap khong hop le hoac da het han';
-      lastErrorStatusCode ??= 401;
+    if (!isAuthenticated) {
+      error = 'Phien dang nhap khong hop le hoac da het han';
+      lastErrorStatusCode = 401;
       notifyListeners();
       return;
     }
@@ -437,12 +275,12 @@ class RealtimeProvider extends ChangeNotifier {
       return;
     }
 
-    final loggedIn = await ensureAuthenticated(silent: silent);
-    if (!loggedIn) {
+    if (!isAuthenticated) {
       latest = null;
       _resetSeen();
       if (!silent) {
-        error ??= 'Phien dang nhap khong hop le hoac da het han';
+        error = 'Phien dang nhap khong hop le hoac da het han';
+        lastErrorStatusCode = 401;
       }
       notifyListeners();
       return;
@@ -456,7 +294,6 @@ class RealtimeProvider extends ChangeNotifier {
         notifyListeners();
       }
 
-      _log('Refreshing latest for user=$userId device=$deviceId');
       final p = hasDevice
           ? await _api.getLatestByDevice(deviceId: deviceId)
           : await _api.getLatestByUser(userId: userId, deviceId: deviceId);
@@ -495,11 +332,10 @@ class RealtimeProvider extends ChangeNotifier {
       return;
     }
 
-    final loggedIn = await ensureAuthenticated(silent: false);
-    if (!loggedIn) {
+    if (!isAuthenticated) {
       _historyPoints.clear();
-      error ??= 'Phien dang nhap khong hop le hoac da het han';
-      lastErrorStatusCode ??= 401;
+      error = 'Phien dang nhap khong hop le hoac da het han';
+      lastErrorStatusCode = 401;
       notifyListeners();
       return;
     }
@@ -510,7 +346,6 @@ class RealtimeProvider extends ChangeNotifier {
       lastErrorStatusCode = null;
       notifyListeners();
 
-      _log('Loading history for user=$userId device=$deviceId limit=$limit');
       final points = hasDevice
           ? await _api.getHistoryByDevice(deviceId: deviceId, limit: limit)
           : await _api.getVitalsByUser(
@@ -540,8 +375,7 @@ class RealtimeProvider extends ChangeNotifier {
   }
 
   Future<void> reconnectApi() async {
-    final loggedIn = await ensureAuthenticated(silent: false);
-    if (!loggedIn) return;
+    if (!isAuthenticated) return;
     await refreshLatest();
   }
 
@@ -553,8 +387,7 @@ class RealtimeProvider extends ChangeNotifier {
       throw StateError('Device ID is empty');
     }
 
-    final loggedIn = await ensureAuthenticated(silent: false);
-    if (!loggedIn) {
+    if (!isAuthenticated) {
       throw StateError('Phien dang nhap khong hop le hoac da het han');
     }
 
@@ -566,9 +399,6 @@ class RealtimeProvider extends ChangeNotifier {
 
     try {
       final requestStartedAt = DateTime.now().toUtc();
-      _log(
-        'Requesting ECG for device=$deviceId duration=$durationSeconds sampling=$samplingRate',
-      );
       final req = await _api.requestEcg(
         deviceId: deviceId,
         durationSeconds: durationSeconds,
@@ -586,19 +416,16 @@ class RealtimeProvider extends ChangeNotifier {
       if (ecgResult != null) {
         output['ecg_result'] = ecgResult;
         ecgStatusMessage = 'Da nhan duoc ket qua ECG moi cho device hien tai.';
-        _log('ECG result received for device=$deviceId');
       } else {
         output['message'] =
             'Da gui lenh ECG nhung chua co ket qua moi trong thoi gian cho.';
         ecgStatusMessage = output['message']?.toString();
-        _log('ECG request timed out waiting for device=$deviceId');
       }
       return output;
     } catch (e) {
       error = _friendlyError(e, fallback: 'Yeu cau ECG that bai');
       lastErrorStatusCode = e is ApiRequestException ? e.statusCode : null;
       ecgStatusMessage = null;
-      _log('ECG request failed for device=$deviceId error=$error');
       rethrow;
     } finally {
       isRequestingEcg = false;

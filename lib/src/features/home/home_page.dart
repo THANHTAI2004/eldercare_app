@@ -5,6 +5,7 @@ import 'package:eldercare_app/src/app/routes.dart';
 import 'package:eldercare_app/src/domain/models/device.dart';
 import 'package:eldercare_app/src/state/device_provider.dart';
 import 'package:eldercare_app/src/state/realtime_provider.dart';
+import 'package:eldercare_app/src/state/session_provider.dart';
 import 'package:eldercare_app/src/widgets/feature_button.dart';
 import 'package:eldercare_app/src/widgets/medical_monitor_panel.dart';
 
@@ -35,7 +36,8 @@ class _HomePageState extends State<HomePage> {
 
   void _syncRealtime() {
     final current = context.read<DeviceProvider>().current;
-    final userId = current?.primaryUserId ?? '';
+    final session = context.read<SessionProvider>();
+    final userId = current?.primaryUserId ?? session.authenticatedUserId;
     final deviceId = current?.resolvedDeviceId ?? '';
     final bindingKey = '$userId::$deviceId';
     if (_lastBindingKey == bindingKey) return;
@@ -75,13 +77,14 @@ class _HomePageState extends State<HomePage> {
 
     final deviceProvider = context.read<DeviceProvider>();
     final rt = context.read<RealtimeProvider>();
+    final session = context.read<SessionProvider>();
     await deviceProvider.setCurrent(selectedDeviceId);
 
     final current = deviceProvider.current;
     if (current == null) return;
 
     await rt.changeUser(
-      current.primaryUserId ?? rt.authenticatedUserId,
+      current.primaryUserId ?? session.authenticatedUserId,
       deviceId: current.resolvedDeviceId,
     );
     await rt.loadHistoryForLocalDay(
@@ -110,6 +113,7 @@ class _HomePageState extends State<HomePage> {
     final deviceProvider = context.watch<DeviceProvider>();
     final devices = deviceProvider.devices;
     final device = deviceProvider.current;
+    final session = context.watch<SessionProvider>();
     final rt = context.watch<RealtimeProvider>();
     _syncRealtime();
 
@@ -202,12 +206,14 @@ class _HomePageState extends State<HomePage> {
                       const SizedBox(height: 12),
                       _ErrorBanner(
                         message: rt.error!,
-                        actionLabel: rt.hasSessionExpiredError
+                        actionLabel: rt.hasSessionExpiredError ||
+                                !session.isAuthenticated
                             ? 'Dang nhap lai'
                             : rt.hasPermissionError
                             ? 'Doi thiet bi'
                             : null,
-                        onAction: rt.hasSessionExpiredError
+                        onAction: rt.hasSessionExpiredError ||
+                                !session.isAuthenticated
                             ? () => Navigator.pushNamed(
                                 context,
                                 AppRoutes.devices,
@@ -238,7 +244,13 @@ class _HomePageState extends State<HomePage> {
                     ] else if (!hasLatest &&
                         (rt.error == null || rt.error!.trim().isEmpty)) ...[
                       const SizedBox(height: 12),
-                      _EmptyPanel(message: _noDataMessage(rt, device)),
+                      _EmptyPanel(
+                        message: _noDataMessage(
+                          rt: rt,
+                          session: session,
+                          device: device,
+                        ),
+                      ),
                     ],
                     const SizedBox(height: 16),
                     _EcgActionCard(
@@ -278,8 +290,12 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  String _noDataMessage(RealtimeProvider rt, Device device) {
-    if (!rt.isAuthenticated) {
+  String _noDataMessage({
+    required RealtimeProvider rt,
+    required SessionProvider session,
+    required Device device,
+  }) {
+    if (!session.isAuthenticated) {
       return 'Ban chua dang nhap. Vao muc Thiet bi de dang nhap va dong bo session.';
     }
     if (rt.hasPermissionError) {
@@ -295,6 +311,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildNoDeviceView(BuildContext context, RealtimeProvider rt) {
+    final session = context.watch<SessionProvider>();
     final scheme = Theme.of(context).colorScheme;
     return Center(
       child: Column(
@@ -303,12 +320,12 @@ class _HomePageState extends State<HomePage> {
           Icon(Icons.devices_other, size: 64, color: scheme.outline),
           const SizedBox(height: 12),
           Text(
-            rt.isAuthenticated ? 'Chua chon thiet bi' : 'Chua dang nhap',
+            session.isAuthenticated ? 'Chua chon thiet bi' : 'Chua dang nhap',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 6),
           Text(
-            rt.isAuthenticated
+            session.isAuthenticated
                 ? 'Tai khoan da dang nhap nhung chua co device duoc chon.\nMo muc Thiet bi de chon device dang theo doi.'
                 : 'Ban can dang nhap truoc, sau do app se tai danh sach device da lien ket tu server.',
             textAlign: TextAlign.center,
@@ -317,9 +334,13 @@ class _HomePageState extends State<HomePage> {
           FilledButton.icon(
             onPressed: () => Navigator.pushNamed(context, AppRoutes.devices),
             icon: Icon(
-              rt.isAuthenticated ? Icons.settings_input_antenna : Icons.login,
+              session.isAuthenticated
+                  ? Icons.settings_input_antenna
+                  : Icons.login,
             ),
-            label: Text(rt.isAuthenticated ? 'Quan ly thiet bi' : 'Dang nhap'),
+            label: Text(
+              session.isAuthenticated ? 'Quan ly thiet bi' : 'Dang nhap',
+            ),
           ),
         ],
       ),

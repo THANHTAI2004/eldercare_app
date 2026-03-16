@@ -1,5 +1,6 @@
 import 'package:eldercare_app/src/data/api/api_client.dart';
 import 'package:eldercare_app/src/data/local/auth_storage.dart';
+import 'package:eldercare_app/src/domain/models/auth_tokens.dart';
 
 class AuthApiService {
   AuthApiService({required ApiClient client, AuthStorage? storage})
@@ -9,22 +10,26 @@ class AuthApiService {
   final ApiClient _client;
   final AuthStorage _storage;
 
-  Future<Map<String, dynamic>> login({
+  Future<AuthTokens> login({
     required String userId,
     required String password,
   }) async {
     final json = await _client.postJson(
       '/api/v1/auth/login',
       data: <String, dynamic>{'user_id': userId, 'password': password},
+      extra: const <String, dynamic>{
+        ApiClient.skipAuthRefreshKey: true,
+        ApiClient.omitAccessTokenKey: true,
+      },
     );
 
-    final token = json['access_token']?.toString().trim() ?? '';
-    if (token.isEmpty) {
-      throw StateError('Login response did not include access_token');
+    final tokens = AuthTokens.fromJson(json);
+    if (tokens.accessToken.isEmpty) {
+      throw StateError('Login response did not include access token');
     }
 
-    await setAccessToken(token);
-    return json;
+    await saveTokens(tokens);
+    return tokens;
   }
 
   Future<Map<String, dynamic>> me() async {
@@ -33,37 +38,87 @@ class AuthApiService {
     return json;
   }
 
-  Future<String?> restoreAccessToken() async {
-    final token = await _storage.loadAccessToken();
-    _client.setAccessToken(token);
-    return token;
+  Future<AuthTokens?> restoreSessionTokens() async {
+    final accessToken = await _storage.loadAccessToken();
+    final refreshToken = await _storage.loadRefreshToken();
+    _client.setAccessToken(accessToken);
+
+    if (accessToken == null || accessToken.isEmpty) {
+      return null;
+    }
+
+    return AuthTokens(
+      accessToken: accessToken,
+      refreshToken: refreshToken ?? '',
+    );
   }
 
   Future<Map<String, dynamic>?> loadSavedCurrentUser() {
     return _storage.loadCurrentUser();
   }
 
-  Future<void> setAccessToken(String? token) async {
-    final trimmed = token?.trim();
-    if (trimmed == null || trimmed.isEmpty) {
-      await clearAccessToken();
-      return;
+  Future<AuthTokens> refreshSession({required String refreshToken}) async {
+    final json = await _client.postJson(
+      '/api/v1/auth/refresh',
+      data: <String, dynamic>{
+        'refresh_token': refreshToken,
+        'refreshToken': refreshToken,
+      },
+      extra: const <String, dynamic>{
+        ApiClient.skipAuthRefreshKey: true,
+        ApiClient.omitAccessTokenKey: true,
+      },
+    );
+
+    final nextTokens = AuthTokens.fromJson({
+      ...json,
+      if ((json['refresh_token']?.toString().trim().isEmpty ?? true))
+        'refresh_token': refreshToken,
+    });
+    if (nextTokens.accessToken.isEmpty) {
+      throw StateError('Refresh response did not include access token');
     }
 
-    _client.setAccessToken(trimmed);
-    await _storage.saveAccessToken(trimmed);
+    await saveTokens(nextTokens);
+    return nextTokens;
+  }
+
+  Future<void> saveTokens(AuthTokens tokens) async {
+    _client.setAccessToken(tokens.accessToken);
+    await _storage.saveAccessToken(tokens.accessToken);
+    if (tokens.refreshToken.trim().isNotEmpty) {
+      await _storage.saveRefreshToken(tokens.refreshToken);
+    } else {
+      await _storage.clearRefreshToken();
+    }
   }
 
   Future<void> saveCurrentUser(Map<String, dynamic> user) {
     return _storage.saveCurrentUser(user);
   }
 
-  Future<void> clearAccessToken() async {
+  Future<void> clearPersistedSession() async {
     _client.clearAccessToken();
     await _storage.clear();
   }
 
-  Future<void> logout() {
-    return clearAccessToken();
+  Future<void> logout({String? refreshToken}) async {
+    final token = refreshToken?.trim() ?? '';
+    if (token.isNotEmpty) {
+      try {
+        await _client.postJson(
+          '/api/v1/auth/logout',
+          data: <String, dynamic>{
+            'refresh_token': token,
+            'refreshToken': token,
+          },
+          extra: const <String, dynamic>{
+            ApiClient.skipAuthRefreshKey: true,
+            ApiClient.omitAccessTokenKey: true,
+          },
+        );
+      } catch (_) {}
+    }
+    await clearPersistedSession();
   }
 }

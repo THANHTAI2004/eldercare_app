@@ -276,8 +276,8 @@ class DeviceProvider extends ChangeNotifier {
   Device? _buildDevFallback() {
     if (!kDebugMode) return null;
 
-    final fallbackUserId = Env.defaultUserId.trim();
-    final fallbackDeviceId = Env.defaultDeviceId.trim();
+    final fallbackUserId = Env.debugDefaultUserId.trim();
+    final fallbackDeviceId = Env.debugDefaultDeviceId.trim();
     final resolvedDeviceId = fallbackDeviceId.isNotEmpty
         ? fallbackDeviceId
         : fallbackUserId;

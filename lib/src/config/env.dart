@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class Env {
@@ -20,16 +21,20 @@ class Env {
 
   static String get apiBaseUrl =>
       _read('API_BASE_URL', fallback: 'https://api.eldercare.io.vn');
-  static String get optionalApiKeyForDevOnly =>
-      _read('ADMIN_API_KEY', fallback: _read('API_KEY'));
+  static String get optionalApiKeyForDevOnly => kDebugMode
+      ? _read('ADMIN_API_KEY', fallback: _read('API_KEY'))
+      : '';
 
-  static String get loginUserId => _read('LOGIN_USER_ID');
-  static String get loginPassword => _read('LOGIN_PASSWORD');
-  static bool get hasLoginCredentials =>
-      loginUserId.isNotEmpty && loginPassword.isNotEmpty;
+  static String get debugLoginUserId =>
+      kDebugMode ? _read('LOGIN_USER_ID') : '';
+  static String get debugLoginPassword =>
+      kDebugMode ? _read('LOGIN_PASSWORD') : '';
+  static bool get hasDebugLoginCredentials =>
+      debugLoginUserId.isNotEmpty && debugLoginPassword.isNotEmpty;
 
-  static String get defaultUserId => _read('USER_ID');
-  static String get defaultDeviceId => _read('DEVICE_ID');
+  static String get debugDefaultUserId => kDebugMode ? _read('USER_ID') : '';
+  static String get debugDefaultDeviceId =>
+      kDebugMode ? _read('DEVICE_ID') : '';
 
   static int get requestTimeoutMs =>
       _readInt('REQUEST_TIMEOUT_MS', fallback: 15000);

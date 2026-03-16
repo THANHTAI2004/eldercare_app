@@ -10,6 +10,7 @@ import 'package:eldercare_app/src/features/devices/device_qr_scanner_page.dart';
 import 'package:eldercare_app/src/features/home/home_page.dart';
 import 'package:eldercare_app/src/state/device_provider.dart';
 import 'package:eldercare_app/src/state/realtime_provider.dart';
+import 'package:eldercare_app/src/state/session_provider.dart';
 
 class DevicePage extends StatefulWidget {
   const DevicePage({super.key});
@@ -21,11 +22,11 @@ class DevicePage extends StatefulWidget {
 class _DevicePageState extends State<DevicePage> {
   final _searchCtrl = TextEditingController();
   final _loginUserCtrl = TextEditingController(
-    text: kDebugMode ? Env.loginUserId : '',
+    text: kDebugMode ? Env.debugLoginUserId : '',
   );
   final _loginPasswordCtrl = TextEditingController(
-    text: kDebugMode && Env.loginPassword != 'replace-with-password'
-        ? Env.loginPassword
+    text: kDebugMode && Env.debugLoginPassword != 'replace-with-password'
+        ? Env.debugLoginPassword
         : '',
   );
 
@@ -79,8 +80,9 @@ class _DevicePageState extends State<DevicePage> {
 
   void _bindCurrentDeviceToRealtime() {
     final realtime = context.read<RealtimeProvider>();
+    final session = context.read<SessionProvider>();
     final current = context.read<DeviceProvider>().current;
-    final userId = current?.primaryUserId ?? realtime.authenticatedUserId;
+    final userId = current?.primaryUserId ?? session.authenticatedUserId;
     final deviceId = current?.resolvedDeviceId ?? '';
     final bindingKey = '$userId::$deviceId';
 
@@ -103,31 +105,31 @@ class _DevicePageState extends State<DevicePage> {
       return;
     }
 
-    final realtime = context.read<RealtimeProvider>();
+    final session = context.read<SessionProvider>();
     final deviceProvider = context.read<DeviceProvider>();
-    final ok = await realtime.login(userId: userId, password: password);
+    final ok = await session.login(userId: userId, password: password);
     if (!mounted) return;
 
     if (!ok) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(realtime.error ?? 'Dang nhap that bai.')),
+        SnackBar(content: Text(session.error ?? 'Dang nhap that bai.')),
       );
       return;
     }
 
     await deviceProvider.handleSessionState(
-      isAuthenticated: realtime.isAuthenticated,
-      authenticatedUserId: realtime.authenticatedUserId,
+      isAuthenticated: session.isAuthenticated,
+      authenticatedUserId: session.authenticatedUserId,
     );
   }
 
   Future<void> _refreshDevices() async {
-    final realtime = context.read<RealtimeProvider>();
+    final session = context.read<SessionProvider>();
     final deviceProvider = context.read<DeviceProvider>();
 
-    if (realtime.isAuthenticated) {
+    if (session.isAuthenticated) {
       await deviceProvider.syncFromServer(
-        authenticatedUserId: realtime.authenticatedUserId,
+        authenticatedUserId: session.authenticatedUserId,
       );
       return;
     }
@@ -136,10 +138,10 @@ class _DevicePageState extends State<DevicePage> {
   }
 
   Future<void> _logout() async {
-    final realtime = context.read<RealtimeProvider>();
+    final session = context.read<SessionProvider>();
     final deviceProvider = context.read<DeviceProvider>();
 
-    await realtime.logout();
+    await session.logout();
     await deviceProvider.clear();
     if (kDebugMode) {
       await deviceProvider.ensureDevFallback();
@@ -153,15 +155,15 @@ class _DevicePageState extends State<DevicePage> {
   }
 
   bool _canUseUserId(String? userId) {
-    final realtime = context.read<RealtimeProvider>();
+    final session = context.read<SessionProvider>();
     final normalizedUserId = userId?.trim() ?? '';
-    if (!realtime.isUserScopedSession || normalizedUserId.isEmpty) return true;
-    if (normalizedUserId == realtime.authenticatedUserId) return true;
+    if (!session.isUserScopedSession || normalizedUserId.isEmpty) return true;
+    if (normalizedUserId == session.authenticatedUserId) return true;
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          'Session hien tai chi duoc theo doi user ${realtime.authenticatedUserId}.',
+          'Session hien tai chi duoc theo doi user ${session.authenticatedUserId}.',
         ),
       ),
     );
@@ -173,10 +175,11 @@ class _DevicePageState extends State<DevicePage> {
 
     final deviceProvider = context.read<DeviceProvider>();
     final realtime = context.read<RealtimeProvider>();
+    final session = context.read<SessionProvider>();
 
     await deviceProvider.setCurrent(device.id);
     await realtime.changeUser(
-      device.primaryUserId ?? realtime.authenticatedUserId,
+      device.primaryUserId ?? session.authenticatedUserId,
       deviceId: device.resolvedDeviceId,
     );
 
@@ -190,13 +193,13 @@ class _DevicePageState extends State<DevicePage> {
   Future<void> _showManualAddDialog() async {
     if (!kDebugMode) return;
 
-    final realtime = context.read<RealtimeProvider>();
+    final session = context.read<SessionProvider>();
     final formKey = GlobalKey<FormState>();
-    final lockedUserId = realtime.isUserScopedSession
-        ? realtime.authenticatedUserId
+    final lockedUserId = session.isUserScopedSession
+        ? session.authenticatedUserId
         : '';
     final userCtrl = TextEditingController(text: lockedUserId);
-    final deviceCtrl = TextEditingController(text: Env.defaultDeviceId);
+    final deviceCtrl = TextEditingController(text: Env.debugDefaultDeviceId);
     final nameCtrl = TextEditingController();
 
     final shouldSave = await showDialog<bool>(
@@ -292,13 +295,14 @@ class _DevicePageState extends State<DevicePage> {
 
   @override
   Widget build(BuildContext context) {
-    final realtime = context.watch<RealtimeProvider>();
+    final session = context.watch<SessionProvider>();
     final deviceProvider = context.watch<DeviceProvider>();
+    final realtime = context.watch<RealtimeProvider>();
 
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          realtime.isAuthenticated ? 'Thiet bi da lien ket' : 'Dang nhap',
+          session.isAuthenticated ? 'Thiet bi da lien ket' : 'Dang nhap',
         ),
         actions: [
           IconButton(
@@ -306,7 +310,7 @@ class _DevicePageState extends State<DevicePage> {
             onPressed: _refreshDevices,
             icon: const Icon(Icons.refresh),
           ),
-          if (realtime.isAuthenticated)
+          if (session.isAuthenticated)
             IconButton(
               tooltip: 'Dang xuat',
               onPressed: _logout,
@@ -314,7 +318,7 @@ class _DevicePageState extends State<DevicePage> {
             ),
         ],
       ),
-      floatingActionButton: kDebugMode && realtime.isAuthenticated
+      floatingActionButton: kDebugMode && session.isAuthenticated
           ? Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -334,11 +338,12 @@ class _DevicePageState extends State<DevicePage> {
               ],
             )
           : null,
-      body: realtime.isAuthenticated
+      body: session.isAuthenticated
           ? _AuthenticatedBody(
               query: _query,
               searchCtrl: _searchCtrl,
               deviceProvider: deviceProvider,
+              session: session,
               realtime: realtime,
               onRefresh: _refreshDevices,
               onSelectDevice: _selectDevice,
@@ -346,8 +351,8 @@ class _DevicePageState extends State<DevicePage> {
           : _LoginBody(
               userCtrl: _loginUserCtrl,
               passwordCtrl: _loginPasswordCtrl,
-              isAuthenticating: realtime.isAuthenticating,
-              errorMessage: realtime.error,
+              isAuthenticating: session.isAuthenticating,
+              errorMessage: session.error,
               onLogin: _login,
             ),
     );
@@ -453,6 +458,7 @@ class _AuthenticatedBody extends StatelessWidget {
     required this.query,
     required this.searchCtrl,
     required this.deviceProvider,
+    required this.session,
     required this.realtime,
     required this.onRefresh,
     required this.onSelectDevice,
@@ -461,6 +467,7 @@ class _AuthenticatedBody extends StatelessWidget {
   final String query;
   final TextEditingController searchCtrl;
   final DeviceProvider deviceProvider;
+  final SessionProvider session;
   final RealtimeProvider realtime;
   final Future<void> Function() onRefresh;
   final Future<void> Function(Device device) onSelectDevice;
@@ -488,8 +495,8 @@ class _AuthenticatedBody extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
         children: [
           _SessionCard(
-            userId: realtime.authenticatedUserId,
-            role: realtime.authenticatedRole,
+            userId: session.authenticatedUserId,
+            role: session.authenticatedRole,
             totalDevices: deviceProvider.devices.length,
             currentDevice: deviceProvider.current,
           ),

@@ -27,6 +27,10 @@ class ApiRequestException implements Exception {
 }
 
 class ApiClient {
+  static const skipAuthRefreshKey = 'skipAuthRefresh';
+  static const omitAccessTokenKey = 'omitAccessToken';
+  static const retriedAfterRefreshKey = 'retriedAfterRefresh';
+
   ApiClient._(
     this._dio, {
     required String apiKey,
@@ -38,7 +42,10 @@ class ApiClient {
         onRequest: (options, handler) {
           options.headers['Content-Type'] = 'application/json';
 
-          if (_accessToken != null && _accessToken!.isNotEmpty) {
+          final omitAccessToken = options.extra[omitAccessTokenKey] == true;
+          if (!omitAccessToken &&
+              _accessToken != null &&
+              _accessToken!.isNotEmpty) {
             options.headers['Authorization'] = 'Bearer $_accessToken';
           } else {
             options.headers.remove('Authorization');
@@ -51,6 +58,46 @@ class ApiClient {
           }
 
           handler.next(options);
+        },
+        onError: (error, handler) async {
+          final response = error.response;
+          final options = error.requestOptions;
+          final shouldTryRefresh =
+              response?.statusCode == 401 &&
+              options.extra[skipAuthRefreshKey] != true &&
+              options.extra[retriedAfterRefreshKey] != true &&
+              _onRefreshAccessToken != null;
+
+          if (!shouldTryRefresh) {
+            handler.next(error);
+            return;
+          }
+
+          final nextAccessToken = await _refreshAccessTokenOnce();
+          if (nextAccessToken == null || nextAccessToken.isEmpty) {
+            if (_onUnauthorized != null) {
+              await _onUnauthorized!.call();
+            }
+            handler.next(error);
+            return;
+          }
+
+          try {
+            final retryOptions = options.copyWith(
+              headers: <String, dynamic>{
+                ...options.headers,
+                'Authorization': 'Bearer $nextAccessToken',
+              },
+              extra: <String, dynamic>{
+                ...options.extra,
+                retriedAfterRefreshKey: true,
+              },
+            );
+            final retryResponse = await _dio.fetch<dynamic>(retryOptions);
+            handler.resolve(retryResponse);
+          } on DioException catch (retryError) {
+            handler.next(retryError);
+          }
         },
       ),
     );
@@ -89,6 +136,9 @@ class ApiClient {
   final String _apiKey;
   final bool _sendDefaultApiKey;
   String? _accessToken;
+  Future<String?> Function()? _onRefreshAccessToken;
+  Future<void> Function()? _onUnauthorized;
+  Future<String?>? _refreshFuture;
 
   Dio get dio => _dio;
 
@@ -103,16 +153,25 @@ class ApiClient {
     _accessToken = null;
   }
 
+  void configureAuthCallbacks({
+    Future<String?> Function()? onRefreshAccessToken,
+    Future<void> Function()? onUnauthorized,
+  }) {
+    _onRefreshAccessToken = onRefreshAccessToken;
+    _onUnauthorized = onUnauthorized;
+  }
+
   Future<Map<String, dynamic>> getJson(
     String path, {
     Map<String, dynamic>? query,
     Map<String, dynamic>? headers,
+    Map<String, dynamic>? extra,
   }) async {
     try {
       final res = await _dio.get<dynamic>(
         path,
         queryParameters: query,
-        options: Options(headers: headers),
+        options: Options(headers: headers, extra: extra),
       );
       return _asMap(res.data);
     } on DioException catch (e) {
@@ -125,13 +184,14 @@ class ApiClient {
     Object? data,
     Map<String, dynamic>? query,
     Map<String, dynamic>? headers,
+    Map<String, dynamic>? extra,
   }) async {
     try {
       final res = await _dio.post<dynamic>(
         path,
         data: data,
         queryParameters: query,
-        options: Options(headers: headers),
+        options: Options(headers: headers, extra: extra),
       );
       return _asMap(res.data);
     } on DioException catch (e) {
@@ -214,5 +274,24 @@ class ApiClient {
       return fallback.trim();
     }
     return 'Request failed';
+  }
+
+  Future<String?> _refreshAccessTokenOnce() {
+    final inFlight = _refreshFuture;
+    if (inFlight != null) return inFlight;
+
+    final callback = _onRefreshAccessToken;
+    if (callback == null) {
+      return Future<String?>.value(null);
+    }
+
+    final future = callback();
+    _refreshFuture = future;
+    future.whenComplete(() {
+      if (identical(_refreshFuture, future)) {
+        _refreshFuture = null;
+      }
+    });
+    return future;
   }
 }
