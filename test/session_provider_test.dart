@@ -109,7 +109,7 @@ class _FakeAuthApiService extends AuthApiService {
   Future<AuthTokens?> restoreSessionTokens() async => restoredTokens;
 
   @override
-  Future<void> logout({String? refreshToken}) async {}
+  Future<void> logout() async {}
 
   @override
   Future<void> clearPersistedSession() async {}

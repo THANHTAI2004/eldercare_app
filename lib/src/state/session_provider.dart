@@ -165,7 +165,7 @@ class SessionProvider extends ChangeNotifier {
   }
 
   Future<void> logout() async {
-    await _authApi.logout(refreshToken: refreshToken);
+    await _authApi.logout();
     _tokens = null;
     currentUser = null;
     error = null;

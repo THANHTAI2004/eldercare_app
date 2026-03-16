@@ -60,10 +60,7 @@ class AuthApiService {
   Future<AuthTokens> refreshSession({required String refreshToken}) async {
     final json = await _client.postJson(
       '/api/v1/auth/refresh',
-      data: <String, dynamic>{
-        'refresh_token': refreshToken,
-        'refreshToken': refreshToken,
-      },
+      data: <String, dynamic>{'refresh_token': refreshToken},
       extra: const <String, dynamic>{
         ApiClient.skipAuthRefreshKey: true,
         ApiClient.omitAccessTokenKey: true,
@@ -102,23 +99,15 @@ class AuthApiService {
     await _storage.clear();
   }
 
-  Future<void> logout({String? refreshToken}) async {
-    final token = refreshToken?.trim() ?? '';
-    if (token.isNotEmpty) {
-      try {
-        await _client.postJson(
-          '/api/v1/auth/logout',
-          data: <String, dynamic>{
-            'refresh_token': token,
-            'refreshToken': token,
-          },
-          extra: const <String, dynamic>{
-            ApiClient.skipAuthRefreshKey: true,
-            ApiClient.omitAccessTokenKey: true,
-          },
-        );
-      } catch (_) {}
-    }
+  Future<void> logout() async {
+    try {
+      await _client.postJson(
+        '/api/v1/auth/logout',
+        extra: const <String, dynamic>{
+          ApiClient.skipAuthRefreshKey: true,
+        },
+      );
+    } catch (_) {}
     await clearPersistedSession();
   }
 }

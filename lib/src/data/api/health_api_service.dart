@@ -20,7 +20,7 @@ class HealthApiService {
           'device_id': deviceId,
       },
     );
-    return VitalPoint.fromJson(_extractOne(json));
+    return VitalPoint.fromJson(json);
   }
 
   Future<List<VitalPoint>> getVitalsByUser({
@@ -36,7 +36,7 @@ class HealthApiService {
           'device_id': deviceId,
       },
     );
-    return _extractMany(json).map(VitalPoint.fromJson).toList(growable: false);
+    return _readItems(json).map(VitalPoint.fromJson).toList(growable: false);
   }
 
   Future<List<Map<String, dynamic>>> getEcgByUser({
@@ -47,7 +47,7 @@ class HealthApiService {
       '/api/v1/users/$userId/ecg',
       query: <String, dynamic>{'limit': limit},
     );
-    return _extractMany(json);
+    return _readItems(json);
   }
 
   Future<List<Map<String, dynamic>>> getEcgByDevice({
@@ -58,7 +58,7 @@ class HealthApiService {
       '/public/devices/$deviceId/ecg',
       query: <String, dynamic>{'limit': limit},
     );
-    return _extractMany(json);
+    return _readItems(json);
   }
 
   Future<Map<String, dynamic>> getSummaryByUser({
@@ -73,7 +73,7 @@ class HealthApiService {
 
   Future<VitalPoint> getLatestByDevice({required String deviceId}) async {
     final json = await _client.getJson('/api/v1/devices/$deviceId/latest');
-    return VitalPoint.fromJson(_extractOne(json));
+    return VitalPoint.fromJson(json);
   }
 
   Future<List<VitalPoint>> getHistoryByDevice({
@@ -84,7 +84,7 @@ class HealthApiService {
       '/api/v1/devices/$deviceId/history',
       query: <String, dynamic>{'limit': limit},
     );
-    return _extractMany(json).map(VitalPoint.fromJson).toList(growable: false);
+    return _readItems(json).map(VitalPoint.fromJson).toList(growable: false);
   }
 
   Future<Map<String, dynamic>> requestEcg({
@@ -123,36 +123,15 @@ class HealthApiService {
     return null;
   }
 
-  List<Map<String, dynamic>> _extractMany(Map<String, dynamic> json) {
-    final candidates = <dynamic>[
-      json['items'],
-      json['points'],
-      json['data'],
-      json['results'],
-      json['readings'],
-      json['records'],
-    ];
-
-    for (final candidate in candidates) {
-      if (candidate is List) {
-        return candidate
-            .whereType<Map>()
-            .map((e) => Map<String, dynamic>.from(e))
-            .toList(growable: false);
-      }
+  List<Map<String, dynamic>> _readItems(Map<String, dynamic> json) {
+    final items = json['items'];
+    if (items is! List) {
+      return const <Map<String, dynamic>>[];
     }
-    return const <Map<String, dynamic>>[];
-  }
-
-  Map<String, dynamic> _extractOne(Map<String, dynamic> json) {
-    const oneKeys = <String>['item', 'data', 'latest', 'reading', 'result'];
-    for (final key in oneKeys) {
-      final value = json[key];
-      if (value is Map) {
-        return Map<String, dynamic>.from(value);
-      }
-    }
-    return json;
+    return items
+        .whereType<Map>()
+        .map((entry) => Map<String, dynamic>.from(entry))
+        .toList(growable: false);
   }
 
   DateTime? _readItemTime(Map<String, dynamic> json) {
