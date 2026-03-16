@@ -1,18 +1,283 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:provider/provider.dart';
 
-import 'package:eldercare_app/src/app/app.dart';
+import 'package:eldercare_app/src/data/api/api_client.dart';
+import 'package:eldercare_app/src/data/api/auth_api_service.dart';
+import 'package:eldercare_app/src/data/api/device_api_service.dart';
+import 'package:eldercare_app/src/data/api/health_api_service.dart';
+import 'package:eldercare_app/src/data/local/auth_storage.dart';
+import 'package:eldercare_app/src/data/local/vitals_cache_storage.dart';
+import 'package:eldercare_app/src/domain/models/auth_tokens.dart';
+import 'package:eldercare_app/src/domain/models/device.dart';
+import 'package:eldercare_app/src/domain/models/vital_point.dart';
 import 'package:eldercare_app/src/features/devices/device_page.dart';
+import 'package:eldercare_app/src/features/home/home_page.dart';
+import 'package:eldercare_app/src/state/device_provider.dart';
+import 'package:eldercare_app/src/state/ecg_provider.dart';
+import 'package:eldercare_app/src/state/history_provider.dart';
+import 'package:eldercare_app/src/state/realtime_provider.dart';
+import 'package:eldercare_app/src/state/session_provider.dart';
+
+import 'support/test_helpers.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   setUp(() {
-    SharedPreferences.setMockInitialValues(<String, Object>{});
+    setUpSharedPreferences();
   });
 
-  testWidgets('App builds', (tester) async {
-    await tester.pumpWidget(const EldercareApp());
-    expect(find.byType(DevicePage), findsOneWidget);
+  testWidgets('DevicePage shows login form when session is unauthenticated', (
+    tester,
+  ) async {
+    final session = _buildSessionProvider();
+    final deviceProvider = DeviceProvider(
+      api: _FakeDeviceApiService(devices: const <Device>[]),
+    );
+    await deviceProvider.load();
+
+    await tester.pumpWidget(
+      _TestShell(
+        session: session,
+        deviceProvider: deviceProvider,
+        child: const DevicePage(),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Dang nhap'), findsWidgets);
+    expect(
+      find.text('Dang nhap de tai danh sach thiet bi da lien ket'),
+      findsOneWidget,
+    );
+    expect(find.text('User ID'), findsOneWidget);
+    expect(find.text('Mat khau'), findsOneWidget);
   });
+
+  testWidgets('HomePage shows unauthenticated empty state with no device', (
+    tester,
+  ) async {
+    final session = _buildSessionProvider();
+    final deviceProvider = DeviceProvider(
+      api: _FakeDeviceApiService(devices: const <Device>[]),
+    );
+    await deviceProvider.load();
+
+    await tester.pumpWidget(
+      _TestShell(
+        session: session,
+        deviceProvider: deviceProvider,
+        child: const HomePage(),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('Chua dang nhap'), findsOneWidget);
+    expect(
+      find.text(
+        'Ban can dang nhap truoc, sau do app se tai danh sach device da lien ket tu server.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Dang nhap'), findsOneWidget);
+  });
+
+  testWidgets('HomePage shows no-device state for authenticated user', (
+    tester,
+  ) async {
+    final session = _buildSessionProvider(
+      loginTokens: const AuthTokens(
+        accessToken: 'access-123',
+        refreshToken: 'refresh-456',
+      ),
+      meResponse: const <String, dynamic>{
+        'user_id': 'patient-001',
+        'role': 'patient',
+      },
+    );
+    await session.login(userId: 'patient-001', password: 'secret');
+
+    final deviceProvider = DeviceProvider(
+      api: _FakeDeviceApiService(devices: const <Device>[]),
+    );
+    await deviceProvider.load();
+
+    await tester.pumpWidget(
+      _TestShell(
+        session: session,
+        deviceProvider: deviceProvider,
+        child: const HomePage(),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('Chua chon thiet bi'), findsOneWidget);
+    expect(find.text('Quan ly thiet bi'), findsOneWidget);
+  });
+}
+
+class _TestShell extends StatelessWidget {
+  const _TestShell({
+    required this.session,
+    required this.deviceProvider,
+    required this.child,
+  });
+
+  final SessionProvider session;
+  final DeviceProvider deviceProvider;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final client = ApiClient(baseUrl: 'https://example.com', timeoutMs: 1000);
+    final healthApi = _FakeHealthApiService();
+
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider<SessionProvider>.value(value: session),
+        ChangeNotifierProvider<DeviceProvider>.value(value: deviceProvider),
+        ChangeNotifierProvider<RealtimeProvider>(
+          create: (_) => RealtimeProvider(
+            client: client,
+            api: healthApi,
+            cacheStorage: VitalsCacheStorage(),
+          )..handleSessionState(
+              isAuthenticated: session.isAuthenticated,
+              authenticatedUserId: session.authenticatedUserId,
+              authenticatedRole: session.authenticatedRole,
+            ),
+        ),
+        ChangeNotifierProvider<HistoryProvider>(
+          create: (_) => HistoryProvider(
+            client: client,
+            api: healthApi,
+            cacheStorage: VitalsCacheStorage(),
+          )..handleSessionState(
+              isAuthenticated: session.isAuthenticated,
+              authenticatedUserId: session.authenticatedUserId,
+              authenticatedRole: session.authenticatedRole,
+            ),
+        ),
+        ChangeNotifierProvider<EcgProvider>(
+          create: (_) => EcgProvider(
+            client: client,
+            api: healthApi,
+          )..handleSessionState(
+              isAuthenticated: session.isAuthenticated,
+              authenticatedUserId: session.authenticatedUserId,
+            ),
+        ),
+      ],
+      child: MaterialApp(home: child),
+    );
+  }
+}
+
+SessionProvider _buildSessionProvider({
+  AuthTokens? loginTokens,
+  Map<String, dynamic> meResponse = const <String, dynamic>{},
+}) {
+  final client = ApiClient(baseUrl: 'https://example.com', timeoutMs: 1000);
+  return SessionProvider(
+    client: client,
+    authApi: _FakeAuthApiService(
+      client: client,
+      storage: AuthStorage(secureStore: MemorySecureStore()),
+      loginTokens: loginTokens,
+      meResponse: meResponse,
+    ),
+  );
+}
+
+class _FakeAuthApiService extends AuthApiService {
+  _FakeAuthApiService({
+    required super.client,
+    required super.storage,
+    this.loginTokens,
+    this.meResponse = const <String, dynamic>{},
+  });
+
+  final AuthTokens? loginTokens;
+  final Map<String, dynamic> meResponse;
+
+  @override
+  Future<AuthTokens> login({
+    required String userId,
+    required String password,
+  }) async {
+    if (loginTokens == null) {
+      throw StateError('Missing fake login tokens');
+    }
+    return loginTokens!;
+  }
+
+  @override
+  Future<Map<String, dynamic>> me() async => meResponse;
+
+  @override
+  Future<AuthTokens?> restoreSessionTokens() async => null;
+
+  @override
+  Future<void> logout() async {}
+
+  @override
+  Future<void> clearPersistedSession() async {}
+}
+
+class _FakeDeviceApiService extends DeviceApiService {
+  _FakeDeviceApiService({required this.devices})
+    : super(client: ApiClient(baseUrl: 'https://example.com', timeoutMs: 1000));
+
+  final List<Device> devices;
+
+  @override
+  Future<List<Device>> getMyDevices() async => devices;
+}
+
+class _FakeHealthApiService extends HealthApiService {
+  _FakeHealthApiService()
+    : super(client: ApiClient(baseUrl: 'https://example.com', timeoutMs: 1000));
+
+  @override
+  Future<VitalPoint> getLatestByUser({
+    required String userId,
+    String? deviceId,
+  }) async {
+    throw ApiRequestException(
+      method: 'GET',
+      path: '/api/v1/users/$userId/latest',
+      message: 'No data found',
+      statusCode: 404,
+    );
+  }
+
+  @override
+  Future<VitalPoint> getLatestByDevice({required String deviceId}) async {
+    throw ApiRequestException(
+      method: 'GET',
+      path: '/api/v1/devices/$deviceId/latest',
+      message: 'No data found',
+      statusCode: 404,
+    );
+  }
+
+  @override
+  Future<List<VitalPoint>> getVitalsByUser({
+    required String userId,
+    String? deviceId,
+    int limit = 100,
+  }) async {
+    return const <VitalPoint>[];
+  }
+
+  @override
+  Future<List<VitalPoint>> getHistoryByDevice({
+    required String deviceId,
+    int limit = 100,
+  }) async {
+    return const <VitalPoint>[];
+  }
 }

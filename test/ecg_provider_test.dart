@@ -9,7 +9,9 @@ void main() {
   test('requestEcg returns success when result is received', () async {
     final provider = EcgProvider(
       client: ApiClient(baseUrl: 'https://example.com', timeoutMs: 1000),
-      api: _FakeHealthApiService(),
+      api: _FakeHealthApiService(
+        ecgResult: <String, dynamic>{'samples': <int>[1, 2, 3]},
+      ),
     );
 
     provider.handleSessionState(
@@ -24,13 +26,42 @@ void main() {
     final result = await provider.requestEcg();
 
     expect(provider.status, AsyncStatus.success);
+    expect(provider.message, 'Da nhan duoc ket qua ECG moi cho device hien tai.');
     expect(result['ecg_result'], isNotNull);
+  });
+
+  test('requestEcg returns empty when polling times out', () async {
+    final provider = EcgProvider(
+      client: ApiClient(baseUrl: 'https://example.com', timeoutMs: 1000),
+      api: _FakeHealthApiService(ecgResult: null),
+    );
+
+    provider.handleSessionState(
+      isAuthenticated: true,
+      authenticatedUserId: 'patient-001',
+    );
+    provider.bindScope(
+      userId: 'patient-001',
+      deviceId: 'dev-1',
+    );
+
+    final result = await provider.requestEcg();
+
+    expect(provider.status, AsyncStatus.empty);
+    expect(
+      provider.message,
+      'Da gui lenh ECG nhung chua co ket qua moi trong thoi gian cho.',
+    );
+    expect(result['request_id'], 'req-1');
+    expect(result.containsKey('ecg_result'), isFalse);
   });
 
   test('requestEcg marks unauthorized when session is missing', () async {
     final provider = EcgProvider(
       client: ApiClient(baseUrl: 'https://example.com', timeoutMs: 1000),
-      api: _FakeHealthApiService(),
+      api: _FakeHealthApiService(
+        ecgResult: <String, dynamic>{'samples': <int>[1, 2, 3]},
+      ),
     );
 
     expect(
@@ -42,8 +73,10 @@ void main() {
 }
 
 class _FakeHealthApiService extends HealthApiService {
-  _FakeHealthApiService()
+  _FakeHealthApiService({required this.ecgResult})
     : super(client: ApiClient(baseUrl: 'https://example.com', timeoutMs: 1000));
+
+  final Map<String, dynamic>? ecgResult;
 
   @override
   Future<Map<String, dynamic>> requestEcg({
@@ -61,6 +94,6 @@ class _FakeHealthApiService extends HealthApiService {
     DateTime? notBefore,
     Duration timeout = const Duration(seconds: 45),
   }) async {
-    return <String, dynamic>{'samples': <int>[1, 2, 3]};
+    return ecgResult;
   }
 }
