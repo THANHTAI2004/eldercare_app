@@ -11,6 +11,7 @@ import 'package:eldercare_app/src/data/local/vitals_cache_storage.dart';
 import 'package:eldercare_app/src/domain/models/auth_tokens.dart';
 import 'package:eldercare_app/src/domain/models/device.dart';
 import 'package:eldercare_app/src/domain/models/vital_point.dart';
+import 'package:eldercare_app/src/features/auth/register_page.dart';
 import 'package:eldercare_app/src/features/devices/device_page.dart';
 import 'package:eldercare_app/src/features/home/home_page.dart';
 import 'package:eldercare_app/src/state/device_provider.dart';
@@ -54,6 +55,29 @@ void main() {
     expect(find.text('So dien thoai'), findsOneWidget);
     expect(find.text('Mat khau'), findsOneWidget);
     expect(find.text('Chua co tai khoan? Dang ky'), findsOneWidget);
+  });
+
+  testWidgets('DevicePage validates login fields before submit', (tester) async {
+    final session = _buildSessionProvider();
+    final deviceProvider = DeviceProvider(
+      api: _FakeDeviceApiService(devices: const <Device>[]),
+    );
+    await deviceProvider.load();
+
+    await tester.pumpWidget(
+      _TestShell(
+        session: session,
+        deviceProvider: deviceProvider,
+        child: const DevicePage(),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Dang nhap'));
+    await tester.pump();
+
+    expect(find.text('Nhap so dien thoai'), findsOneWidget);
+    expect(find.text('Nhap mat khau'), findsOneWidget);
   });
 
   testWidgets('HomePage shows unauthenticated empty state with no device', (
@@ -117,6 +141,69 @@ void main() {
 
     expect(find.text('Chua chon thiet bi'), findsOneWidget);
     expect(find.text('Quan ly thiet bi'), findsOneWidget);
+  });
+
+  testWidgets('DevicePage shows guided no-device state for authenticated user', (
+    tester,
+  ) async {
+    final session = _buildSessionProvider(
+      loginTokens: const AuthTokens(
+        accessToken: 'access-123',
+        refreshToken: 'refresh-456',
+      ),
+      meResponse: const <String, dynamic>{
+        'user_id': 'patient-001',
+        'name': 'Nguyen Van A',
+        'phone_number': '0987654321',
+        'date_of_birth': '1950-01-02',
+        'role': 'patient',
+      },
+    );
+    await session.login(phoneNumber: '0987654321', password: 'secret');
+
+    final deviceProvider = DeviceProvider(
+      api: _FakeDeviceApiService(devices: const <Device>[]),
+    );
+    await deviceProvider.load();
+
+    await tester.pumpWidget(
+      _TestShell(
+        session: session,
+        deviceProvider: deviceProvider,
+        child: const DevicePage(),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('Chua co thiet bi lien ket'), findsOneWidget);
+    expect(find.text('Xem huong dan lien ket'), findsOneWidget);
+  });
+
+  testWidgets('RegisterPage validates required fields inline', (tester) async {
+    final session = _buildSessionProvider();
+    final deviceProvider = DeviceProvider(
+      api: _FakeDeviceApiService(devices: const <Device>[]),
+    );
+    await deviceProvider.load();
+
+    await tester.pumpWidget(
+      _TestShell(
+        session: session,
+        deviceProvider: deviceProvider,
+        child: const RegisterPage(),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Tao tai khoan'));
+    await tester.pump();
+
+    expect(find.text('Nhap ho va ten'), findsOneWidget);
+    expect(find.text('Nhap so dien thoai'), findsOneWidget);
+    expect(find.text('Vui long chon ngay sinh'), findsOneWidget);
+    expect(find.text('Nhap mat khau'), findsOneWidget);
+    expect(find.text('Nhap lai mat khau'), findsOneWidget);
   });
 }
 

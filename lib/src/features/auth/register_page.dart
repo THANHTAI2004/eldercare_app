@@ -92,6 +92,7 @@ class _RegisterPageState extends State<RegisterPage> {
                   padding: const EdgeInsets.all(20),
                   child: Form(
                     key: _formKey,
+                    autovalidateMode: AutovalidateMode.onUserInteraction,
                     child: AutofillGroup(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,

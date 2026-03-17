@@ -545,7 +545,7 @@ class _AuthenticatedBody extends StatelessWidget {
                   ? 'Chua co thiet bi lien ket'
                   : 'Khong co thiet bi phu hop',
               message: deviceProvider.devices.isEmpty
-                  ? 'Tai khoan moi dang nhap thanh cong nhung chua co thiet bi nao duoc lien ket. Ban co the xem huong dan lien ket, hoac dung luong debug de them thiet bi fallback.'
+                  ? 'Tai khoan cua ban da dang nhap thanh cong nhung hien chua co thiet bi nao duoc lien ket. Ban co the xem huong dan lien ket hoac quet ma thiet bi neu duoc cap quyen.'
                   : 'Thu doi bo loc tim kiem hoac lam moi danh sach thiet bi.',
               actionLabel: deviceProvider.devices.isEmpty && canScan
                   ? 'Quet ma thiet bi'
@@ -625,10 +625,11 @@ class _SessionCard extends StatelessWidget {
                   : 'Dang theo doi: ${currentDevice!.name} (${currentDevice!.resolvedDeviceId})',
             ),
             const SizedBox(height: 8),
-            Text(
-              'Ma user noi bo: ${userId.isEmpty ? 'chua ro' : userId}',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
+            if (kDebugMode && userId.isNotEmpty)
+              Text(
+                'Ma user noi bo: $userId',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
           ],
         ),
       ),
@@ -857,6 +858,7 @@ class _LoginFormContentState extends State<_LoginFormContent> {
   Widget build(BuildContext context) {
     return Form(
       key: _formKey,
+      autovalidateMode: AutovalidateMode.onUserInteraction,
       child: AutofillGroup(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
