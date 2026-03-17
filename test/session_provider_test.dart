@@ -51,7 +51,7 @@ void main() {
     );
 
     final ok = await provider.login(
-      userId: 'patient-001',
+      phoneNumber: '0987654321',
       password: 'secret',
     );
 
@@ -296,7 +296,7 @@ class _FakeAuthApiService extends AuthApiService {
 
   @override
   Future<AuthTokens> login({
-    required String userId,
+    required String phoneNumber,
     required String password,
   }) async {
     loginCalls += 1;

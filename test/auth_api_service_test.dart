@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:eldercare_app/src/data/api/api_client.dart';
 import 'package:eldercare_app/src/data/api/auth_api_service.dart';
 import 'package:eldercare_app/src/data/local/auth_storage.dart';
+import 'package:eldercare_app/src/domain/models/register_request.dart';
 
 import 'support/test_helpers.dart';
 
@@ -18,6 +19,10 @@ void main() {
     final adapter = StubHttpClientAdapter(
       handler: (options, _) async {
         expect(options.path, '/api/v1/auth/login');
+        expect(options.data, <String, dynamic>{
+          'phone_number': '0987654321',
+          'password': 'secret',
+        });
         return jsonResponse(<String, dynamic>{
           'access_token': 'access-123',
           'refresh_token': 'refresh-456',
@@ -26,7 +31,10 @@ void main() {
     );
     client.dio.httpClientAdapter = adapter;
 
-    final tokens = await api.login(userId: 'patient-001', password: 'secret');
+    final tokens = await api.login(
+      phoneNumber: '0987654321',
+      password: 'secret',
+    );
 
     expect(tokens.accessToken, 'access-123');
     expect(tokens.refreshToken, 'refresh-456');
@@ -75,6 +83,36 @@ void main() {
     expect(client.accessToken, 'fresh-access');
     expect(await storage.loadAccessToken(), 'fresh-access');
     expect(await storage.loadRefreshToken(), 'fresh-refresh');
+  });
+
+  test('register sends the expected payload to the backend', () async {
+    final client = ApiClient(baseUrl: 'https://example.com', timeoutMs: 1000);
+    final api = AuthApiService(
+      client: client,
+      storage: AuthStorage(secureStore: MemorySecureStore()),
+    );
+    final adapter = StubHttpClientAdapter(
+      handler: (options, _) async {
+        expect(options.path, '/api/v1/auth/register');
+        expect(options.data, <String, dynamic>{
+          'name': 'Nguyen Van A',
+          'phone_number': '0987654321',
+          'date_of_birth': '1950-01-02',
+          'password': 'MatKhau123',
+        });
+        return jsonResponse(<String, dynamic>{'ok': true}, 200);
+      },
+    );
+    client.dio.httpClientAdapter = adapter;
+
+    await api.register(
+      const RegisterRequest(
+        name: 'Nguyen Van A',
+        phoneNumber: '0987654321',
+        dateOfBirth: '1950-01-02',
+        password: 'MatKhau123',
+      ),
+    );
   });
 
   test('logout calls server with bearer token and clears persisted session', () async {

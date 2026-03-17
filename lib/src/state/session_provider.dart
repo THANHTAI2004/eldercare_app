@@ -4,6 +4,8 @@ import 'package:eldercare_app/src/config/env.dart';
 import 'package:eldercare_app/src/data/api/api_client.dart';
 import 'package:eldercare_app/src/data/api/auth_api_service.dart';
 import 'package:eldercare_app/src/domain/models/auth_tokens.dart';
+import 'package:eldercare_app/src/domain/models/current_user.dart';
+import 'package:eldercare_app/src/domain/models/register_request.dart';
 
 class SessionProvider extends ChangeNotifier {
   SessionProvider({
@@ -23,9 +25,10 @@ class SessionProvider extends ChangeNotifier {
   Future<void>? _bootstrapFuture;
   bool isBootstrapping = false;
   bool isAuthenticating = false;
+  bool isRegistering = false;
 
   AuthTokens? _tokens;
-  Map<String, dynamic>? currentUser;
+  CurrentUser? currentUser;
   String? error;
   int? lastErrorStatusCode;
 
@@ -35,21 +38,11 @@ class SessionProvider extends ChangeNotifier {
       accessToken != null && accessToken!.trim().isNotEmpty;
 
   String get authenticatedUserId {
-    final candidates = <dynamic>[
-      currentUser?['user_id'],
-      currentUser?['userId'],
-      currentUser?['id'],
-      currentUser?['username'],
-    ];
-    for (final candidate in candidates) {
-      final text = candidate?.toString().trim() ?? '';
-      if (text.isNotEmpty) return text;
-    }
-    return '';
+    return currentUser?.userId.trim() ?? '';
   }
 
-  String get authenticatedRole =>
-      currentUser?['role']?.toString().trim().toLowerCase() ?? '';
+  String get authenticatedRole => currentUser?.role.trim().toLowerCase() ?? '';
+  String get authenticatedPhoneNumber => currentUser?.phoneNumber.trim() ?? '';
 
   bool get isUserScopedSession =>
       isAuthenticated &&
@@ -86,13 +79,16 @@ class SessionProvider extends ChangeNotifier {
 
     try {
       _tokens = await _authApi.restoreSessionTokens();
-      currentUser = await _authApi.loadSavedCurrentUser();
+      final savedCurrentUser = await _authApi.loadSavedCurrentUser();
+      currentUser = savedCurrentUser == null
+          ? null
+          : CurrentUser.fromJson(savedCurrentUser);
 
       if (_tokens == null || _tokens!.accessToken.isEmpty) {
         return false;
       }
 
-      currentUser = await _authApi.me();
+      currentUser = CurrentUser.fromJson(await _authApi.me());
       return true;
     } catch (e) {
       if (!silent) {
@@ -117,16 +113,16 @@ class SessionProvider extends ChangeNotifier {
   }
 
   Future<bool> login({
-    String? userId,
+    String? phoneNumber,
     String? password,
     bool silent = false,
   }) async {
-    final nextUserId = (userId ?? Env.debugLoginUserId).trim();
+    final nextPhoneNumber = (phoneNumber ?? Env.debugLoginPhoneNumber).trim();
     final nextPassword = password ?? Env.debugLoginPassword;
 
-    if (nextUserId.isEmpty || nextPassword.isEmpty) {
+    if (nextPhoneNumber.isEmpty || nextPassword.isEmpty) {
       if (!silent) {
-        error = 'Nhap user ID va mat khau de dang nhap';
+        error = 'Nhap so dien thoai va mat khau de dang nhap';
         lastErrorStatusCode = null;
         notifyListeners();
       }
@@ -142,17 +138,23 @@ class SessionProvider extends ChangeNotifier {
 
     try {
       _tokens = await _authApi.login(
-        userId: nextUserId,
+        phoneNumber: nextPhoneNumber,
         password: nextPassword,
       );
 
-      currentUser = <String, dynamic>{'user_id': nextUserId};
-      currentUser = await _authApi.me();
+      currentUser = CurrentUser(
+        userId: '',
+        name: '',
+        phoneNumber: nextPhoneNumber,
+        dateOfBirth: null,
+        role: '',
+      );
+      currentUser = CurrentUser.fromJson(await _authApi.me());
       return true;
     } catch (e) {
       await _clearSession(notify: false);
       if (!silent) {
-        error = _friendlyError(e, fallback: 'Dang nhap that bai');
+        error = _friendlyLoginError(e, fallback: 'Dang nhap that bai');
         lastErrorStatusCode = e is ApiRequestException ? e.statusCode : null;
       }
       return false;
@@ -161,6 +163,37 @@ class SessionProvider extends ChangeNotifier {
         isAuthenticating = false;
         notifyListeners();
       }
+    }
+  }
+
+  Future<bool> register({
+    required String name,
+    required String phoneNumber,
+    required String dateOfBirth,
+    required String password,
+  }) async {
+    isRegistering = true;
+    error = null;
+    lastErrorStatusCode = null;
+    notifyListeners();
+
+    try {
+      await _authApi.register(
+        RegisterRequest(
+          name: name.trim(),
+          phoneNumber: phoneNumber.trim(),
+          dateOfBirth: dateOfBirth.trim(),
+          password: password,
+        ),
+      );
+      return true;
+    } catch (e) {
+      error = _friendlyRegisterError(e, fallback: 'Tao tai khoan that bai');
+      lastErrorStatusCode = e is ApiRequestException ? e.statusCode : null;
+      return false;
+    } finally {
+      isRegistering = false;
+      notifyListeners();
     }
   }
 
@@ -224,6 +257,45 @@ class SessionProvider extends ChangeNotifier {
       }
       if (e.statusCode == 429) {
         return 'Dang bi gioi han request, vui long thu lai sau';
+      }
+      return e.message;
+    }
+    return fallback;
+  }
+
+  String _friendlyLoginError(Object e, {required String fallback}) {
+    if (e is ApiRequestException) {
+      if (e.statusCode == 401) {
+        return 'Sai so dien thoai hoac mat khau';
+      }
+      if (e.statusCode == 422) {
+        return 'So dien thoai hoac mat khau khong hop le';
+      }
+      if (e.statusCode == 500) {
+        return 'Server dang gap loi, vui long thu lai sau';
+      }
+      return _friendlyError(e, fallback: fallback);
+    }
+    return fallback;
+  }
+
+  String _friendlyRegisterError(Object e, {required String fallback}) {
+    if (e is ApiRequestException) {
+      if (e.statusCode == 409) {
+        return 'So dien thoai da duoc dung';
+      }
+      if (e.statusCode == 422) {
+        final message = e.message.toLowerCase();
+        if (message.contains('birth') || message.contains('date')) {
+          return 'Ngay sinh khong hop le';
+        }
+        if (message.contains('password')) {
+          return 'Mat khau phai tu 8 ky tu tro len';
+        }
+        return 'Du lieu dang ky chua hop le';
+      }
+      if (e.statusCode == 500) {
+        return 'Server dang gap loi, vui long thu lai sau';
       }
       return e.message;
     }

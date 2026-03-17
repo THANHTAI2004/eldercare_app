@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'package:eldercare_app/src/app/routes.dart';
 import 'package:eldercare_app/src/config/env.dart';
 import 'package:eldercare_app/src/domain/models/device.dart';
 import 'package:eldercare_app/src/features/devices/device_qr_scanner_page.dart';
@@ -21,8 +22,8 @@ class DevicePage extends StatefulWidget {
 
 class _DevicePageState extends State<DevicePage> {
   final _searchCtrl = TextEditingController();
-  final _loginUserCtrl = TextEditingController(
-    text: kDebugMode ? Env.debugLoginUserId : '',
+  final _loginPhoneCtrl = TextEditingController(
+    text: kDebugMode ? Env.debugLoginPhoneNumber : '',
   );
   final _loginPasswordCtrl = TextEditingController(
     text: kDebugMode && Env.debugLoginPassword != 'replace-with-password'
@@ -63,7 +64,7 @@ class _DevicePageState extends State<DevicePage> {
   void dispose() {
     _deviceProvider?.removeListener(_handleDeviceProviderChanged);
     _searchCtrl.dispose();
-    _loginUserCtrl.dispose();
+    _loginPhoneCtrl.dispose();
     _loginPasswordCtrl.dispose();
     super.dispose();
   }
@@ -96,18 +97,23 @@ class _DevicePageState extends State<DevicePage> {
   }
 
   Future<void> _login() async {
-    final userId = _loginUserCtrl.text.trim();
+    final phoneNumber = _loginPhoneCtrl.text.trim();
     final password = _loginPasswordCtrl.text;
-    if (userId.isEmpty || password.isEmpty) {
+    if (phoneNumber.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Nhap user ID va mat khau de dang nhap.')),
+        const SnackBar(
+          content: Text('Nhap so dien thoai va mat khau de dang nhap.'),
+        ),
       );
       return;
     }
 
     final session = context.read<SessionProvider>();
     final deviceProvider = context.read<DeviceProvider>();
-    final ok = await session.login(userId: userId, password: password);
+    final ok = await session.login(
+      phoneNumber: phoneNumber,
+      password: password,
+    );
     if (!mounted) return;
 
     if (!ok) {
@@ -120,6 +126,19 @@ class _DevicePageState extends State<DevicePage> {
     await deviceProvider.handleSessionState(
       isAuthenticated: session.isAuthenticated,
       authenticatedUserId: session.authenticatedUserId,
+    );
+  }
+
+  Future<void> _openRegister() async {
+    final result = await Navigator.pushNamed<String>(context, AppRoutes.register);
+    if (result == null || result.trim().isEmpty || !mounted) return;
+
+    _loginPhoneCtrl.text = result.trim();
+    _loginPasswordCtrl.clear();
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Tao tai khoan thanh cong. Vui long dang nhap.'),
+      ),
     );
   }
 
@@ -293,6 +312,22 @@ class _DevicePageState extends State<DevicePage> {
     await deviceProvider.addFromQr(code);
   }
 
+  Future<void> _handleLinkDevice() async {
+    if (kDebugMode) {
+      await _showManualAddDialog();
+      return;
+    }
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Ban chua co thiet bi nao duoc lien ket. Vui long lien he caregiver hoac ky thuat vien de lien ket thiet bi.',
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final session = context.watch<SessionProvider>();
@@ -347,13 +382,21 @@ class _DevicePageState extends State<DevicePage> {
               realtime: realtime,
               onRefresh: _refreshDevices,
               onSelectDevice: _selectDevice,
+              onLinkDevice: () {
+                _handleLinkDevice();
+              },
             )
           : _LoginBody(
-              userCtrl: _loginUserCtrl,
+              phoneCtrl: _loginPhoneCtrl,
               passwordCtrl: _loginPasswordCtrl,
               isAuthenticating: session.isAuthenticating,
               errorMessage: session.error,
-              onLogin: _login,
+              onLogin: () {
+                _login();
+              },
+              onRegister: () {
+                _openRegister();
+              },
             ),
     );
   }
@@ -361,18 +404,20 @@ class _DevicePageState extends State<DevicePage> {
 
 class _LoginBody extends StatelessWidget {
   const _LoginBody({
-    required this.userCtrl,
+    required this.phoneCtrl,
     required this.passwordCtrl,
     required this.isAuthenticating,
     required this.errorMessage,
     required this.onLogin,
+    required this.onRegister,
   });
 
-  final TextEditingController userCtrl;
+  final TextEditingController phoneCtrl;
   final TextEditingController passwordCtrl;
   final bool isAuthenticating;
   final String? errorMessage;
-  final Future<void> Function() onLogin;
+  final VoidCallback onLogin;
+  final VoidCallback onRegister;
 
   @override
   Widget build(BuildContext context) {
@@ -400,8 +445,11 @@ class _LoginBody extends StatelessWidget {
                     ),
                     const SizedBox(height: 20),
                     TextField(
-                      controller: userCtrl,
-                      decoration: const InputDecoration(labelText: 'User ID'),
+                      controller: phoneCtrl,
+                      keyboardType: TextInputType.phone,
+                      decoration: const InputDecoration(
+                        labelText: 'So dien thoai',
+                      ),
                     ),
                     const SizedBox(height: 12),
                     TextField(
@@ -435,6 +483,14 @@ class _LoginBody extends StatelessWidget {
                         isAuthenticating ? 'Dang dang nhap...' : 'Dang nhap',
                       ),
                     ),
+                    const SizedBox(height: 12),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton(
+                        onPressed: isAuthenticating ? null : onRegister,
+                        child: const Text('Chua co tai khoan? Dang ky'),
+                      ),
+                    ),
                     if (kDebugMode) ...[
                       const SizedBox(height: 12),
                       Text(
@@ -462,6 +518,7 @@ class _AuthenticatedBody extends StatelessWidget {
     required this.realtime,
     required this.onRefresh,
     required this.onSelectDevice,
+    required this.onLinkDevice,
   });
 
   final String query;
@@ -471,6 +528,7 @@ class _AuthenticatedBody extends StatelessWidget {
   final RealtimeProvider realtime;
   final Future<void> Function() onRefresh;
   final Future<void> Function(Device device) onSelectDevice;
+  final VoidCallback onLinkDevice;
 
   @override
   Widget build(BuildContext context) {
@@ -531,8 +589,14 @@ class _AuthenticatedBody extends StatelessWidget {
           else if (devices.isEmpty)
             _EmptyState(
               message: deviceProvider.devices.isEmpty
-                  ? 'Tai khoan nay chua co thiet bi lien ket.'
+                  ? 'Ban chua co thiet bi nao duoc lien ket.'
                   : 'Khong co thiet bi nao khop bo loc hien tai.',
+              actionLabel: deviceProvider.devices.isEmpty
+                  ? 'Lien ket thiet bi'
+                  : null,
+              onAction: deviceProvider.devices.isEmpty
+                  ? onLinkDevice
+                  : null,
             )
           else
             ...devices.map(
@@ -725,9 +789,15 @@ class _InlineBanner extends StatelessWidget {
 }
 
 class _EmptyState extends StatelessWidget {
-  const _EmptyState({required this.message});
+  const _EmptyState({
+    required this.message,
+    this.actionLabel,
+    this.onAction,
+  });
 
   final String message;
+  final String? actionLabel;
+  final VoidCallback? onAction;
 
   @override
   Widget build(BuildContext context) {
@@ -739,6 +809,13 @@ class _EmptyState extends StatelessWidget {
             const Icon(Icons.devices_other_outlined, size: 48),
             const SizedBox(height: 12),
             Text(message, textAlign: TextAlign.center),
+            if (actionLabel != null && onAction != null) ...[
+              const SizedBox(height: 16),
+              FilledButton(
+                onPressed: onAction,
+                child: Text(actionLabel!),
+              ),
+            ],
           ],
         ),
       ),

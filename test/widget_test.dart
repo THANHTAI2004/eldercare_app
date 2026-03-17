@@ -51,8 +51,9 @@ void main() {
       find.text('Dang nhap de tai danh sach thiet bi da lien ket'),
       findsOneWidget,
     );
-    expect(find.text('User ID'), findsOneWidget);
+    expect(find.text('So dien thoai'), findsOneWidget);
     expect(find.text('Mat khau'), findsOneWidget);
+    expect(find.text('Chua co tai khoan? Dang ky'), findsOneWidget);
   });
 
   testWidgets('HomePage shows unauthenticated empty state with no device', (
@@ -97,7 +98,7 @@ void main() {
         'role': 'patient',
       },
     );
-    await session.login(userId: 'patient-001', password: 'secret');
+    await session.login(phoneNumber: '0987654321', password: 'secret');
 
     final deviceProvider = DeviceProvider(
       api: _FakeDeviceApiService(devices: const <Device>[]),
@@ -205,7 +206,7 @@ class _FakeAuthApiService extends AuthApiService {
 
   @override
   Future<AuthTokens> login({
-    required String userId,
+    required String phoneNumber,
     required String password,
   }) async {
     if (loginTokens == null) {

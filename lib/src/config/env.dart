@@ -25,12 +25,12 @@ class Env {
       ? _read('ADMIN_API_KEY', fallback: _read('API_KEY'))
       : '';
 
-  static String get debugLoginUserId =>
-      kDebugMode ? _read('LOGIN_USER_ID') : '';
+  static String get debugLoginPhoneNumber =>
+      kDebugMode ? _read('LOGIN_PHONE_NUMBER') : '';
   static String get debugLoginPassword =>
       kDebugMode ? _read('LOGIN_PASSWORD') : '';
   static bool get hasDebugLoginCredentials =>
-      debugLoginUserId.isNotEmpty && debugLoginPassword.isNotEmpty;
+      debugLoginPhoneNumber.isNotEmpty && debugLoginPassword.isNotEmpty;
 
   static String get debugDefaultUserId => kDebugMode ? _read('USER_ID') : '';
   static String get debugDefaultDeviceId =>

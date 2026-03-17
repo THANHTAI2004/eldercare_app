@@ -1,6 +1,7 @@
 import 'package:eldercare_app/src/data/api/api_client.dart';
 import 'package:eldercare_app/src/data/local/auth_storage.dart';
 import 'package:eldercare_app/src/domain/models/auth_tokens.dart';
+import 'package:eldercare_app/src/domain/models/register_request.dart';
 
 class AuthApiService {
   AuthApiService({required ApiClient client, AuthStorage? storage})
@@ -11,12 +12,15 @@ class AuthApiService {
   final AuthStorage _storage;
 
   Future<AuthTokens> login({
-    required String userId,
+    required String phoneNumber,
     required String password,
   }) async {
     final json = await _client.postJson(
       '/api/v1/auth/login',
-      data: <String, dynamic>{'user_id': userId, 'password': password},
+      data: <String, dynamic>{
+        'phone_number': phoneNumber,
+        'password': password,
+      },
       extra: const <String, dynamic>{
         ApiClient.skipAuthRefreshKey: true,
         ApiClient.omitAccessTokenKey: true,
@@ -30,6 +34,17 @@ class AuthApiService {
 
     await saveTokens(tokens);
     return tokens;
+  }
+
+  Future<void> register(RegisterRequest request) async {
+    await _client.postJson(
+      '/api/v1/auth/register',
+      data: request.toJson(),
+      extra: const <String, dynamic>{
+        ApiClient.skipAuthRefreshKey: true,
+        ApiClient.omitAccessTokenKey: true,
+      },
+    );
   }
 
   Future<Map<String, dynamic>> me() async {
