@@ -14,7 +14,7 @@ void main() {
     setUpSharedPreferences();
   });
 
-  testWidgets('authenticated user with no devices sees guidance card', (
+  testWidgets('manager with no devices sees claim device CTA', (
     tester,
   ) async {
     final session = buildSessionProvider(
@@ -27,7 +27,7 @@ void main() {
         'name': 'Nguyen Van A',
         'phone_number': '0987654321',
         'date_of_birth': '1950-01-02',
-        'role': 'patient',
+        'role': 'manager',
       },
     );
     await session.login(phoneNumber: '0987654321', password: 'MatKhau123');
@@ -47,12 +47,46 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    expect(find.text('Chua co thiet bi lien ket'), findsOneWidget);
+    expect(find.text('Ban chua co thiet bi nao'), findsOneWidget);
+    expect(find.text('Them thiet bi bang device_id'), findsOneWidget);
     expect(find.text('Xem huong dan lien ket'), findsOneWidget);
-    expect(
-      find.text('Quet ma thiet bi').evaluate().isNotEmpty ||
-          find.text('Lien ket thiet bi').evaluate().isNotEmpty,
-      isTrue,
+  });
+
+  testWidgets('caregiver with no devices sees contact-manager guidance', (
+    tester,
+  ) async {
+    final session = buildSessionProvider(
+      loginTokens: const AuthTokens(
+        accessToken: 'access-123',
+        refreshToken: 'refresh-456',
+      ),
+      meResponse: const <String, dynamic>{
+        'user_id': 'caregiver-001',
+        'name': 'Caregiver A',
+        'phone_number': '0987000001',
+        'date_of_birth': '1988-05-06',
+        'role': 'caregiver',
+      },
     );
+    await session.login(phoneNumber: '0987000001', password: 'MatKhau123');
+
+    final deviceProvider = DeviceProvider(
+      api: FakeDeviceApiService(devices: const []),
+    );
+    await deviceProvider.load();
+
+    await tester.pumpWidget(
+      AuthTestShell(
+        session: session,
+        deviceProvider: deviceProvider,
+        child: const DevicePage(),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('Ban chua duoc them vao thiet bi nao'), findsOneWidget);
+    expect(find.text('Them thiet bi bang device_id'), findsNothing);
+    expect(find.text('Xem huong dan lien ket'), findsOneWidget);
   });
 }

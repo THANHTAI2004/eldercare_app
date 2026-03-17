@@ -5,44 +5,45 @@ class DeviceLinkedUser {
     required this.id,
     required this.name,
     this.role,
+    this.linkRole,
     this.phoneNumber,
   });
 
   final String id;
   final String name;
   final String? role;
+  final String? linkRole;
   final String? phoneNumber;
 
   String get displayName => name.trim().isEmpty ? id : name;
 
   factory DeviceLinkedUser.fromJson(Map<String, dynamic> json) {
+    // Primary contract is snake_case from backend.
+    // camelCase and compact aliases are kept only for backward compatibility.
     final id =
         _readString(json['user_id']) ??
         _readString(json['userId']) ??
-        _readString(json['uid']) ??
         _readString(json['id']) ??
         '';
     final name =
+        _readString(json['name']) ??
         _readString(json['full_name']) ??
         _readString(json['fullName']) ??
         _readString(json['display_name']) ??
-        _readString(json['displayName']) ??
-        _readString(json['name']) ??
         id;
-    final role =
-        _readString(json['role']) ??
+    final role = _readString(json['role']);
+    final linkRole =
         _readString(json['link_role']) ??
-        _readString(json['linkRole']) ??
-        _readString(json['relationship']);
+        _readString(json['linkRole']);
     final phoneNumber =
         _readString(json['phone_number']) ??
-        _readString(json['phoneNumber']) ??
         _readString(json['phone']);
 
     return DeviceLinkedUser(
       id: id,
       name: name,
       role: role,
+      linkRole: linkRole,
       phoneNumber: phoneNumber,
     );
   }
@@ -51,6 +52,7 @@ class DeviceLinkedUser {
     'id': id,
     'name': name,
     if (role != null && role!.trim().isNotEmpty) 'role': role,
+    if (linkRole != null && linkRole!.trim().isNotEmpty) 'linkRole': linkRole,
     if (phoneNumber != null && phoneNumber!.trim().isNotEmpty)
       'phoneNumber': phoneNumber,
   };
@@ -61,12 +63,14 @@ class Device {
     required this.id,
     required this.name,
     this.legacyUserId,
+    this.linkRole,
     this.linkedUsers = const <DeviceLinkedUser>[],
     this.isLocalOnly = false,
   });
 
   final String id;
   final String? legacyUserId;
+  final String? linkRole;
   final List<DeviceLinkedUser> linkedUsers;
   final bool isLocalOnly;
 
@@ -91,10 +95,15 @@ class Device {
     return fallback;
   }
 
+  bool get isOwnerLink => (linkRole?.trim().toLowerCase() ?? '') == 'owner';
+  bool get isCaregiverLink =>
+      (linkRole?.trim().toLowerCase() ?? '') == 'caregiver';
+
   Device copyWith({
     String? id,
     String? name,
     String? legacyUserId,
+    String? linkRole,
     List<DeviceLinkedUser>? linkedUsers,
     bool? isLocalOnly,
   }) {
@@ -102,6 +111,7 @@ class Device {
       id: id ?? this.id,
       name: name ?? this.name,
       legacyUserId: legacyUserId ?? this.legacyUserId,
+      linkRole: linkRole ?? this.linkRole,
       linkedUsers: linkedUsers ?? this.linkedUsers,
       isLocalOnly: isLocalOnly ?? this.isLocalOnly,
     );
@@ -141,6 +151,7 @@ class Device {
       legacyUserId: (resolvedUserId?.isNotEmpty ?? false)
           ? resolvedUserId
           : null,
+      linkRole: (resolvedUserId?.isNotEmpty ?? false) ? 'owner' : null,
       linkedUsers: (resolvedUserId?.isNotEmpty ?? false)
           ? <DeviceLinkedUser>[
               DeviceLinkedUser(id: resolvedUserId!, name: resolvedUserId),
@@ -151,10 +162,11 @@ class Device {
   }
 
   factory Device.fromServerJson(Map<String, dynamic> json) {
+    // Primary contract is snake_case from backend.
+    // camelCase fallbacks are kept only for backward compatibility.
     final deviceId =
         _readString(json['device_id']) ??
         _readString(json['deviceId']) ??
-        _readString(json['device']) ??
         _readString(json['id']) ??
         '';
 
@@ -163,20 +175,23 @@ class Device {
         _readString(json['user_id']) ??
         _readString(json['userId']) ??
         _readString(json['owner_user_id']) ??
-        _readString(json['ownerUserId']) ??
         (links.isEmpty ? null : links.first.id);
+    final linkRole =
+        _readString(json['link_role']) ??
+        _readString(json['linkRole']);
     final name =
+        _readString(json['name']) ??
         _readString(json['display_name']) ??
         _readString(json['displayName']) ??
         _readString(json['device_name']) ??
         _readString(json['deviceName']) ??
-        _readString(json['name']) ??
         'Thiet bi $deviceId';
 
     return Device(
       id: deviceId,
       name: name,
       legacyUserId: legacyUserId,
+      linkRole: linkRole,
       linkedUsers: links,
       isLocalOnly: false,
     );
@@ -215,6 +230,9 @@ class Device {
           _readString(json['legacyUserId']) ??
           _readString(json['userId']) ??
           _readString(json['user_id']),
+      linkRole:
+          _readString(json['linkRole']) ??
+          _readString(json['link_role']),
       linkedUsers: linkedUsers,
       isLocalOnly: json['isLocalOnly'] == true,
     );
@@ -225,6 +243,7 @@ class Device {
     'name': name,
     if (legacyUserId != null && legacyUserId!.trim().isNotEmpty)
       'legacyUserId': legacyUserId,
+    if (linkRole != null && linkRole!.trim().isNotEmpty) 'linkRole': linkRole,
     if (linkedUsers.isNotEmpty)
       'linkedUsers': linkedUsers.map((entry) => entry.toJson()).toList(),
     if (isLocalOnly) 'isLocalOnly': true,
@@ -237,10 +256,6 @@ class Device {
       json['linked_users'],
       json['linkedUsers'],
       json['users'],
-      json['members'],
-      json['device_links'],
-      json['deviceLinks'],
-      json['links'],
     ];
 
     for (final candidate in candidates) {

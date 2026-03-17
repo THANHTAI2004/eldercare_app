@@ -15,13 +15,46 @@ class DeviceApiService {
         .toList(growable: false);
   }
 
+  Future<void> claimDevice({required String deviceId}) async {
+    await _client.postJson('/api/v1/devices/$deviceId/claim');
+  }
+
+  Future<List<DeviceLinkedUser>> getLinkedUsers({required String deviceId}) async {
+    final json = await _client.getJson('/api/v1/devices/$deviceId/linked-users');
+    return _extractMany(json)
+        .map(DeviceLinkedUser.fromJson)
+        .where((user) => user.id.trim().isNotEmpty)
+        .toList(growable: false);
+  }
+
+  Future<void> addCaregiver({
+    required String deviceId,
+    String? userId,
+    String? phoneNumber,
+  }) async {
+    final normalizedUserId = userId?.trim() ?? '';
+    final normalizedPhoneNumber = phoneNumber?.trim() ?? '';
+    await _client.postJson(
+      '/api/v1/devices/$deviceId/caregivers',
+      data: <String, dynamic>{
+        if (normalizedUserId.isNotEmpty) 'user_id': normalizedUserId,
+        if (normalizedPhoneNumber.isNotEmpty)
+          'phone_number': normalizedPhoneNumber,
+      },
+    );
+  }
+
+  Future<void> removeCaregiver({
+    required String deviceId,
+    required String userId,
+  }) async {
+    await _client.deleteJson('/api/v1/devices/$deviceId/caregivers/$userId');
+  }
+
   List<Map<String, dynamic>> _extractMany(Map<String, dynamic> json) {
-    final candidates = <dynamic>[
-      json['items'],
-      json['devices'],
-      json['data'],
-      json['results'],
-    ];
+    // Primary contract is {"count": ..., "items": [...] } from backend.
+    // `devices` is kept only for backward compatibility with older payloads.
+    final candidates = <dynamic>[json['items'], json['devices']];
 
     for (final candidate in candidates) {
       if (candidate is List) {

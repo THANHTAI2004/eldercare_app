@@ -60,7 +60,6 @@ class RealtimeProvider extends ChangeNotifier {
   bool get isUserScopedSession =>
       _isAuthenticated &&
       _authenticatedUserId.isNotEmpty &&
-      _authenticatedRole != 'admin' &&
       _authenticatedRole != 'caregiver';
 
   bool get isOnline {

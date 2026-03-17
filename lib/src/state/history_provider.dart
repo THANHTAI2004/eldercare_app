@@ -247,7 +247,6 @@ class HistoryProvider extends ChangeNotifier {
   bool get _isUserScopedSession =>
       _isAuthenticated &&
       _authenticatedUserId.isNotEmpty &&
-      _authenticatedRole != 'admin' &&
       _authenticatedRole != 'caregiver';
 
   String _userScopeError() {

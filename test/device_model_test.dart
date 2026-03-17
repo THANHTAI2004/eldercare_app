@@ -30,6 +30,7 @@ void main() {
       final device = Device.fromServerJson({
         'device_id': 'dev-esp-009',
         'name': 'Phong khach',
+        'link_role': 'owner',
         'linked_users': [
           {
             'user_id': 'patient-009',
@@ -40,6 +41,7 @@ void main() {
             'user_id': 'caregiver-001',
             'name': 'Caregiver',
             'role': 'caregiver',
+            'link_role': 'viewer',
             'phone_number': '0909000111',
           },
         ],
@@ -47,9 +49,12 @@ void main() {
 
       expect(device.id, 'dev-esp-009');
       expect(device.name, 'Phong khach');
+      expect(device.linkRole, 'owner');
+      expect(device.isOwnerLink, isTrue);
       expect(device.primaryUserId, 'patient-009');
       expect(device.linkedUsers, hasLength(2));
       expect(device.linkedUsers.first.displayName, 'Patient 009');
+      expect(device.linkedUsers.last.linkRole, 'viewer');
       expect(device.linkedUsers.last.phoneNumber, '0909000111');
     });
   });

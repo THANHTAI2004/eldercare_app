@@ -44,12 +44,19 @@ class SessionProvider extends ChangeNotifier {
 
   String get authenticatedRole => currentUser?.role.trim().toLowerCase() ?? '';
   String get authenticatedPhoneNumber => currentUser?.phoneNumber.trim() ?? '';
+  bool get isManager => authenticatedRole == 'manager';
+  bool get isCaregiver => authenticatedRole == 'caregiver';
+
+  String get authenticatedRoleLabel {
+    final user = currentUser;
+    if (user != null) return user.roleLabel;
+    return authenticatedRole;
+  }
 
   bool get isUserScopedSession =>
       isAuthenticated &&
       authenticatedUserId.isNotEmpty &&
-      authenticatedRole != 'admin' &&
-      authenticatedRole != 'caregiver';
+      !isCaregiver;
 
   Future<void> bootstrap() {
     return _bootstrapFuture ??= _bootstrapSession();

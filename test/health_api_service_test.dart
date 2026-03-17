@@ -101,4 +101,42 @@ void main() {
     expect(items, hasLength(1));
     expect(request['request_id'], 'req-1');
   });
+
+  test('waitForEcgResult polls the new device ECG endpoint', () async {
+    final client = ApiClient(baseUrl: 'https://example.com', timeoutMs: 1000);
+    final service = HealthApiService(client: client);
+    var ecgCalls = 0;
+    client.dio.httpClientAdapter = StubHttpClientAdapter(
+      handler: (options, _) async {
+        expect(options.path, '/api/v1/devices/dev-1/ecg');
+        ecgCalls += 1;
+        if (ecgCalls == 1) {
+          return jsonResponse(<String, dynamic>{
+            'count': 0,
+            'items': const <Map<String, dynamic>>[],
+          }, 200);
+        }
+        return jsonResponse(<String, dynamic>{
+          'count': 1,
+          'items': <Map<String, dynamic>>[
+            <String, dynamic>{
+              'timestamp': '2026-03-16T10:00:00Z',
+              'device_id': 'dev-1',
+              'samples': <int>[1, 2, 3],
+            },
+          ],
+        }, 200);
+      },
+    );
+
+    final result = await service.waitForEcgResult(
+      deviceId: 'dev-1',
+      pollIntervalMs: 1,
+      timeout: const Duration(milliseconds: 100),
+    );
+
+    expect(ecgCalls, 2);
+    expect(result, isNotNull);
+    expect(result?['device_id'], 'dev-1');
+  });
 }

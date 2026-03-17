@@ -296,13 +296,15 @@ class _HomePageState extends State<HomePage> {
                         ),
                       ),
                     ],
-                    const SizedBox(height: 16),
-                    _EcgActionCard(
-                      enabled:
-                          device.hasExplicitDeviceId && !ecg.isLoading,
-                      isLoading: ecg.isLoading,
-                      onTap: () => _requestEcg(device),
-                    ),
+                    if (!session.isCaregiver) ...[
+                      const SizedBox(height: 16),
+                      _EcgActionCard(
+                        enabled:
+                            device.hasExplicitDeviceId && !ecg.isLoading,
+                        isLoading: ecg.isLoading,
+                        onTap: () => _requestEcg(device),
+                      ),
+                    ],
                     const SizedBox(height: 16),
                     FeatureButton(
                       icon: Icons.history,
@@ -357,6 +359,20 @@ class _HomePageState extends State<HomePage> {
   Widget _buildNoDeviceView(BuildContext context, RealtimeProvider rt) {
     final session = context.watch<SessionProvider>();
     final scheme = Theme.of(context).colorScheme;
+    final title = session.isAuthenticated
+        ? session.isManager
+              ? 'Ban chua co thiet bi nao'
+              : session.isCaregiver
+              ? 'Ban chua duoc them vao thiet bi nao'
+              : 'Chua chon thiet bi'
+        : 'Chua dang nhap';
+    final message = session.isAuthenticated
+        ? session.isManager
+              ? 'Tai khoan nguoi quan ly cua ban chua co thiet bi nao.\nMo muc Thiet bi de them thiet bi bang device_id va bat dau theo doi.'
+              : session.isCaregiver
+              ? 'Tai khoan nguoi cham soc cua ban hien chua duoc chia se thiet bi nao.\nVui long lien he nguoi quan ly thiet bi de duoc them vao danh sach theo doi.'
+              : 'Tai khoan da dang nhap nhung chua co device duoc chon.\nMo muc Thiet bi de chon device dang theo doi.'
+        : 'Ban can dang nhap truoc, sau do app se tai danh sach device da lien ket tu server.';
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -364,14 +380,12 @@ class _HomePageState extends State<HomePage> {
           Icon(Icons.devices_other, size: 64, color: scheme.outline),
           const SizedBox(height: 12),
           Text(
-            session.isAuthenticated ? 'Chua chon thiet bi' : 'Chua dang nhap',
+            title,
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 6),
           Text(
-            session.isAuthenticated
-                ? 'Tai khoan da dang nhap nhung chua co device duoc chon.\nMo muc Thiet bi de chon device dang theo doi.'
-                : 'Ban can dang nhap truoc, sau do app se tai danh sach device da lien ket tu server.',
+            message,
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 16),

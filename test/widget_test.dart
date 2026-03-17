@@ -119,7 +119,7 @@ void main() {
       ),
       meResponse: const <String, dynamic>{
         'user_id': 'patient-001',
-        'role': 'patient',
+        'role': 'manager',
       },
     );
     await session.login(phoneNumber: '0987654321', password: 'secret');
@@ -139,11 +139,11 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    expect(find.text('Chua chon thiet bi'), findsOneWidget);
+    expect(find.text('Ban chua co thiet bi nao'), findsOneWidget);
     expect(find.text('Quan ly thiet bi'), findsOneWidget);
   });
 
-  testWidgets('DevicePage shows guided no-device state for authenticated user', (
+  testWidgets('DevicePage shows manager no-device state', (
     tester,
   ) async {
     final session = _buildSessionProvider(
@@ -156,7 +156,7 @@ void main() {
         'name': 'Nguyen Van A',
         'phone_number': '0987654321',
         'date_of_birth': '1950-01-02',
-        'role': 'patient',
+        'role': 'manager',
       },
     );
     await session.login(phoneNumber: '0987654321', password: 'secret');
@@ -176,8 +176,65 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    expect(find.text('Chua co thiet bi lien ket'), findsOneWidget);
+    expect(find.text('Ban chua co thiet bi nao'), findsOneWidget);
+    expect(find.text('Them thiet bi bang device_id'), findsOneWidget);
     expect(find.text('Xem huong dan lien ket'), findsOneWidget);
+  });
+
+  testWidgets('HomePage hides ECG action for caregiver', (tester) async {
+    final session = _buildSessionProvider(
+      loginTokens: const AuthTokens(
+        accessToken: 'access-123',
+        refreshToken: 'refresh-456',
+      ),
+      meResponse: const <String, dynamic>{
+        'user_id': 'caregiver-001',
+        'role': 'caregiver',
+      },
+    );
+    await session.login(phoneNumber: '0987000001', password: 'secret');
+
+    final deviceProvider = DeviceProvider(
+      api: _FakeDeviceApiService(
+        devices: <Device>[
+          Device.fromServerJson(const <String, dynamic>{
+            'device_id': 'dev-1',
+            'name': 'Phong ngu',
+            'link_role': 'caregiver',
+            'linked_users': <Map<String, dynamic>>[
+              <String, dynamic>{
+                'user_id': 'manager-001',
+                'name': 'Manager A',
+                'role': 'manager',
+                'link_role': 'owner',
+              },
+              <String, dynamic>{
+                'user_id': 'caregiver-001',
+                'name': 'Caregiver A',
+                'role': 'caregiver',
+                'link_role': 'caregiver',
+              },
+            ],
+          }),
+        ],
+      ),
+    );
+    await deviceProvider.handleSessionState(
+      isAuthenticated: true,
+      authenticatedUserId: session.authenticatedUserId,
+    );
+
+    await tester.pumpWidget(
+      _TestShell(
+        session: session,
+        deviceProvider: deviceProvider,
+        child: const HomePage(),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('Yeu cau ECG'), findsNothing);
   });
 
   testWidgets('RegisterPage validates required fields inline', (tester) async {

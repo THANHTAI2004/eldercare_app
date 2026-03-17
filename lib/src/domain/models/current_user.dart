@@ -13,30 +13,41 @@ class CurrentUser {
   final String? dateOfBirth;
   final String role;
 
+  bool get isManager => role == 'manager';
+  bool get isCaregiver => role == 'caregiver';
+
+  String get roleLabel {
+    switch (role) {
+      case 'manager':
+        return 'Nguoi quan ly thiet bi';
+      case 'caregiver':
+        return 'Nguoi cham soc';
+      default:
+        return role;
+    }
+  }
+
   factory CurrentUser.fromJson(Map<String, dynamic> json) {
+    // Primary contract is snake_case from backend.
+    // camelCase and legacy fallbacks are kept only for backward compatibility.
     return CurrentUser(
       userId:
           _readString(json['user_id']) ??
           _readString(json['userId']) ??
           _readString(json['id']) ??
-          _readString(json['username']) ??
           '',
       name:
           _readString(json['name']) ??
           _readString(json['full_name']) ??
           _readString(json['fullName']) ??
-          _readString(json['display_name']) ??
-          _readString(json['displayName']) ??
           '',
       phoneNumber:
           _readString(json['phone_number']) ??
           _readString(json['phoneNumber']) ??
-          _readString(json['phone']) ??
           '',
       dateOfBirth:
           _readString(json['date_of_birth']) ??
-          _readString(json['dateOfBirth']) ??
-          _readString(json['birth_date']),
+          _readString(json['dateOfBirth']),
       role: (_readString(json['role']) ?? '').toLowerCase(),
     );
   }
