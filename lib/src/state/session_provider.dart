@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import 'package:eldercare_app/src/core/app_strings.dart';
 import 'package:eldercare_app/src/config/env.dart';
 import 'package:eldercare_app/src/data/api/api_client.dart';
 import 'package:eldercare_app/src/data/api/auth_api_service.dart';
@@ -94,7 +95,7 @@ class SessionProvider extends ChangeNotifier {
       if (!silent) {
         error = _friendlyError(
           e,
-          fallback: 'Khong the khoi phuc phien dang nhap',
+          fallback: AppStrings.sessionRestoreFailed,
         );
         lastErrorStatusCode = e is ApiRequestException ? e.statusCode : null;
       }
@@ -122,7 +123,7 @@ class SessionProvider extends ChangeNotifier {
 
     if (nextPhoneNumber.isEmpty || nextPassword.isEmpty) {
       if (!silent) {
-        error = 'Nhap so dien thoai va mat khau de dang nhap';
+        error = AppStrings.loginCredentialsRequired;
         lastErrorStatusCode = null;
         notifyListeners();
       }
@@ -142,19 +143,12 @@ class SessionProvider extends ChangeNotifier {
         password: nextPassword,
       );
 
-      currentUser = CurrentUser(
-        userId: '',
-        name: '',
-        phoneNumber: nextPhoneNumber,
-        dateOfBirth: null,
-        role: '',
-      );
       currentUser = CurrentUser.fromJson(await _authApi.me());
       return true;
     } catch (e) {
       await _clearSession(notify: false);
       if (!silent) {
-        error = _friendlyLoginError(e, fallback: 'Dang nhap that bai');
+        error = _friendlyLoginError(e, fallback: AppStrings.loginFailed);
         lastErrorStatusCode = e is ApiRequestException ? e.statusCode : null;
       }
       return false;
@@ -188,7 +182,7 @@ class SessionProvider extends ChangeNotifier {
       );
       return true;
     } catch (e) {
-      error = _friendlyRegisterError(e, fallback: 'Tao tai khoan that bai');
+      error = _friendlyRegisterError(e, fallback: AppStrings.registerFailed);
       lastErrorStatusCode = e is ApiRequestException ? e.statusCode : null;
       return false;
     } finally {
@@ -227,7 +221,13 @@ class SessionProvider extends ChangeNotifier {
   }
 
   Future<void> _handleUnauthorized() async {
-    await _clearSession(notify: true);
+    error = AppStrings.sessionExpired;
+    lastErrorStatusCode = 401;
+    await _clearSession(
+      notify: true,
+      preserveError: true,
+      preservedStatusCode: 401,
+    );
   }
 
   Future<void> _clearSession({
@@ -250,13 +250,13 @@ class SessionProvider extends ChangeNotifier {
   String _friendlyError(Object e, {required String fallback}) {
     if (e is ApiRequestException) {
       if (e.statusCode == 401) {
-        return 'Phien dang nhap khong hop le hoac da het han';
+        return AppStrings.sessionExpired;
       }
       if (e.statusCode == 403) {
-        return 'Tai khoan hien tai khong co quyen truy cap';
+        return AppStrings.permissionDenied;
       }
       if (e.statusCode == 429) {
-        return 'Dang bi gioi han request, vui long thu lai sau';
+        return AppStrings.rateLimited;
       }
       return e.message;
     }
@@ -266,13 +266,13 @@ class SessionProvider extends ChangeNotifier {
   String _friendlyLoginError(Object e, {required String fallback}) {
     if (e is ApiRequestException) {
       if (e.statusCode == 401) {
-        return 'Sai so dien thoai hoac mat khau';
+        return AppStrings.loginUnauthorized;
       }
       if (e.statusCode == 422) {
-        return 'So dien thoai hoac mat khau khong hop le';
+        return AppStrings.loginInvalid;
       }
       if (e.statusCode == 500) {
-        return 'Server dang gap loi, vui long thu lai sau';
+        return AppStrings.serverError;
       }
       return _friendlyError(e, fallback: fallback);
     }
@@ -282,20 +282,20 @@ class SessionProvider extends ChangeNotifier {
   String _friendlyRegisterError(Object e, {required String fallback}) {
     if (e is ApiRequestException) {
       if (e.statusCode == 409) {
-        return 'So dien thoai da duoc dung';
+        return AppStrings.registerPhoneTaken;
       }
       if (e.statusCode == 422) {
         final message = e.message.toLowerCase();
         if (message.contains('birth') || message.contains('date')) {
-          return 'Ngay sinh khong hop le';
+          return AppStrings.invalidBirthDate;
         }
         if (message.contains('password')) {
-          return 'Mat khau phai tu 8 ky tu tro len';
+          return AppStrings.passwordTooShort;
         }
-        return 'Du lieu dang ky chua hop le';
+        return AppStrings.registerInvalidData;
       }
       if (e.statusCode == 500) {
-        return 'Server dang gap loi, vui long thu lai sau';
+        return AppStrings.serverError;
       }
       return e.message;
     }

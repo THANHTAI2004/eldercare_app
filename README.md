@@ -66,8 +66,9 @@ flutter run
 - `lib/src/data/api/api_client.dart`: tao Dio client, timeout, gan dong header `Authorization: Bearer ...`.
 - `lib/src/data/api/auth_api_service.dart`: register/login/me/logout/refresh va dong bo token voi storage.
 - `lib/src/data/local/auth_storage.dart`: luu token trong secure storage va current user cache o local storage.
+- `lib/src/state/session_provider.dart`: bootstrap session, login, register, logout, refresh token va thong bao session het han cho UI.
 - `lib/src/data/api/health_api_service.dart`: cac API theo user/device + ECG polling.
-- `lib/src/state/realtime_provider.dart`: bootstrap session, login truoc khi load latest/history, request ECG va cap nhat UI.
+- `lib/src/state/realtime_provider.dart`: tai latest vitals, online/offline state va cap nhat UI realtime.
 - `lib/src/data/api/device_api_service.dart`: goi `GET /api/v1/me/devices`.
 - `lib/src/state/device_provider.dart`: dong bo linked devices, auto-chon current device, fallback debug mode.
 - `lib/src/features/alerts/alerts_page.dart`: danh sach alert, loc severity/trang thai, acknowledge.
@@ -84,6 +85,8 @@ flutter run
 - Sau login, xac nhan app goi `/api/v1/me/devices` va hien linked devices.
 - Neu user chi co 1 device, xac nhan device duoc auto-select.
 - Neu user co nhieu device, doi device trong selector o `HomePage` va xac nhan latest/history doi theo.
+- Neu user moi dang ky chua co thiet bi, xac nhan app hien empty state huong dan lien ket thay vi man hinh trong.
+- Luu y: production co the chua mo self-link device neu backend chua ho tro, khi do user se thay huong dan lien he caregiver/ky thuat vien.
 
 3. Data states
 - Kiem tra 4 case UI: chua login, khong co device, device co nhung chua co reading, khong co quyen / server loi.

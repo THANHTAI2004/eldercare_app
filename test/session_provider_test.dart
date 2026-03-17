@@ -112,7 +112,7 @@ void main() {
     expect(restored, isFalse);
     expect(provider.isAuthenticated, isFalse);
     expect(provider.authenticatedUserId, isEmpty);
-    expect(provider.error, 'Phien dang nhap khong hop le hoac da het han');
+    expect(provider.error, 'Phien dang nhap da het han, vui long dang nhap lai');
     expect(provider.lastErrorStatusCode, 401);
     expect(authApi.clearCalls, 1);
   });

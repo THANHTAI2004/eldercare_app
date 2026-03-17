@@ -2,11 +2,13 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import 'package:eldercare_app/src/app/routes.dart';
 import 'package:eldercare_app/src/config/env.dart';
+import 'package:eldercare_app/src/core/app_date_utils.dart';
+import 'package:eldercare_app/src/core/app_strings.dart';
+import 'package:eldercare_app/src/core/validators.dart';
 import 'package:eldercare_app/src/domain/models/device.dart';
 import 'package:eldercare_app/src/features/devices/device_qr_scanner_page.dart';
 import 'package:eldercare_app/src/features/home/home_page.dart';
@@ -34,6 +36,7 @@ class _DevicePageState extends State<DevicePage> {
 
   String _query = '';
   String? _lastRealtimeBindingKey;
+  String? _lastSessionMessage;
   DeviceProvider? _deviceProvider;
 
   @override
@@ -110,6 +113,29 @@ class _DevicePageState extends State<DevicePage> {
       isAuthenticated: session.isAuthenticated,
       authenticatedUserId: session.authenticatedUserId,
     );
+  }
+
+  void _handleSessionFeedback(SessionProvider session) {
+    final nextMessage = session.error?.trim();
+    final shouldShowSessionExpired =
+        !session.isAuthenticated &&
+        session.lastErrorStatusCode == 401 &&
+        nextMessage != null &&
+        nextMessage.isNotEmpty &&
+        nextMessage == AppStrings.sessionExpired &&
+        _lastSessionMessage != nextMessage;
+
+    _lastSessionMessage = nextMessage;
+    if (!shouldShowSessionExpired) return;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(content: Text(AppStrings.sessionExpired)),
+        );
+    });
   }
 
   Future<void> _openRegister() async {
@@ -336,6 +362,7 @@ class _DevicePageState extends State<DevicePage> {
     final session = context.watch<SessionProvider>();
     final deviceProvider = context.watch<DeviceProvider>();
     final realtime = context.watch<RealtimeProvider>();
+    _handleSessionFeedback(session);
 
     return Scaffold(
       appBar: AppBar(
@@ -533,7 +560,7 @@ class _AuthenticatedBody extends StatelessWidget {
             controller: searchCtrl,
             decoration: const InputDecoration(
               prefixIcon: Icon(Icons.search),
-              hintText: 'Tim theo ten device, device_id, user lien ket...',
+              hintText: 'Tim theo ten thiet bi, ma thiet bi, tai khoan lien ket...',
             ),
           ),
           const SizedBox(height: 16),
@@ -542,7 +569,7 @@ class _AuthenticatedBody extends StatelessWidget {
           else if (devices.isEmpty)
             _EmptyState(
               title: deviceProvider.devices.isEmpty
-                  ? 'Chua co thiet bi lien ket'
+                  ? AppStrings.noLinkedDeviceTitle
                   : 'Khong co thiet bi phu hop',
               message: deviceProvider.devices.isEmpty
                   ? 'Tai khoan cua ban da dang nhap thanh cong nhung hien chua co thiet bi nao duoc lien ket. Ban co the xem huong dan lien ket hoac quet ma thiet bi neu duoc cap quyen.'
@@ -554,7 +581,7 @@ class _AuthenticatedBody extends StatelessWidget {
                   : null,
               onAction: deviceProvider.devices.isEmpty ? onLinkDevice : null,
               secondaryActionLabel: deviceProvider.devices.isEmpty
-                  ? 'Xem huong dan lien ket'
+                  ? AppStrings.noLinkedDeviceGuide
                   : null,
               onSecondaryAction: deviceProvider.devices.isEmpty
                   ? onShowLinkGuide
@@ -605,7 +632,7 @@ class _SessionCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Session hien tai',
+              'Thong tin tai khoan',
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 8),
@@ -616,8 +643,8 @@ class _SessionCard extends StatelessWidget {
             Text(
               'Ngay sinh: ${_formatDateOfBirth(dateOfBirth) ?? 'Chua cap nhat'}',
             ),
-            Text('Role: ${role.isEmpty ? 'unknown' : role}'),
-            Text('So thiet bi linked: $totalDevices'),
+            Text('Vai tro: ${role.isEmpty ? 'Chua cap nhat' : role}'),
+            Text('So thiet bi da lien ket: $totalDevices'),
             const SizedBox(height: 8),
             Text(
               currentDevice == null
@@ -676,9 +703,9 @@ class _DeviceCard extends StatelessWidget {
                     children: [
                       Text(device.name, style: theme.textTheme.titleMedium),
                       const SizedBox(height: 4),
-                      Text('device_id: ${device.resolvedDeviceId}'),
+                      Text('Ma thiet bi: ${device.resolvedDeviceId}'),
                       if (device.primaryUserId != null)
-                        Text('user chinh: ${device.primaryUserId}'),
+                        Text('Tai khoan chinh: ${device.primaryUserId}'),
                     ],
                   ),
                 ),
@@ -689,24 +716,24 @@ class _DeviceCard extends StatelessWidget {
                   ),
               ],
             ),
-            if (device.isLocalOnly) ...[
+            if (kDebugMode && device.isLocalOnly) ...[
               const SizedBox(height: 12),
               _InlineBanner(
                 color: theme.colorScheme.primaryContainer,
                 textColor: theme.colorScheme.onPrimaryContainer,
                 message:
-                    'Device nay dang duoc giu lam fallback debug, khong phai linked device chinh tu server.',
+                    'Thiet bi nay dang duoc giu tam cho qua trinh thu nghiem, khong phai thiet bi lien ket chinh tu he thong.',
               ),
             ],
             const SizedBox(height: 12),
             Text(
-              'Nguoi da lien ket voi thiet bi',
+              'Nguoi dung lien ket',
               style: theme.textTheme.titleSmall,
             ),
             const SizedBox(height: 8),
             if (linkedUsers.isEmpty)
               Text(
-                'Response hien tai chua tra danh sach linked users cho device nay.',
+                'Thiet bi nay hien chua hien thi danh sach nguoi dung lien ket.',
                 style: theme.textTheme.bodySmall,
               )
             else
@@ -845,10 +872,24 @@ class _LoginFormContent extends StatefulWidget {
 
 class _LoginFormContentState extends State<_LoginFormContent> {
   final _formKey = GlobalKey<FormState>();
+  final _phoneFocusNode = FocusNode();
+  final _passwordFocusNode = FocusNode();
   bool _obscurePassword = true;
+
+  @override
+  void dispose() {
+    _phoneFocusNode.dispose();
+    _passwordFocusNode.dispose();
+    super.dispose();
+  }
 
   void _submit() {
     if (!(_formKey.currentState?.validate() ?? false)) {
+      if (AppValidators.validatePhoneNumber(widget.phoneCtrl.text) != null) {
+        _phoneFocusNode.requestFocus();
+      } else if ((widget.passwordCtrl.text).isEmpty) {
+        _passwordFocusNode.requestFocus();
+      }
       return;
     }
     widget.onLogin();
@@ -875,23 +916,17 @@ class _LoginFormContentState extends State<_LoginFormContent> {
             const SizedBox(height: 20),
             TextFormField(
               controller: widget.phoneCtrl,
+              focusNode: _phoneFocusNode,
+              autofocus: true,
               keyboardType: TextInputType.phone,
               autofillHints: const <String>[AutofillHints.telephoneNumber],
               decoration: const InputDecoration(labelText: 'So dien thoai'),
-              validator: (value) {
-                final text = value?.trim() ?? '';
-                if (text.isEmpty) {
-                  return 'Nhap so dien thoai';
-                }
-                if (text.length < 9) {
-                  return 'So dien thoai khong hop le';
-                }
-                return null;
-              },
+              validator: AppValidators.validatePhoneNumber,
             ),
             const SizedBox(height: 12),
             TextFormField(
               controller: widget.passwordCtrl,
+              focusNode: _passwordFocusNode,
               obscureText: _obscurePassword,
               autofillHints: const <String>[AutofillHints.password],
               decoration: InputDecoration(
@@ -910,7 +945,7 @@ class _LoginFormContentState extends State<_LoginFormContent> {
               ),
               validator: (value) {
                 if ((value ?? '').isEmpty) {
-                  return 'Nhap mat khau';
+                  return AppStrings.loginPasswordRequired;
                 }
                 return null;
               },
@@ -950,7 +985,7 @@ class _LoginFormContentState extends State<_LoginFormContent> {
             if (kDebugMode) ...[
               const SizedBox(height: 12),
               Text(
-                'Che do debug van giu USER_ID / DEVICE_ID lam fallback neu tai khoan chua co device.',
+                'Che do debug van cho phep them nhanh thiet bi thu nghiem neu tai khoan chua co thiet bi lien ket.',
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ],
@@ -962,9 +997,5 @@ class _LoginFormContentState extends State<_LoginFormContent> {
 }
 
 String? _formatDateOfBirth(String? raw) {
-  final text = raw?.trim() ?? '';
-  if (text.isEmpty) return null;
-  final parsed = DateTime.tryParse(text);
-  if (parsed == null) return text;
-  return DateFormat('dd/MM/yyyy').format(parsed);
+  return AppDateUtils.formatDateOfBirth(raw);
 }

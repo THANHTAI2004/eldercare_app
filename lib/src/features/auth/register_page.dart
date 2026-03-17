@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import 'package:eldercare_app/src/core/app_strings.dart';
+import 'package:eldercare_app/src/core/validators.dart';
 import 'package:eldercare_app/src/state/session_provider.dart';
 
 class RegisterPage extends StatefulWidget {
@@ -55,7 +57,7 @@ class _RegisterPageState extends State<RegisterPage> {
     final selectedDate = _selectedDate;
     if (selectedDate == null) {
       setState(() {
-        _dateErrorText = 'Vui long chon ngay sinh';
+        _dateErrorText = AppStrings.registerPickBirthDate;
       });
       return;
     }
@@ -109,6 +111,7 @@ class _RegisterPageState extends State<RegisterPage> {
                           const SizedBox(height: 20),
                           TextFormField(
                             controller: _nameCtrl,
+                            enabled: !session.isRegistering,
                             textInputAction: TextInputAction.next,
                             autofillHints: const <String>[AutofillHints.name],
                             decoration: const InputDecoration(
@@ -124,6 +127,7 @@ class _RegisterPageState extends State<RegisterPage> {
                           const SizedBox(height: 12),
                           TextFormField(
                             controller: _phoneCtrl,
+                            enabled: !session.isRegistering,
                             keyboardType: TextInputType.phone,
                             textInputAction: TextInputAction.next,
                             autofillHints: const <String>[
@@ -132,16 +136,7 @@ class _RegisterPageState extends State<RegisterPage> {
                             decoration: const InputDecoration(
                               labelText: 'So dien thoai',
                             ),
-                            validator: (value) {
-                              final text = value?.trim() ?? '';
-                              if (text.isEmpty) {
-                                return 'Nhap so dien thoai';
-                              }
-                              if (text.length < 9) {
-                                return 'So dien thoai khong hop le';
-                              }
-                              return null;
-                            },
+                            validator: AppValidators.validatePhoneNumber,
                           ),
                           const SizedBox(height: 12),
                           InputDecorator(
@@ -153,7 +148,7 @@ class _RegisterPageState extends State<RegisterPage> {
                               children: [
                                 Expanded(child: Text(dateText)),
                                 TextButton(
-                                  onPressed: _pickDate,
+                                  onPressed: session.isRegistering ? null : _pickDate,
                                   child: const Text('Chon ngay'),
                                 ),
                               ],
@@ -162,6 +157,7 @@ class _RegisterPageState extends State<RegisterPage> {
                           const SizedBox(height: 12),
                           TextFormField(
                             controller: _passwordCtrl,
+                            enabled: !session.isRegistering,
                             obscureText: _obscurePassword,
                             textInputAction: TextInputAction.next,
                             autofillHints: const <String>[
@@ -186,19 +182,13 @@ class _RegisterPageState extends State<RegisterPage> {
                               ),
                             ),
                             validator: (value) {
-                              final text = value ?? '';
-                              if (text.isEmpty) {
-                                return 'Nhap mat khau';
-                              }
-                              if (text.length < 8) {
-                                return 'Mat khau phai tu 8 ky tu tro len';
-                              }
-                              return null;
+                              return AppValidators.validatePassword(value);
                             },
                           ),
                           const SizedBox(height: 12),
                           TextFormField(
                             controller: _confirmPasswordCtrl,
+                            enabled: !session.isRegistering,
                             obscureText: _obscureConfirmPassword,
                             autofillHints: const <String>[
                               AutofillHints.newPassword,
@@ -260,7 +250,9 @@ class _RegisterPageState extends State<RegisterPage> {
                           Align(
                             alignment: Alignment.centerLeft,
                             child: TextButton(
-                              onPressed: () => Navigator.pop(context),
+                              onPressed: session.isRegistering
+                                  ? null
+                                  : () => Navigator.pop(context),
                               child: const Text('Da co tai khoan? Dang nhap'),
                             ),
                           ),
