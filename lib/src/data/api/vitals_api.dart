@@ -57,7 +57,7 @@ class VitalsApi {
     int limit = 10,
   }) async {
     final json = await _client.getJson(
-      '/public/devices/$deviceId/ecg',
+      '/api/v1/devices/$deviceId/ecg',
       query: {'limit': limit},
     );
     return _extractMany(json);

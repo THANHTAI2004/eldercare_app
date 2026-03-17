@@ -79,6 +79,8 @@ void main() {
           return jsonResponse(<String, dynamic>{'request_id': 'req-1'}, 200);
         }
 
+        expect(options.path, '/api/v1/devices/dev-1/ecg');
+
         return jsonResponse(<String, dynamic>{
           'count': 1,
           'items': <Map<String, dynamic>>[

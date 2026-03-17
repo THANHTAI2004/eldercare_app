@@ -40,6 +40,7 @@ void main() {
             'user_id': 'caregiver-001',
             'name': 'Caregiver',
             'role': 'caregiver',
+            'phone_number': '0909000111',
           },
         ],
       });
@@ -49,6 +50,7 @@ void main() {
       expect(device.primaryUserId, 'patient-009');
       expect(device.linkedUsers, hasLength(2));
       expect(device.linkedUsers.first.displayName, 'Patient 009');
+      expect(device.linkedUsers.last.phoneNumber, '0909000111');
     });
   });
 }

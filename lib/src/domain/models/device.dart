@@ -1,11 +1,17 @@
 import 'dart:convert';
 
 class DeviceLinkedUser {
-  const DeviceLinkedUser({required this.id, required this.name, this.role});
+  const DeviceLinkedUser({
+    required this.id,
+    required this.name,
+    this.role,
+    this.phoneNumber,
+  });
 
   final String id;
   final String name;
   final String? role;
+  final String? phoneNumber;
 
   String get displayName => name.trim().isEmpty ? id : name;
 
@@ -28,14 +34,25 @@ class DeviceLinkedUser {
         _readString(json['link_role']) ??
         _readString(json['linkRole']) ??
         _readString(json['relationship']);
+    final phoneNumber =
+        _readString(json['phone_number']) ??
+        _readString(json['phoneNumber']) ??
+        _readString(json['phone']);
 
-    return DeviceLinkedUser(id: id, name: name, role: role);
+    return DeviceLinkedUser(
+      id: id,
+      name: name,
+      role: role,
+      phoneNumber: phoneNumber,
+    );
   }
 
   Map<String, dynamic> toJson() => {
     'id': id,
     'name': name,
     if (role != null && role!.trim().isNotEmpty) 'role': role,
+    if (phoneNumber != null && phoneNumber!.trim().isNotEmpty)
+      'phoneNumber': phoneNumber,
   };
 }
 

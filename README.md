@@ -42,7 +42,7 @@ flutter run
 - App login qua `POST /api/v1/auth/login`.
 - Sau khi login, app gui `Authorization: Bearer <access_token>` cho cac request doc du lieu va tai linked devices cua session user.
 - Realtime/latest/history uu tien query theo `device_id` cua thiet bi dang duoc chon.
-- ECG on-demand: app goi `POST /api/v1/devices/{device_id}/ecg/request`, sau do poll `GET /public/devices/{device_id}/ecg` den khi co ket qua moi.
+- ECG on-demand: app goi `POST /api/v1/devices/{device_id}/ecg/request`, sau do poll `GET /api/v1/devices/{device_id}/ecg` den khi co ket qua moi.
 
 ## Endpoint dang duoc app su dung
 
@@ -55,7 +55,7 @@ flutter run
 - `GET /api/v1/me/devices`
 - `GET /api/v1/users/{user_id}/latest`
 - `GET /api/v1/users/{user_id}/vitals?limit=...`
-- `GET /public/devices/{device_id}/ecg?limit=...`
+- `GET /api/v1/devices/{device_id}/ecg?limit=...`
 - `GET /api/v1/users/{user_id}/summary?period=24h`
 - `POST /api/v1/devices/{device_id}/ecg/request`
 - `GET /api/v1/devices/{device_id}/latest`
@@ -93,7 +93,7 @@ flutter run
 
 4. ECG
 - Gui request ECG cho device dang chon.
-- Xac nhan app poll theo `/public/devices/{device_id}/ecg`.
+- Xac nhan app poll theo `/api/v1/devices/{device_id}/ecg`.
 - Xac nhan UI hien trang thai dang cho ket qua va nhan ket qua moi dung device.
 
 5. Alerts
