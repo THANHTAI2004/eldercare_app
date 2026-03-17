@@ -19,6 +19,9 @@ class _RegisterPageState extends State<RegisterPage> {
   final _confirmPasswordCtrl = TextEditingController();
 
   DateTime? _selectedDate;
+  String? _dateErrorText;
+  bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
 
   @override
   void dispose() {
@@ -40,6 +43,7 @@ class _RegisterPageState extends State<RegisterPage> {
     if (picked == null) return;
     setState(() {
       _selectedDate = DateTime(picked.year, picked.month, picked.day);
+      _dateErrorText = null;
     });
   }
 
@@ -47,11 +51,12 @@ class _RegisterPageState extends State<RegisterPage> {
     if (!(_formKey.currentState?.validate() ?? false)) {
       return;
     }
+
     final selectedDate = _selectedDate;
     if (selectedDate == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Vui long chon ngay sinh.')),
-      );
+      setState(() {
+        _dateErrorText = 'Vui long chon ngay sinh';
+      });
       return;
     }
 
@@ -62,14 +67,7 @@ class _RegisterPageState extends State<RegisterPage> {
       dateOfBirth: DateFormat('yyyy-MM-dd').format(selectedDate),
       password: _passwordCtrl.text,
     );
-    if (!mounted) return;
-
-    if (!ok) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(session.error ?? 'Tao tai khoan that bai.')),
-      );
-      return;
-    }
+    if (!mounted || !ok) return;
 
     Navigator.pop(context, _phoneCtrl.text.trim());
   }
@@ -94,135 +92,179 @@ class _RegisterPageState extends State<RegisterPage> {
                   padding: const EdgeInsets.all(20),
                   child: Form(
                     key: _formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Tao tai khoan moi',
-                          style: Theme.of(context).textTheme.titleLarge,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Nhap thong tin co ban de tao tai khoan, sau do quay lai dang nhap bang so dien thoai va mat khau vua tao.',
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                        const SizedBox(height: 20),
-                        TextFormField(
-                          controller: _nameCtrl,
-                          textInputAction: TextInputAction.next,
-                          decoration: const InputDecoration(
-                            labelText: 'Ho va ten',
+                    child: AutofillGroup(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Tao tai khoan moi',
+                            style: Theme.of(context).textTheme.titleLarge,
                           ),
-                          validator: (value) {
-                            if (value == null || value.trim().isEmpty) {
-                              return 'Nhap ho va ten';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: _phoneCtrl,
-                          keyboardType: TextInputType.phone,
-                          textInputAction: TextInputAction.next,
-                          decoration: const InputDecoration(
-                            labelText: 'So dien thoai',
+                          const SizedBox(height: 8),
+                          Text(
+                            'Nhap thong tin co ban de tao tai khoan, sau do quay lai dang nhap bang so dien thoai va mat khau vua tao.',
+                            style: Theme.of(context).textTheme.bodyMedium,
                           ),
-                          validator: (value) {
-                            final text = value?.trim() ?? '';
-                            if (text.isEmpty) {
-                              return 'Nhap so dien thoai';
-                            }
-                            if (text.length < 9) {
-                              return 'So dien thoai khong hop le';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 12),
-                        InputDecorator(
-                          decoration: const InputDecoration(
-                            labelText: 'Ngay sinh',
+                          const SizedBox(height: 20),
+                          TextFormField(
+                            controller: _nameCtrl,
+                            textInputAction: TextInputAction.next,
+                            autofillHints: const <String>[AutofillHints.name],
+                            decoration: const InputDecoration(
+                              labelText: 'Ho va ten',
+                            ),
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return 'Nhap ho va ten';
+                              }
+                              return null;
+                            },
                           ),
-                          child: Row(
-                            children: [
-                              Expanded(child: Text(dateText)),
-                              TextButton(
-                                onPressed: _pickDate,
-                                child: const Text('Chon ngay'),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: _passwordCtrl,
-                          obscureText: true,
-                          textInputAction: TextInputAction.next,
-                          decoration: const InputDecoration(
-                            labelText: 'Mat khau',
-                          ),
-                          validator: (value) {
-                            final text = value ?? '';
-                            if (text.isEmpty) {
-                              return 'Nhap mat khau';
-                            }
-                            if (text.length < 8) {
-                              return 'Mat khau phai tu 8 ky tu tro len';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: _confirmPasswordCtrl,
-                          obscureText: true,
-                          decoration: const InputDecoration(
-                            labelText: 'Nhap lai mat khau',
-                          ),
-                          validator: (value) {
-                            if ((value ?? '').isEmpty) {
-                              return 'Nhap lai mat khau';
-                            }
-                            if (value != _passwordCtrl.text) {
-                              return 'Mat khau nhap lai khong khop';
-                            }
-                            return null;
-                          },
-                          onFieldSubmitted: (_) => _submit(),
-                        ),
-                        if (session.error != null &&
-                            session.error!.trim().isNotEmpty) ...[
                           const SizedBox(height: 12),
-                          _InlineBanner(message: session.error!),
+                          TextFormField(
+                            controller: _phoneCtrl,
+                            keyboardType: TextInputType.phone,
+                            textInputAction: TextInputAction.next,
+                            autofillHints: const <String>[
+                              AutofillHints.telephoneNumber,
+                            ],
+                            decoration: const InputDecoration(
+                              labelText: 'So dien thoai',
+                            ),
+                            validator: (value) {
+                              final text = value?.trim() ?? '';
+                              if (text.isEmpty) {
+                                return 'Nhap so dien thoai';
+                              }
+                              if (text.length < 9) {
+                                return 'So dien thoai khong hop le';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 12),
+                          InputDecorator(
+                            decoration: InputDecoration(
+                              labelText: 'Ngay sinh',
+                              errorText: _dateErrorText,
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(child: Text(dateText)),
+                                TextButton(
+                                  onPressed: _pickDate,
+                                  child: const Text('Chon ngay'),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: _passwordCtrl,
+                            obscureText: _obscurePassword,
+                            textInputAction: TextInputAction.next,
+                            autofillHints: const <String>[
+                              AutofillHints.newPassword,
+                            ],
+                            decoration: InputDecoration(
+                              labelText: 'Mat khau',
+                              suffixIcon: IconButton(
+                                tooltip: _obscurePassword
+                                    ? 'Hien mat khau'
+                                    : 'An mat khau',
+                                onPressed: () {
+                                  setState(() {
+                                    _obscurePassword = !_obscurePassword;
+                                  });
+                                },
+                                icon: Icon(
+                                  _obscurePassword
+                                      ? Icons.visibility
+                                      : Icons.visibility_off,
+                                ),
+                              ),
+                            ),
+                            validator: (value) {
+                              final text = value ?? '';
+                              if (text.isEmpty) {
+                                return 'Nhap mat khau';
+                              }
+                              if (text.length < 8) {
+                                return 'Mat khau phai tu 8 ky tu tro len';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: _confirmPasswordCtrl,
+                            obscureText: _obscureConfirmPassword,
+                            autofillHints: const <String>[
+                              AutofillHints.newPassword,
+                            ],
+                            decoration: InputDecoration(
+                              labelText: 'Nhap lai mat khau',
+                              suffixIcon: IconButton(
+                                tooltip: _obscureConfirmPassword
+                                    ? 'Hien mat khau'
+                                    : 'An mat khau',
+                                onPressed: () {
+                                  setState(() {
+                                    _obscureConfirmPassword =
+                                        !_obscureConfirmPassword;
+                                  });
+                                },
+                                icon: Icon(
+                                  _obscureConfirmPassword
+                                      ? Icons.visibility
+                                      : Icons.visibility_off,
+                                ),
+                              ),
+                            ),
+                            validator: (value) {
+                              if ((value ?? '').isEmpty) {
+                                return 'Nhap lai mat khau';
+                              }
+                              if (value != _passwordCtrl.text) {
+                                return 'Mat khau nhap lai khong khop';
+                              }
+                              return null;
+                            },
+                            onFieldSubmitted: (_) => _submit(),
+                          ),
+                          if (session.error != null &&
+                              session.error!.trim().isNotEmpty) ...[
+                            const SizedBox(height: 12),
+                            _InlineBanner(message: session.error!),
+                          ],
+                          const SizedBox(height: 20),
+                          FilledButton.icon(
+                            onPressed: session.isRegistering ? null : _submit,
+                            icon: session.isRegistering
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Icon(Icons.person_add_alt_1),
+                            label: Text(
+                              session.isRegistering
+                                  ? 'Dang tao tai khoan...'
+                                  : 'Tao tai khoan',
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: TextButton(
+                              onPressed: () => Navigator.pop(context),
+                              child: const Text('Da co tai khoan? Dang nhap'),
+                            ),
+                          ),
                         ],
-                        const SizedBox(height: 20),
-                        FilledButton.icon(
-                          onPressed: session.isRegistering ? null : _submit,
-                          icon: session.isRegistering
-                              ? const SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : const Icon(Icons.person_add_alt_1),
-                          label: Text(
-                            session.isRegistering
-                                ? 'Dang tao tai khoan...'
-                                : 'Tao tai khoan',
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: TextButton(
-                            onPressed: () => Navigator.pop(context),
-                            child: const Text('Da co tai khoan? Dang nhap'),
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                   ),
                 ),

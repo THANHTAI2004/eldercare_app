@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import 'package:eldercare_app/src/app/routes.dart';
@@ -97,31 +98,13 @@ class _DevicePageState extends State<DevicePage> {
   }
 
   Future<void> _login() async {
-    final phoneNumber = _loginPhoneCtrl.text.trim();
-    final password = _loginPasswordCtrl.text;
-    if (phoneNumber.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Nhap so dien thoai va mat khau de dang nhap.'),
-        ),
-      );
-      return;
-    }
-
     final session = context.read<SessionProvider>();
     final deviceProvider = context.read<DeviceProvider>();
     final ok = await session.login(
-      phoneNumber: phoneNumber,
-      password: password,
+      phoneNumber: _loginPhoneCtrl.text.trim(),
+      password: _loginPasswordCtrl.text,
     );
-    if (!mounted) return;
-
-    if (!ok) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(session.error ?? 'Dang nhap that bai.')),
-      );
-      return;
-    }
+    if (!mounted || !ok) return;
 
     await deviceProvider.handleSessionState(
       isAuthenticated: session.isAuthenticated,
@@ -313,17 +296,37 @@ class _DevicePageState extends State<DevicePage> {
   }
 
   Future<void> _handleLinkDevice() async {
+    if (kDebugMode && _supportsQrScan) {
+      await _scanAndAdd();
+      return;
+    }
+
     if (kDebugMode) {
       await _showManualAddDialog();
       return;
     }
 
+    await _showLinkGuideDialog();
+  }
+
+  Future<void> _showLinkGuideDialog() async {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Ban chua co thiet bi nao duoc lien ket. Vui long lien he caregiver hoac ky thuat vien de lien ket thiet bi.',
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Huong dan lien ket thiet bi'),
+        content: const Text(
+          'Tai khoan cua ban hien chua co thiet bi nao duoc lien ket.\n\n'
+          '1. Kiem tra xem thiet bi da duoc cap cho dung tai khoan chua.\n'
+          '2. Neu ben ban co quy trinh quet ma, hay dung nut Quet ma thiet bi trong che do ho tro.\n'
+          '3. Neu backend chua mo tu lien ket, vui long lien he caregiver hoac ky thuat vien de duoc lien ket thiet bi vao tai khoan nay.',
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Dong'),
+          ),
+        ],
       ),
     );
   }
@@ -380,10 +383,14 @@ class _DevicePageState extends State<DevicePage> {
               deviceProvider: deviceProvider,
               session: session,
               realtime: realtime,
+              canScan: kDebugMode && _supportsQrScan,
               onRefresh: _refreshDevices,
               onSelectDevice: _selectDevice,
               onLinkDevice: () {
                 _handleLinkDevice();
+              },
+              onShowLinkGuide: () {
+                _showLinkGuideDialog();
               },
             )
           : _LoginBody(
@@ -431,74 +438,13 @@ class _LoginBody extends StatelessWidget {
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Dang nhap de tai danh sach thiet bi da lien ket',
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Sau khi dang nhap, app se goi /api/v1/auth/me va /api/v1/me/devices de lay session user va thiet bi.',
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                    const SizedBox(height: 20),
-                    TextField(
-                      controller: phoneCtrl,
-                      keyboardType: TextInputType.phone,
-                      decoration: const InputDecoration(
-                        labelText: 'So dien thoai',
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: passwordCtrl,
-                      obscureText: true,
-                      decoration: const InputDecoration(labelText: 'Mat khau'),
-                      onSubmitted: (_) => onLogin(),
-                    ),
-                    if (errorMessage != null &&
-                        errorMessage!.trim().isNotEmpty) ...[
-                      const SizedBox(height: 12),
-                      _InlineBanner(
-                        color: Theme.of(context).colorScheme.errorContainer,
-                        textColor: Theme.of(
-                          context,
-                        ).colorScheme.onErrorContainer,
-                        message: errorMessage!,
-                      ),
-                    ],
-                    const SizedBox(height: 20),
-                    FilledButton.icon(
-                      onPressed: isAuthenticating ? null : onLogin,
-                      icon: isAuthenticating
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.login),
-                      label: Text(
-                        isAuthenticating ? 'Dang dang nhap...' : 'Dang nhap',
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: TextButton(
-                        onPressed: isAuthenticating ? null : onRegister,
-                        child: const Text('Chua co tai khoan? Dang ky'),
-                      ),
-                    ),
-                    if (kDebugMode) ...[
-                      const SizedBox(height: 12),
-                      Text(
-                        'Che do debug van giu USER_ID / DEVICE_ID lam fallback neu tai khoan chua co device.',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ],
-                  ],
+                child: _LoginFormContent(
+                  phoneCtrl: phoneCtrl,
+                  passwordCtrl: passwordCtrl,
+                  isAuthenticating: isAuthenticating,
+                  errorMessage: errorMessage,
+                  onLogin: onLogin,
+                  onRegister: onRegister,
                 ),
               ),
             ),
@@ -516,9 +462,11 @@ class _AuthenticatedBody extends StatelessWidget {
     required this.deviceProvider,
     required this.session,
     required this.realtime,
+    required this.canScan,
     required this.onRefresh,
     required this.onSelectDevice,
     required this.onLinkDevice,
+    required this.onShowLinkGuide,
   });
 
   final String query;
@@ -526,9 +474,11 @@ class _AuthenticatedBody extends StatelessWidget {
   final DeviceProvider deviceProvider;
   final SessionProvider session;
   final RealtimeProvider realtime;
+  final bool canScan;
   final Future<void> Function() onRefresh;
   final Future<void> Function(Device device) onSelectDevice;
   final VoidCallback onLinkDevice;
+  final VoidCallback onShowLinkGuide;
 
   @override
   Widget build(BuildContext context) {
@@ -553,6 +503,9 @@ class _AuthenticatedBody extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
         children: [
           _SessionCard(
+            name: session.currentUser?.name ?? '',
+            phoneNumber: session.currentUser?.phoneNumber ?? '',
+            dateOfBirth: session.currentUser?.dateOfBirth,
             userId: session.authenticatedUserId,
             role: session.authenticatedRole,
             totalDevices: deviceProvider.devices.length,
@@ -588,14 +541,23 @@ class _AuthenticatedBody extends StatelessWidget {
             const Center(child: CircularProgressIndicator())
           else if (devices.isEmpty)
             _EmptyState(
+              title: deviceProvider.devices.isEmpty
+                  ? 'Chua co thiet bi lien ket'
+                  : 'Khong co thiet bi phu hop',
               message: deviceProvider.devices.isEmpty
-                  ? 'Ban chua co thiet bi nao duoc lien ket.'
-                  : 'Khong co thiet bi nao khop bo loc hien tai.',
-              actionLabel: deviceProvider.devices.isEmpty
+                  ? 'Tai khoan moi dang nhap thanh cong nhung chua co thiet bi nao duoc lien ket. Ban co the xem huong dan lien ket, hoac dung luong debug de them thiet bi fallback.'
+                  : 'Thu doi bo loc tim kiem hoac lam moi danh sach thiet bi.',
+              actionLabel: deviceProvider.devices.isEmpty && canScan
+                  ? 'Quet ma thiet bi'
+                  : deviceProvider.devices.isEmpty && kDebugMode
                   ? 'Lien ket thiet bi'
                   : null,
-              onAction: deviceProvider.devices.isEmpty
-                  ? onLinkDevice
+              onAction: deviceProvider.devices.isEmpty ? onLinkDevice : null,
+              secondaryActionLabel: deviceProvider.devices.isEmpty
+                  ? 'Xem huong dan lien ket'
+                  : null,
+              onSecondaryAction: deviceProvider.devices.isEmpty
+                  ? onShowLinkGuide
                   : null,
             )
           else
@@ -617,12 +579,18 @@ class _AuthenticatedBody extends StatelessWidget {
 
 class _SessionCard extends StatelessWidget {
   const _SessionCard({
+    required this.name,
+    required this.phoneNumber,
+    required this.dateOfBirth,
     required this.userId,
     required this.role,
     required this.totalDevices,
     required this.currentDevice,
   });
 
+  final String name;
+  final String phoneNumber;
+  final String? dateOfBirth;
   final String userId;
   final String role;
   final int totalDevices;
@@ -641,7 +609,13 @@ class _SessionCard extends StatelessWidget {
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 8),
-            Text('User: $userId'),
+            Text('Ten: ${name.trim().isEmpty ? 'Chua cap nhat' : name}'),
+            Text(
+              'SDT: ${phoneNumber.trim().isEmpty ? 'Chua cap nhat' : phoneNumber}',
+            ),
+            Text(
+              'Ngay sinh: ${_formatDateOfBirth(dateOfBirth) ?? 'Chua cap nhat'}',
+            ),
             Text('Role: ${role.isEmpty ? 'unknown' : role}'),
             Text('So thiet bi linked: $totalDevices'),
             const SizedBox(height: 8),
@@ -649,6 +623,11 @@ class _SessionCard extends StatelessWidget {
               currentDevice == null
                   ? 'Chua chon thiet bi nao.'
                   : 'Dang theo doi: ${currentDevice!.name} (${currentDevice!.resolvedDeviceId})',
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Ma user noi bo: ${userId.isEmpty ? 'chua ro' : userId}',
+              style: Theme.of(context).textTheme.bodySmall,
             ),
           ],
         ),
@@ -790,14 +769,20 @@ class _InlineBanner extends StatelessWidget {
 
 class _EmptyState extends StatelessWidget {
   const _EmptyState({
+    required this.title,
     required this.message,
     this.actionLabel,
     this.onAction,
+    this.secondaryActionLabel,
+    this.onSecondaryAction,
   });
 
+  final String title;
   final String message;
   final String? actionLabel;
   final VoidCallback? onAction;
+  final String? secondaryActionLabel;
+  final VoidCallback? onSecondaryAction;
 
   @override
   Widget build(BuildContext context) {
@@ -808,6 +793,12 @@ class _EmptyState extends StatelessWidget {
           children: [
             const Icon(Icons.devices_other_outlined, size: 48),
             const SizedBox(height: 12),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 8),
             Text(message, textAlign: TextAlign.center),
             if (actionLabel != null && onAction != null) ...[
               const SizedBox(height: 16),
@@ -816,9 +807,162 @@ class _EmptyState extends StatelessWidget {
                 child: Text(actionLabel!),
               ),
             ],
+            if (secondaryActionLabel != null && onSecondaryAction != null) ...[
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: onSecondaryAction,
+                child: Text(secondaryActionLabel!),
+              ),
+            ],
           ],
         ),
       ),
     );
   }
+}
+
+class _LoginFormContent extends StatefulWidget {
+  const _LoginFormContent({
+    required this.phoneCtrl,
+    required this.passwordCtrl,
+    required this.isAuthenticating,
+    required this.errorMessage,
+    required this.onLogin,
+    required this.onRegister,
+  });
+
+  final TextEditingController phoneCtrl;
+  final TextEditingController passwordCtrl;
+  final bool isAuthenticating;
+  final String? errorMessage;
+  final VoidCallback onLogin;
+  final VoidCallback onRegister;
+
+  @override
+  State<_LoginFormContent> createState() => _LoginFormContentState();
+}
+
+class _LoginFormContentState extends State<_LoginFormContent> {
+  final _formKey = GlobalKey<FormState>();
+  bool _obscurePassword = true;
+
+  void _submit() {
+    if (!(_formKey.currentState?.validate() ?? false)) {
+      return;
+    }
+    widget.onLogin();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Form(
+      key: _formKey,
+      child: AutofillGroup(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Dang nhap de tai danh sach thiet bi da lien ket',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Sau khi dang nhap, app se goi /api/v1/auth/me va /api/v1/me/devices de lay session user va thiet bi.',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 20),
+            TextFormField(
+              controller: widget.phoneCtrl,
+              keyboardType: TextInputType.phone,
+              autofillHints: const <String>[AutofillHints.telephoneNumber],
+              decoration: const InputDecoration(labelText: 'So dien thoai'),
+              validator: (value) {
+                final text = value?.trim() ?? '';
+                if (text.isEmpty) {
+                  return 'Nhap so dien thoai';
+                }
+                if (text.length < 9) {
+                  return 'So dien thoai khong hop le';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: widget.passwordCtrl,
+              obscureText: _obscurePassword,
+              autofillHints: const <String>[AutofillHints.password],
+              decoration: InputDecoration(
+                labelText: 'Mat khau',
+                suffixIcon: IconButton(
+                  tooltip: _obscurePassword ? 'Hien mat khau' : 'An mat khau',
+                  onPressed: () {
+                    setState(() {
+                      _obscurePassword = !_obscurePassword;
+                    });
+                  },
+                  icon: Icon(
+                    _obscurePassword ? Icons.visibility : Icons.visibility_off,
+                  ),
+                ),
+              ),
+              validator: (value) {
+                if ((value ?? '').isEmpty) {
+                  return 'Nhap mat khau';
+                }
+                return null;
+              },
+              onFieldSubmitted: (_) => _submit(),
+            ),
+            if (widget.errorMessage != null &&
+                widget.errorMessage!.trim().isNotEmpty) ...[
+              const SizedBox(height: 12),
+              _InlineBanner(
+                color: Theme.of(context).colorScheme.errorContainer,
+                textColor: Theme.of(context).colorScheme.onErrorContainer,
+                message: widget.errorMessage!,
+              ),
+            ],
+            const SizedBox(height: 20),
+            FilledButton.icon(
+              onPressed: widget.isAuthenticating ? null : _submit,
+              icon: widget.isAuthenticating
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.login),
+              label: Text(
+                widget.isAuthenticating ? 'Dang dang nhap...' : 'Dang nhap',
+              ),
+            ),
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton(
+                onPressed: widget.isAuthenticating ? null : widget.onRegister,
+                child: const Text('Chua co tai khoan? Dang ky'),
+              ),
+            ),
+            if (kDebugMode) ...[
+              const SizedBox(height: 12),
+              Text(
+                'Che do debug van giu USER_ID / DEVICE_ID lam fallback neu tai khoan chua co device.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+String? _formatDateOfBirth(String? raw) {
+  final text = raw?.trim() ?? '';
+  if (text.isEmpty) return null;
+  final parsed = DateTime.tryParse(text);
+  if (parsed == null) return text;
+  return DateFormat('dd/MM/yyyy').format(parsed);
 }

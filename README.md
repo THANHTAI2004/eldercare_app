@@ -10,18 +10,16 @@ Backend moi dung JWT cho luong app nguoi dung. `X-API-Key` khong con la header m
 
 ```env
 API_BASE_URL=https://api.eldercare.io.vn
-LOGIN_USER_ID=patient-001
+LOGIN_PHONE_NUMBER=0987654321
 LOGIN_PASSWORD=your-password
-USER_ID=patient-001
-DEVICE_ID=dev-esp-001
 REQUEST_TIMEOUT_MS=15000
 POLL_INTERVAL_MS=2000
 ```
 
 Ghi chu:
-- `LOGIN_USER_ID` va `LOGIN_PASSWORD` duoc app dung de goi `POST /api/v1/auth/login` va lay `access_token`.
+- `LOGIN_PHONE_NUMBER` va `LOGIN_PASSWORD` duoc app dung de goi `POST /api/v1/auth/login` va lay `access_token`.
 - Sau khi login, app goi `GET /api/v1/auth/me` de lay user hien tai va `GET /api/v1/me/devices` de tai danh sach thiet bi da lien ket.
-- `access_token` duoc luu bang `SharedPreferences` va duoc restore khi mo lai app.
+- `access_token` va `refresh_token` duoc luu trong secure storage; current user cache duoc luu local de restore session nhanh hon.
 - `USER_ID` va `DEVICE_ID` chi con duoc dung lam fallback debug mode, khong phai luong chinh.
 - App release cho user thong thuong khong can `ADMIN_API_KEY`; bien nay chi la optional dev-only fallback.
 - Release/production can dam bao user van chay duoc khi `.env` khong co `USER_ID` va `DEVICE_ID`.
@@ -50,6 +48,9 @@ flutter run
 
 - `GET /health`
 - `POST /api/v1/auth/login`
+- `POST /api/v1/auth/register`
+- `POST /api/v1/auth/refresh`
+- `POST /api/v1/auth/logout`
 - `GET /api/v1/auth/me`
 - `GET /api/v1/me/devices`
 - `GET /api/v1/users/{user_id}/latest`
@@ -63,8 +64,8 @@ flutter run
 ## Cau truc code lien quan
 
 - `lib/src/data/api/api_client.dart`: tao Dio client, timeout, gan dong header `Authorization: Bearer ...`.
-- `lib/src/data/api/auth_api_service.dart`: login/me/logout va dong bo token voi storage.
-- `lib/src/data/local/auth_storage.dart`: luu, restore va clear access token/current user bang `SharedPreferences`.
+- `lib/src/data/api/auth_api_service.dart`: register/login/me/logout/refresh va dong bo token voi storage.
+- `lib/src/data/local/auth_storage.dart`: luu token trong secure storage va current user cache o local storage.
 - `lib/src/data/api/health_api_service.dart`: cac API theo user/device + ECG polling.
 - `lib/src/state/realtime_provider.dart`: bootstrap session, login truoc khi load latest/history, request ECG va cap nhat UI.
 - `lib/src/data/api/device_api_service.dart`: goi `GET /api/v1/me/devices`.
@@ -74,7 +75,8 @@ flutter run
 ## Manual Checklist
 
 1. Auth
-- Login bang `LOGIN_USER_ID` / `LOGIN_PASSWORD` hoac nhap tay trong app.
+- Login bang `LOGIN_PHONE_NUMBER` / `LOGIN_PASSWORD` hoac nhap tay trong app.
+- Dang ky tai khoan moi trong app, xac nhan app quay lai man hinh login va tu dien lai so dien thoai.
 - Kill app va mo lai, xac nhan session duoc restore.
 - Logout, xac nhan app quay lai man hinh login.
 
