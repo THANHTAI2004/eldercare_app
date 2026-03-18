@@ -49,20 +49,6 @@ class DeviceApiService {
     await _client.deleteJson('/api/v1/devices/$deviceId/viewers/$userId');
   }
 
-  Future<void> addCaregiver({
-    required String deviceId,
-    required String userId,
-  }) async {
-    await addViewer(deviceId: deviceId, userId: userId);
-  }
-
-  Future<void> removeCaregiver({
-    required String deviceId,
-    required String userId,
-  }) async {
-    await removeViewer(deviceId: deviceId, userId: userId);
-  }
-
   List<Map<String, dynamic>> _extractMany(Map<String, dynamic> json) {
     // Primary contract is {"count": ..., "items": [...] } from backend.
     // `devices` is kept only for backward compatibility with older payloads.

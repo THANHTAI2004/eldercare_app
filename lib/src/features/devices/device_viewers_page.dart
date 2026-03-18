@@ -150,7 +150,7 @@ class _DeviceViewersPageState extends State<DeviceViewersPage> {
   String _friendlyError(Object e) {
     if (e is ApiRequestException) {
       if (e.statusCode == 403) {
-        return 'Ban khong co quyen quan ly viewer cua thiet bi nay.';
+        return 'Tai khoan hien tai khong phai owner cua thiet bi nay.';
       }
       if (e.statusCode == 404) {
         return 'Khong tim thay thiet bi hoac user can them.';

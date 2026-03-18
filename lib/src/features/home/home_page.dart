@@ -406,7 +406,7 @@ class _HomePageState extends State<HomePage> {
         ? 'Ban chua co thiet bi nao'
         : 'Chua dang nhap';
     final message = session.isAuthenticated
-        ? 'Ban co the them thiet bi bang device_id de claim thiet bi.\nNeu ban la viewer, vui long lien he owner de duoc cap quyen xem.'
+        ? 'Ban co the them thiet bi bang ma thiet bi de lien ket thiet bi.\nNeu ban la viewer, vui long lien he owner de duoc cap quyen xem.'
         : 'Ban can dang nhap truoc, sau do app se tai danh sach device da lien ket tu server.';
     return Center(
       child: Column(
