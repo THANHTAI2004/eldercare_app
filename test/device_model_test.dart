@@ -6,21 +6,21 @@ void main() {
   group('Device.fromQr', () {
     test('parses manual JSON payload with deviceId', () {
       final device = Device.fromQr(
-        '{"userId":"patient-001","deviceId":"dev-esp-001","name":"Phong ngu"}',
+        '{"userId":"user-001","deviceId":"dev-esp-001","name":"Phong ngu"}',
       );
 
       expect(device.id, 'dev-esp-001');
       expect(device.resolvedDeviceId, 'dev-esp-001');
-      expect(device.primaryUserId, 'patient-001');
+      expect(device.primaryUserId, 'user-001');
       expect(device.hasExplicitDeviceId, isTrue);
       expect(device.name, 'Phong ngu');
     });
 
     test('falls back to plain userId when QR is not JSON', () {
-      final device = Device.fromQr('patient-002');
+      final device = Device.fromQr('user-002');
 
-      expect(device.id, 'patient-002');
-      expect(device.primaryUserId, 'patient-002');
+      expect(device.id, 'user-002');
+      expect(device.primaryUserId, 'user-002');
       expect(device.hasExplicitDeviceId, isFalse);
     });
   });
@@ -33,14 +33,13 @@ void main() {
         'link_role': 'owner',
         'linked_users': [
           {
-            'user_id': 'patient-009',
-            'full_name': 'Patient 009',
-            'role': 'owner',
+            'user_id': 'owner-009',
+            'full_name': 'Owner 009',
+            'link_role': 'owner',
           },
           {
-            'user_id': 'caregiver-001',
-            'name': 'Caregiver',
-            'role': 'caregiver',
+            'user_id': 'viewer-001',
+            'name': 'Viewer 001',
             'link_role': 'viewer',
             'phone_number': '0909000111',
           },
@@ -51,9 +50,9 @@ void main() {
       expect(device.name, 'Phong khach');
       expect(device.linkRole, 'owner');
       expect(device.isOwnerLink, isTrue);
-      expect(device.primaryUserId, 'patient-009');
+      expect(device.primaryUserId, 'owner-009');
       expect(device.linkedUsers, hasLength(2));
-      expect(device.linkedUsers.first.displayName, 'Patient 009');
+      expect(device.linkedUsers.first.displayName, 'Owner 009');
       expect(device.linkedUsers.last.linkRole, 'viewer');
       expect(device.linkedUsers.last.phoneNumber, '0909000111');
     });

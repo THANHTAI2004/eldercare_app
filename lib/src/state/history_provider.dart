@@ -50,7 +50,6 @@ class HistoryProvider extends ChangeNotifier {
   void handleSessionState({
     required bool isAuthenticated,
     required String authenticatedUserId,
-    String authenticatedRole = '',
   }) {
     final authChanged =
         _isAuthenticated != isAuthenticated ||

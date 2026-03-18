@@ -85,10 +85,10 @@ void main() {
         refreshToken: 'refresh-456',
       ),
       meResponse: const <String, dynamic>{
-        'user_id': 'patient-001',
+        'user_id': 'user-001',
         'name': 'Nguyen Van A',
         'phone_number': '0987654321',
-        'role': 'patient',
+        'role': 'member',
       },
     );
     final deviceProvider = DeviceProvider(
@@ -119,6 +119,6 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(session.isAuthenticated, isTrue);
-    expect(session.authenticatedUserId, 'patient-001');
+    expect(session.authenticatedUserId, 'user-001');
   });
 }

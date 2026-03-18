@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:eldercare_app/src/app/routes.dart';
+import 'package:eldercare_app/src/core/device_access_labels.dart';
 import 'package:eldercare_app/src/domain/models/device.dart';
 import 'package:eldercare_app/src/features/devices/device_viewers_page.dart';
 import 'package:eldercare_app/src/state/async_status.dart';
@@ -73,7 +74,7 @@ class _HomePageState extends State<HomePage> {
     if (!device.isOwnerLink) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Chi owner moi co the yeu cau ECG cho thiet bi nay.'),
+          content: Text('Chi chu thiet bi moi co the yeu cau ECG cho thiet bi nay.'),
         ),
       );
       return;
@@ -317,6 +318,13 @@ class _HomePageState extends State<HomePage> {
                             'Thiet bi nay dang o che do fallback dev, ECG co the khong hoat dong dung contract server.',
                       ),
                     ],
+                    if (!device.isOwnerLink) ...[
+                      const SizedBox(height: 12),
+                      const _InfoBanner(
+                        message:
+                            'Ban dang o che do read-only tren thiet bi nay. Chi chu thiet bi moi co the quan ly viewer va gui yeu cau ECG.',
+                      ),
+                    ],
                     if (!hasLatest && rt.isLoadingLatest) ...[
                       const SizedBox(height: 12),
                       const _LoadingPanel(),
@@ -406,7 +414,7 @@ class _HomePageState extends State<HomePage> {
         ? 'Ban chua co thiet bi nao'
         : 'Chua dang nhap';
     final message = session.isAuthenticated
-        ? 'Ban co the them thiet bi bang ma thiet bi de lien ket thiet bi.\nNeu ban la viewer, vui long lien he owner de duoc cap quyen xem.'
+        ? 'Ban co the them thiet bi bang ma thiet bi de lien ket thiet bi.\nNeu ban la nguoi xem, vui long lien he chu thiet bi de duoc cap quyen xem.'
         : 'Ban can dang nhap truoc, sau do app se tai danh sach device da lien ket tu server.';
     return Center(
       child: Column(
@@ -510,7 +518,7 @@ class _DeviceSelectorCard extends StatelessWidget {
             Text(
               current == null
                   ? 'Chua co device hien tai.'
-                  : 'Quyen: ${_deviceRoleLabel(current.normalizedLinkRole)} | Linked users: ${current.linkedUsers.length}',
+                  : 'Quyen tren thiet bi hien tai: ${deviceAccessRoleLabel(current.normalizedLinkRole)} | Tai khoan lien ket: ${current.linkedUsers.length}',
               style: Theme.of(context).textTheme.bodySmall,
             ),
             const SizedBox(height: 8),
@@ -526,17 +534,6 @@ class _DeviceSelectorCard extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-String _deviceRoleLabel(String? linkRole) {
-  switch (linkRole) {
-    case 'owner':
-      return 'Owner';
-    case 'viewer':
-      return 'Viewer';
-    default:
-      return 'Khong ro';
   }
 }
 

@@ -13,20 +13,6 @@ class CurrentUser {
   final String? dateOfBirth;
   final String role;
 
-  bool get isManager => role == 'manager';
-  bool get isCaregiver => role == 'caregiver';
-
-  String get roleLabel {
-    switch (role) {
-      case 'manager':
-        return 'Nguoi quan ly thiet bi';
-      case 'caregiver':
-        return 'Nguoi cham soc';
-      default:
-        return role;
-    }
-  }
-
   factory CurrentUser.fromJson(Map<String, dynamic> json) {
     // Primary contract is snake_case from backend.
     // camelCase and legacy fallbacks are kept only for backward compatibility.

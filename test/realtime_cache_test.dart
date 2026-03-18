@@ -18,12 +18,12 @@ void main() {
     final cache = VitalsCacheStorage();
     final cachedPoint = VitalPoint(
       time: DateTime.parse('2026-03-16T10:00:00Z'),
-      userId: 'patient-001',
+      userId: 'user-001',
       deviceId: 'dev-1',
       hr: 71,
     );
     await cache.saveLatest(
-      scopeKey: cache.scopeKey(userId: 'patient-001', deviceId: 'dev-1'),
+      scopeKey: cache.scopeKey(userId: 'user-001', deviceId: 'dev-1'),
       point: cachedPoint,
     );
 
@@ -35,11 +35,10 @@ void main() {
 
     provider.handleSessionState(
       isAuthenticated: true,
-      authenticatedUserId: 'patient-001',
-      authenticatedRole: 'patient',
+      authenticatedUserId: 'user-001',
     );
 
-    await provider.init(userId: 'patient-001', deviceId: 'dev-1');
+    await provider.init(userId: 'user-001', deviceId: 'dev-1');
 
     expect(provider.latest?.hr, 71);
     expect(provider.isShowingCachedLatest, isTrue);

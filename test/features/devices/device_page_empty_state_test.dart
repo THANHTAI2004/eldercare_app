@@ -14,18 +14,20 @@ void main() {
     setUpSharedPreferences();
   });
 
-  testWidgets('manager with no devices sees claim device CTA', (tester) async {
+  testWidgets('authenticated user with no devices sees claim device CTA', (
+    tester,
+  ) async {
     final session = buildSessionProvider(
       loginTokens: const AuthTokens(
         accessToken: 'access-123',
         refreshToken: 'refresh-456',
       ),
       meResponse: const <String, dynamic>{
-        'user_id': 'patient-001',
+        'user_id': 'user-001',
         'name': 'Nguyen Van A',
         'phone_number': '0987654321',
         'date_of_birth': '1950-01-02',
-        'role': 'manager',
+        'role': 'member',
       },
     );
     await session.login(phoneNumber: '0987654321', password: 'MatKhau123');
@@ -50,7 +52,7 @@ void main() {
     expect(find.text('Xem huong dan lien ket'), findsOneWidget);
   });
 
-  testWidgets('viewer-style account with no devices sees shared guidance', (
+  testWidgets('viewer account with no devices sees shared guidance', (
     tester,
   ) async {
     final session = buildSessionProvider(
@@ -59,11 +61,11 @@ void main() {
         refreshToken: 'refresh-456',
       ),
       meResponse: const <String, dynamic>{
-        'user_id': 'caregiver-001',
-        'name': 'Caregiver A',
+        'user_id': 'viewer-001',
+        'name': 'Viewer A',
         'phone_number': '0987000001',
         'date_of_birth': '1988-05-06',
-        'role': 'caregiver',
+        'role': 'member',
       },
     );
     await session.login(phoneNumber: '0987000001', password: 'MatKhau123');

@@ -24,14 +24,14 @@ void main() {
     final storage = AuthStorage(secureStore: MemorySecureStore());
 
     await storage.saveCurrentUser(<String, dynamic>{
-      'user_id': 'patient-001',
-      'role': 'patient',
+      'user_id': 'user-001',
+      'role': 'member',
     });
 
     final currentUser = await storage.loadCurrentUser();
 
-    expect(currentUser?['user_id'], 'patient-001');
-    expect(currentUser?['role'], 'patient');
+    expect(currentUser?['user_id'], 'user-001');
+    expect(currentUser?['role'], 'member');
   });
 
   test('clear removes all persisted auth data', () async {
@@ -40,7 +40,7 @@ void main() {
 
     await storage.saveAccessToken('access-123');
     await storage.saveRefreshToken('refresh-456');
-    await storage.saveCurrentUser(<String, dynamic>{'user_id': 'patient-001'});
+    await storage.saveCurrentUser(<String, dynamic>{'user_id': 'user-001'});
 
     await storage.clear();
 

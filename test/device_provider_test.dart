@@ -23,7 +23,7 @@ void main() {
               'device_id': 'dev-esp-001',
               'name': 'Phong ngu',
               'linked_users': [
-                {'user_id': 'patient-001', 'name': 'Patient 001'},
+                {'user_id': 'user-001', 'name': 'User 001'},
               ],
             }),
           ],
@@ -32,12 +32,12 @@ void main() {
 
       await provider.handleSessionState(
         isAuthenticated: true,
-        authenticatedUserId: 'patient-001',
+        authenticatedUserId: 'user-001',
       );
 
       expect(provider.devices, hasLength(1));
       expect(provider.current?.resolvedDeviceId, 'dev-esp-001');
-      expect(provider.current?.primaryUserId, 'patient-001');
+      expect(provider.current?.primaryUserId, 'user-001');
     },
   );
 
@@ -49,23 +49,23 @@ void main() {
             'device_id': 'dev-esp-001',
             'name': 'Device A',
             'linked_users': [
-              {'user_id': 'patient-001', 'name': 'Patient 001'},
+              {'user_id': 'user-001', 'name': 'User 001'},
             ],
           }),
           Device.fromServerJson({
             'device_id': 'dev-esp-002',
             'name': 'Device B',
             'linked_users': [
-              {'user_id': 'patient-001', 'name': 'Patient 001'},
+              {'user_id': 'user-001', 'name': 'User 001'},
             ],
           }),
         ],
       ),
     );
 
-    await provider.syncFromServer(authenticatedUserId: 'patient-001');
+    await provider.syncFromServer(authenticatedUserId: 'user-001');
     await provider.setCurrent('dev-esp-002');
-    await provider.syncFromServer(authenticatedUserId: 'patient-001');
+    await provider.syncFromServer(authenticatedUserId: 'user-001');
 
     expect(provider.current?.resolvedDeviceId, 'dev-esp-002');
   });

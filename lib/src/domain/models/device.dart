@@ -100,7 +100,6 @@ class Device {
   String? get normalizedLinkRole => _normalizeLinkRole(linkRole);
   bool get isOwnerLink => normalizedLinkRole == 'owner';
   bool get isViewerLink => normalizedLinkRole == 'viewer';
-  bool get isCaregiverLink => isViewerLink;
 
   Device copyWith({
     String? id,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'package:eldercare_app/src/core/device_access_labels.dart';
 import 'package:eldercare_app/src/domain/models/alert_item.dart';
 import 'package:eldercare_app/src/domain/models/device.dart';
 import 'package:eldercare_app/src/features/devices/device_viewers_page.dart';
@@ -135,12 +136,17 @@ class _AlertsPageState extends State<AlertsPage> {
             else
               ...visibleItems.map((item) {
                 final linkedDevice = deviceProvider.findById(item.deviceId);
+                final canAcknowledge = linkedDevice?.isOwnerLink == true;
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 12),
                   child: _AlertCard(
                     item: item,
                     linkedDevice: linkedDevice,
-                    onAcknowledge: item.acknowledged || provider.isAcknowledging
+                    showAcknowledgeAction: canAcknowledge,
+                    onAcknowledge:
+                        !canAcknowledge ||
+                            item.acknowledged ||
+                            provider.isAcknowledging
                         ? null
                         : () => context.read<AlertsProvider>().acknowledge(
                             item.id,
@@ -195,6 +201,7 @@ class _AlertCard extends StatelessWidget {
   const _AlertCard({
     required this.item,
     required this.linkedDevice,
+    required this.showAcknowledgeAction,
     required this.onAcknowledge,
     required this.onOpenDevice,
     required this.onManageDevice,
@@ -202,6 +209,7 @@ class _AlertCard extends StatelessWidget {
 
   final AlertItem item;
   final Device? linkedDevice;
+  final bool showAcknowledgeAction;
   final VoidCallback? onAcknowledge;
   final VoidCallback? onOpenDevice;
   final VoidCallback? onManageDevice;
@@ -235,9 +243,7 @@ class _AlertCard extends StatelessWidget {
                 if (linkedDevice != null) ...[
                   const SizedBox(width: 8),
                   Chip(
-                    label: Text(
-                      _deviceRoleLabel(linkedDevice!.normalizedLinkRole),
-                    ),
+                    label: Text(deviceAccessRoleLabel(linkedDevice!.normalizedLinkRole)),
                   ),
                 ],
               ],
@@ -283,29 +289,40 @@ class _AlertCard extends StatelessWidget {
               ),
             ],
             const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: onAcknowledge,
-                    icon: const Icon(Icons.done_all),
-                    label: Text(
-                      item.acknowledged ? 'Da acknowledge' : 'Acknowledge',
+            if (showAcknowledgeAction || onOpenDevice != null)
+              Row(
+                children: [
+                  if (showAcknowledgeAction)
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: onAcknowledge,
+                        icon: const Icon(Icons.done_all),
+                        label: Text(
+                          item.acknowledged ? 'Da acknowledge' : 'Acknowledge',
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-                if (onOpenDevice != null) ...[
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: onOpenDevice,
-                      icon: const Icon(Icons.monitor_heart_outlined),
-                      label: const Text('Mo device'),
+                  if (showAcknowledgeAction && onOpenDevice != null)
+                    const SizedBox(width: 12),
+                  if (onOpenDevice != null)
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: onOpenDevice,
+                        icon: const Icon(Icons.monitor_heart_outlined),
+                        label: const Text('Mo device'),
+                      ),
                     ),
-                  ),
                 ],
-              ],
-            ),
+              ),
+            if (!showAcknowledgeAction &&
+                linkedDevice != null &&
+                linkedDevice!.isViewerLink) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Ban dang o che do read-only tren thiet bi nay. Chi chu thiet bi moi co the acknowledge canh bao.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
             if (onManageDevice != null) ...[
               const SizedBox(height: 8),
               Align(
@@ -321,17 +338,6 @@ class _AlertCard extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-String _deviceRoleLabel(String? linkRole) {
-  switch (linkRole) {
-    case 'owner':
-      return 'Owner';
-    case 'viewer':
-      return 'Viewer';
-    default:
-      return 'Khong ro';
   }
 }
 

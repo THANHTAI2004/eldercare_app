@@ -43,12 +43,6 @@ class SessionProvider extends ChangeNotifier {
   String get authenticatedRole => currentUser?.role.trim().toLowerCase() ?? '';
   String get authenticatedPhoneNumber => currentUser?.phoneNumber.trim() ?? '';
 
-  String get authenticatedRoleLabel {
-    final user = currentUser;
-    if (user != null) return user.roleLabel;
-    return authenticatedRole;
-  }
-
   // Device permissions now come from each device.linkRole instead of user.role.
   bool get isUserScopedSession =>
       isAuthenticated && authenticatedUserId.isNotEmpty;

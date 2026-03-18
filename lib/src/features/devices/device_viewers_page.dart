@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import 'package:eldercare_app/src/data/api/api_client.dart';
 import 'package:eldercare_app/src/data/api/device_api_service.dart';
+import 'package:eldercare_app/src/core/device_access_labels.dart';
 import 'package:eldercare_app/src/domain/models/device.dart';
 
 class DeviceViewersPage extends StatefulWidget {
@@ -26,9 +28,16 @@ class _DeviceViewersPageState extends State<DeviceViewersPage> {
   bool _isSubmitting = false;
   String? _errorMessage;
   List<DeviceLinkedUser> _linkedUsers = const <DeviceLinkedUser>[];
+  DeviceApiService? _api;
 
-  DeviceApiService get _api => widget._api ?? DeviceApiService();
+  DeviceApiService get _resolvedApi => _api!;
   bool get _canManageViewers => widget.device.isOwnerLink;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _api ??= widget._api ?? DeviceApiService(client: context.read<ApiClient>());
+  }
 
   @override
   void initState() {
@@ -57,7 +66,7 @@ class _DeviceViewersPageState extends State<DeviceViewersPage> {
     });
 
     try {
-      final users = await _api.getLinkedUsers(
+      final users = await _resolvedApi.getLinkedUsers(
         deviceId: widget.device.resolvedDeviceId,
       );
       if (!mounted) return;
@@ -91,7 +100,7 @@ class _DeviceViewersPageState extends State<DeviceViewersPage> {
     });
 
     try {
-      await _api.addViewer(
+      await _resolvedApi.addViewer(
         deviceId: widget.device.resolvedDeviceId,
         userId: userId,
       );
@@ -124,7 +133,7 @@ class _DeviceViewersPageState extends State<DeviceViewersPage> {
     });
 
     try {
-      await _api.removeViewer(
+      await _resolvedApi.removeViewer(
         deviceId: widget.device.resolvedDeviceId,
         userId: user.id,
       );
@@ -150,7 +159,7 @@ class _DeviceViewersPageState extends State<DeviceViewersPage> {
   String _friendlyError(Object e) {
     if (e is ApiRequestException) {
       if (e.statusCode == 403) {
-        return 'Tai khoan hien tai khong phai owner cua thiet bi nay.';
+        return 'Tai khoan hien tai khong phai chu thiet bi nay.';
       }
       if (e.statusCode == 404) {
         return 'Khong tim thay thiet bi hoac user can them.';
@@ -190,7 +199,7 @@ class _DeviceViewersPageState extends State<DeviceViewersPage> {
                   const SizedBox(height: 6),
                   Text('Ma thiet bi: ${widget.device.resolvedDeviceId}'),
                   Text(
-                    'Quyen cua ban tren device nay: ${_roleLabel(widget.device.normalizedLinkRole)}',
+                    'Quyen tren thiet bi hien tai: ${deviceAccessRoleLabel(widget.device.normalizedLinkRole)}',
                   ),
                   if (widget.device.primaryUserId != null)
                     Text('Chu thiet bi: ${widget.device.primaryUserId}'),
@@ -204,7 +213,7 @@ class _DeviceViewersPageState extends State<DeviceViewersPage> {
               child: Padding(
                 padding: EdgeInsets.all(20),
                 child: Text(
-                  'Chi owner moi co the quan ly viewer cua thiet bi nay.',
+                  'Chi chu thiet bi moi co the quan ly nguoi xem cua thiet bi nay.',
                   textAlign: TextAlign.center,
                 ),
               ),
@@ -311,20 +320,11 @@ class _DeviceViewersPageState extends State<DeviceViewersPage> {
       segments.add(user.phoneNumber!.trim());
     }
     if ((user.normalizedLinkRole ?? '').trim().isNotEmpty) {
-      segments.add('Lien ket: ${_roleLabel(user.normalizedLinkRole)}');
+      segments.add(
+        'Quyen tren thiet bi nay: ${deviceAccessRoleLabel(user.normalizedLinkRole)}',
+      );
     }
     return segments.isEmpty ? user.id : segments.join(' | ');
-  }
-
-  String _roleLabel(String? role) {
-    switch (role) {
-      case 'owner':
-        return 'Owner';
-      case 'viewer':
-        return 'Viewer';
-      default:
-        return 'Khong ro';
-    }
   }
 }
 

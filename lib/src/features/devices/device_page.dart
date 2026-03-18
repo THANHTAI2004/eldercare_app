@@ -8,6 +8,7 @@ import 'package:eldercare_app/src/app/routes.dart';
 import 'package:eldercare_app/src/config/env.dart';
 import 'package:eldercare_app/src/core/app_date_utils.dart';
 import 'package:eldercare_app/src/core/app_strings.dart';
+import 'package:eldercare_app/src/core/device_access_labels.dart';
 import 'package:eldercare_app/src/core/validators.dart';
 import 'package:eldercare_app/src/domain/models/device.dart';
 import 'package:eldercare_app/src/features/devices/claim_device_page.dart';
@@ -354,7 +355,7 @@ class _DevicePageState extends State<DevicePage> {
   Future<void> _showLinkGuideDialog() async {
     const content =
         'Neu ban la chu thiet bi, hay dung chuc nang them thiet bi bang ma thiet bi de lien ket thiet bi.\n\n'
-        'Neu ban chi can quyen xem, vui long lien he owner cua thiet bi de duoc them vao danh sach viewer.';
+        'Neu ban chi can quyen xem, vui long lien he chu thiet bi de duoc them vao danh sach nguoi xem.';
     if (!mounted) return;
     await showDialog<void>(
       context: context,
@@ -554,7 +555,6 @@ class _AuthenticatedBody extends StatelessWidget {
             phoneNumber: session.currentUser?.phoneNumber ?? '',
             dateOfBirth: session.currentUser?.dateOfBirth,
             userId: session.authenticatedUserId,
-            role: session.authenticatedRoleLabel,
             totalDevices: deviceProvider.devices.length,
             currentDevice: deviceProvider.current,
           ),
@@ -593,7 +593,7 @@ class _AuthenticatedBody extends StatelessWidget {
                   ? 'Ban chua co thiet bi nao'
                   : 'Khong co thiet bi phu hop',
               message: deviceProvider.devices.isEmpty
-                  ? 'Ban co the them thiet bi bang ma thiet bi de lien ket thiet bi. Neu ban chi can quyen xem, vui long lien he chu thiet bi de duoc cap quyen viewer.'
+                  ? 'Ban co the them thiet bi bang ma thiet bi de lien ket thiet bi. Neu ban chi can quyen xem, vui long lien he chu thiet bi de duoc cap quyen nguoi xem.'
                   : 'Thu doi bo loc tim kiem hoac lam moi danh sach thiet bi.',
               actionLabel: deviceProvider.devices.isEmpty
                   ? 'Them thiet bi bang ma thiet bi'
@@ -638,7 +638,6 @@ class _SessionCard extends StatelessWidget {
     required this.phoneNumber,
     required this.dateOfBirth,
     required this.userId,
-    required this.role,
     required this.totalDevices,
     required this.currentDevice,
   });
@@ -647,7 +646,6 @@ class _SessionCard extends StatelessWidget {
   final String phoneNumber;
   final String? dateOfBirth;
   final String userId;
-  final String role;
   final int totalDevices;
   final Device? currentDevice;
 
@@ -671,7 +669,11 @@ class _SessionCard extends StatelessWidget {
             Text(
               'Ngay sinh: ${_formatDateOfBirth(dateOfBirth) ?? 'Chua cap nhat'}',
             ),
-            Text('Vai tro: ${role.isEmpty ? 'Chua cap nhat' : role}'),
+            Text(
+              currentDevice == null
+                  ? 'Quyen tren thiet bi hien tai: Chua chon thiet bi'
+                  : 'Quyen tren thiet bi hien tai: ${deviceAccessRoleLabel(currentDevice!.normalizedLinkRole)}',
+            ),
             Text('So thiet bi da lien ket: $totalDevices'),
             const SizedBox(height: 8),
             Text(
@@ -711,7 +713,7 @@ class _DeviceCard extends StatelessWidget {
     final viewers = device.linkedUsers
         .where((user) => user.isViewerLink)
         .toList(growable: false);
-    final roleLabel = _deviceAccessRoleLabel(device.normalizedLinkRole);
+    final roleLabel = deviceAccessRoleLabel(device.normalizedLinkRole);
 
     return Card(
       child: Padding(
@@ -740,7 +742,7 @@ class _DeviceCard extends StatelessWidget {
                       if (device.primaryUserId != null)
                         Text('Tai khoan chinh: ${device.primaryUserId}'),
                       const SizedBox(height: 6),
-                      Chip(label: Text('Quyen cua ban: $roleLabel')),
+                      Chip(label: Text('Quyen tren thiet bi nay: $roleLabel')),
                     ],
                   ),
                 ),
@@ -763,13 +765,13 @@ class _DeviceCard extends StatelessWidget {
             const SizedBox(height: 12),
             if (device.isOwnerLink) ...[
               Text(
-                'Viewer dang duoc chia se',
+                'Nguoi xem dang duoc chia se',
                 style: theme.textTheme.titleSmall,
               ),
               const SizedBox(height: 8),
               if (viewers.isEmpty)
                 Text(
-                  'Chua co viewer nao duoc them vao thiet bi nay.',
+                  'Chua co nguoi xem nao duoc them vao thiet bi nay.',
                   style: theme.textTheme.bodySmall,
                 )
               else
@@ -818,32 +820,17 @@ class _DeviceCard extends StatelessWidget {
 
 String _linkedUserLabel(DeviceLinkedUser user) {
   final segments = <String>[user.displayName];
-  final role = user.role?.trim() ?? '';
   final linkRole = user.normalizedLinkRole ?? '';
   final phoneNumber = user.phoneNumber?.trim() ?? '';
 
-  if (role.isNotEmpty) {
-    segments.add('Vai tro: $role');
-  }
   if (linkRole.isNotEmpty) {
-    segments.add('Lien ket: ${_deviceAccessRoleLabel(linkRole)}');
+    segments.add('Quyen tren thiet bi nay: ${deviceAccessRoleLabel(linkRole)}');
   }
   if (phoneNumber.isNotEmpty) {
     segments.add(phoneNumber);
   }
 
   return segments.join(' | ');
-}
-
-String _deviceAccessRoleLabel(String? linkRole) {
-  switch (linkRole) {
-    case 'owner':
-      return 'Owner';
-    case 'viewer':
-      return 'Viewer';
-    default:
-      return 'Khong ro';
-  }
 }
 
 class _InlineBanner extends StatelessWidget {

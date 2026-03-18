@@ -7,7 +7,7 @@ void main() {
     test('parses flat backend reading fields', () {
       final point = VitalPoint.fromJson(<String, dynamic>{
         'timestamp': '2026-03-11T10:30:00Z',
-        'user_id': 'patient-001',
+        'user_id': 'user-001',
         'device_id': 'dev-esp-001',
         'heart_rate': 72,
         'spo2': 98,
@@ -15,7 +15,7 @@ void main() {
         'respiratory_rate': 18,
       });
 
-      expect(point.userId, 'patient-001');
+      expect(point.userId, 'user-001');
       expect(point.deviceId, 'dev-esp-001');
       expect(point.hr, 72);
       expect(point.spo2, 98);
@@ -27,7 +27,7 @@ void main() {
     test('parses nested vitals payload', () {
       final point = VitalPoint.fromJson(<String, dynamic>{
         'recorded_at': '2026-03-11T10:35:00Z',
-        'user_id': 'patient-002',
+        'user_id': 'user-002',
         'vitals': <String, dynamic>{
           'device_id': 'dev-esp-002',
           'heart_rate': 80,
@@ -37,7 +37,7 @@ void main() {
         },
       });
 
-      expect(point.userId, 'patient-002');
+      expect(point.userId, 'user-002');
       expect(point.deviceId, 'dev-esp-002');
       expect(point.hr, 80);
       expect(point.spo2, 96);

@@ -20,9 +20,8 @@ void main() {
               'name': 'Phong ngu',
               'linked_users': <Map<String, dynamic>>[
                 <String, dynamic>{
-                  'user_id': 'patient-001',
+                  'user_id': 'owner-001',
                   'name': 'Nguyen Van A',
-                  'role': 'patient',
                   'link_role': 'owner',
                   'phone_number': '0987654321',
                 },

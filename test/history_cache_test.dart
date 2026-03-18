@@ -19,13 +19,13 @@ void main() {
     final cachedPoints = <VitalPoint>[
       VitalPoint(
         time: DateTime.parse('2026-03-16T08:00:00Z'),
-        userId: 'patient-001',
+        userId: 'user-001',
         deviceId: 'dev-1',
         hr: 70,
       ),
     ];
     await cache.saveHistory(
-      scopeKey: cache.scopeKey(userId: 'patient-001', deviceId: 'dev-1'),
+      scopeKey: cache.scopeKey(userId: 'user-001', deviceId: 'dev-1'),
       points: cachedPoints,
     );
 
@@ -37,11 +37,10 @@ void main() {
 
     provider.handleSessionState(
       isAuthenticated: true,
-      authenticatedUserId: 'patient-001',
-      authenticatedRole: 'patient',
+      authenticatedUserId: 'user-001',
     );
 
-    await provider.bindScope(userId: 'patient-001', deviceId: 'dev-1');
+    await provider.bindScope(userId: 'user-001', deviceId: 'dev-1');
     await provider.loadForDay(DateTime(2026, 3, 16));
 
     expect(provider.points, hasLength(1));

@@ -11,14 +11,14 @@ void main() {
       'severity': 'critical',
       'created_at': '2026-03-13T10:00:00Z',
       'acknowledged': false,
-      'user_id': 'patient-001',
+      'user_id': 'user-001',
       'device_id': 'dev-esp-001',
     });
 
     expect(item.id, 'alert-001');
     expect(item.isHighSeverity, isTrue);
     expect(item.acknowledged, isFalse);
-    expect(item.userId, 'patient-001');
+    expect(item.userId, 'user-001');
     expect(item.deviceId, 'dev-esp-001');
   });
 }

@@ -44,8 +44,8 @@ void main() {
           refreshToken: 'refresh-token',
         ),
         meResponse: const <String, dynamic>{
-          'user_id': 'patient-001',
-          'role': 'patient',
+          'user_id': 'user-001',
+          'role': 'member',
         },
       ),
     );
@@ -57,8 +57,8 @@ void main() {
 
     expect(ok, isTrue);
     expect(provider.isAuthenticated, isTrue);
-    expect(provider.authenticatedUserId, 'patient-001');
-    expect(provider.authenticatedRole, 'patient');
+    expect(provider.authenticatedUserId, 'user-001');
+    expect(provider.authenticatedRole, 'member');
   });
 
   test(
@@ -74,8 +74,8 @@ void main() {
           refreshToken: 'restored-refresh',
         ),
         meResponse: const <String, dynamic>{
-          'user_id': 'patient-001',
-          'role': 'patient',
+          'user_id': 'user-001',
+          'role': 'member',
         },
       );
       final provider = SessionProvider(client: client, authApi: authApi);
@@ -86,8 +86,8 @@ void main() {
       expect(authApi.restoreCalls, 1);
       expect(authApi.meCalls, 1);
       expect(provider.isAuthenticated, isTrue);
-      expect(provider.authenticatedUserId, 'patient-001');
-      expect(provider.authenticatedRole, 'patient');
+      expect(provider.authenticatedUserId, 'user-001');
+      expect(provider.authenticatedRole, 'member');
     },
   );
 
@@ -134,8 +134,8 @@ void main() {
     await storage.saveAccessToken('stale-access');
     await storage.saveRefreshToken('refresh-456');
     await storage.saveCurrentUser(<String, dynamic>{
-      'user_id': 'patient-001',
-      'role': 'patient',
+      'user_id': 'user-001',
+      'role': 'member',
     });
 
     client.dio.httpClientAdapter = StubHttpClientAdapter(
@@ -144,8 +144,8 @@ void main() {
           case '/api/v1/auth/me':
             expect(options.headers['Authorization'], 'Bearer stale-access');
             return jsonResponse(<String, dynamic>{
-              'user_id': 'patient-001',
-              'role': 'patient',
+              'user_id': 'user-001',
+              'role': 'member',
             }, 200);
           case '/secure':
             secureCalls += 1;
@@ -192,8 +192,8 @@ void main() {
     await storage.saveAccessToken('stale-access');
     await storage.saveRefreshToken('refresh-456');
     await storage.saveCurrentUser(<String, dynamic>{
-      'user_id': 'patient-001',
-      'role': 'patient',
+      'user_id': 'user-001',
+      'role': 'member',
     });
 
     client.dio.httpClientAdapter = StubHttpClientAdapter(
@@ -201,8 +201,8 @@ void main() {
         switch (options.path) {
           case '/api/v1/auth/me':
             return jsonResponse(<String, dynamic>{
-              'user_id': 'patient-001',
-              'role': 'patient',
+              'user_id': 'user-001',
+              'role': 'member',
             }, 200);
           case '/secure':
             return jsonResponse(<String, dynamic>{'detail': 'expired'}, 401);
@@ -243,8 +243,8 @@ void main() {
     await storage.saveAccessToken('access-123');
     await storage.saveRefreshToken('refresh-456');
     await storage.saveCurrentUser(<String, dynamic>{
-      'user_id': 'patient-001',
-      'role': 'patient',
+      'user_id': 'user-001',
+      'role': 'member',
     });
 
     client.dio.httpClientAdapter = StubHttpClientAdapter(
@@ -252,8 +252,8 @@ void main() {
         switch (options.path) {
           case '/api/v1/auth/me':
             return jsonResponse(<String, dynamic>{
-              'user_id': 'patient-001',
-              'role': 'patient',
+              'user_id': 'user-001',
+              'role': 'member',
             }, 200);
           case '/api/v1/auth/logout':
             expect(options.headers['Authorization'], 'Bearer access-123');
@@ -289,6 +289,7 @@ class _FakeAuthApiService extends AuthApiService {
 
   final AuthTokens? loginTokens;
   final AuthTokens? restoredTokens;
+  final Map<String, dynamic>? savedCurrentUser;
   final Map<String, dynamic> meResponse;
   final ApiRequestException? meError;
 
@@ -325,7 +326,7 @@ class _FakeAuthApiService extends AuthApiService {
 
   @override
   Future<Map<String, dynamic>?> loadSavedCurrentUser() async {
-    return null;
+    return savedCurrentUser;
   }
 
   @override

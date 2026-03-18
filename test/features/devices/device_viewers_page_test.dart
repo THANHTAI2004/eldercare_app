@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:provider/provider.dart';
 
 import 'package:eldercare_app/src/data/api/api_client.dart';
 import 'package:eldercare_app/src/data/api/device_api_service.dart';
 import 'package:eldercare_app/src/domain/models/device.dart';
 import 'package:eldercare_app/src/features/devices/device_viewers_page.dart';
+
+import '../../support/test_helpers.dart';
 
 void main() {
   testWidgets('owner loads linked users and only shows viewers', (
@@ -40,6 +43,42 @@ void main() {
     expect(find.text('Owner'), findsNothing);
   });
 
+  testWidgets('owner uses shared ApiClient bearer token by default', (
+    tester,
+  ) async {
+    final client = ApiClient(baseUrl: 'https://example.com', timeoutMs: 1000)
+      ..setAccessToken('shared-access');
+    client.dio.httpClientAdapter = StubHttpClientAdapter(
+      handler: (options, _) async {
+        expect(options.path, '/api/v1/devices/dev-001/linked-users');
+        expect(options.headers['Authorization'], 'Bearer shared-access');
+        return jsonResponse(<String, dynamic>{
+          'items': <Map<String, dynamic>>[
+            <String, dynamic>{
+              'user_id': 'viewer-001',
+              'name': 'Viewer A',
+              'link_role': 'viewer',
+            },
+          ],
+        }, 200);
+      },
+    );
+
+    await tester.pumpWidget(
+      Provider<ApiClient>.value(
+        value: client,
+        child: MaterialApp(
+          home: DeviceViewersPage(
+            device: Device(id: 'dev-001', name: 'Phong ngu', linkRole: 'owner'),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Viewer A'), findsOneWidget);
+  });
+
   testWidgets('viewer cannot load or manage viewers', (tester) async {
     final api = _FakeDeviceApiService(
       initialUsers: const <DeviceLinkedUser>[
@@ -63,7 +102,7 @@ void main() {
 
     expect(api.getLinkedUsersCalls, 0);
     expect(
-      find.text('Chi owner moi co the quan ly viewer cua thiet bi nay.'),
+      find.text('Chi chu thiet bi moi co the quan ly nguoi xem cua thiet bi nay.'),
       findsOneWidget,
     );
   });

@@ -60,7 +60,7 @@ void main() {
     client.dio.httpClientAdapter = adapter;
 
     final history = await service.getHistoryByDevice(deviceId: 'dev-1');
-    final vitals = await service.getVitalsByUser(userId: 'patient-001');
+    final vitals = await service.getVitalsByUser(userId: 'user-001');
 
     expect(history.single.hr, 70);
     expect(vitals.single.hr, 74);

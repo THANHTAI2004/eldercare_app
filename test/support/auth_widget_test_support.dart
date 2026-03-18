@@ -38,6 +38,7 @@ class AuthTestShell extends StatelessWidget {
 
     return MultiProvider(
       providers: [
+        Provider<ApiClient>.value(value: client),
         ChangeNotifierProvider<SessionProvider>.value(value: session),
         ChangeNotifierProvider<DeviceProvider>.value(value: deviceProvider),
         ChangeNotifierProvider<RealtimeProvider>(
@@ -48,7 +49,6 @@ class AuthTestShell extends StatelessWidget {
           )..handleSessionState(
               isAuthenticated: session.isAuthenticated,
               authenticatedUserId: session.authenticatedUserId,
-              authenticatedRole: session.authenticatedRole,
             ),
         ),
         ChangeNotifierProvider<HistoryProvider>(
@@ -59,7 +59,6 @@ class AuthTestShell extends StatelessWidget {
           )..handleSessionState(
               isAuthenticated: session.isAuthenticated,
               authenticatedUserId: session.authenticatedUserId,
-              authenticatedRole: session.authenticatedRole,
             ),
         ),
         ChangeNotifierProvider<EcgProvider>(

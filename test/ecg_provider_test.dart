@@ -16,10 +16,10 @@ void main() {
 
     provider.handleSessionState(
       isAuthenticated: true,
-      authenticatedUserId: 'patient-001',
+      authenticatedUserId: 'user-001',
     );
     provider.bindScope(
-      userId: 'patient-001',
+      userId: 'user-001',
       deviceId: 'dev-1',
     );
 
@@ -38,10 +38,10 @@ void main() {
 
     provider.handleSessionState(
       isAuthenticated: true,
-      authenticatedUserId: 'patient-001',
+      authenticatedUserId: 'user-001',
     );
     provider.bindScope(
-      userId: 'patient-001',
+      userId: 'user-001',
       deviceId: 'dev-1',
     );
 

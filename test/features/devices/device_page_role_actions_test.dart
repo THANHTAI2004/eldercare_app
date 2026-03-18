@@ -26,7 +26,7 @@ void main() {
       meResponse: const <String, dynamic>{
         'user_id': 'owner-001',
         'name': 'Owner A',
-        'role': 'manager',
+        'role': 'member',
       },
     );
     await session.login(phoneNumber: '0987654321', password: 'MatKhau123');
@@ -43,13 +43,11 @@ void main() {
               <String, dynamic>{
                 'user_id': 'owner-001',
                 'name': 'Owner A',
-                'role': 'manager',
                 'link_role': 'owner',
               },
               <String, dynamic>{
                 'user_id': 'viewer-001',
                 'name': 'Nguoi nha',
-                'role': 'viewer',
                 'link_role': 'viewer',
               },
             ],
@@ -72,7 +70,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Quan ly viewer'), findsOneWidget);
-    expect(find.text('Viewer dang duoc chia se'), findsOneWidget);
+    expect(find.text('Nguoi xem dang duoc chia se'), findsOneWidget);
     expect(
       find.text(
         'Tai khoan nay chi co quyen xem du lieu va canh bao cua device nay.',
@@ -92,7 +90,7 @@ void main() {
       meResponse: const <String, dynamic>{
         'user_id': 'viewer-001',
         'name': 'Viewer A',
-        'role': 'viewer',
+        'role': 'member',
       },
     );
     await session.login(phoneNumber: '0987000001', password: 'MatKhau123');
@@ -109,13 +107,11 @@ void main() {
               <String, dynamic>{
                 'user_id': 'owner-001',
                 'name': 'Owner A',
-                'role': 'manager',
                 'link_role': 'owner',
               },
               <String, dynamic>{
                 'user_id': 'viewer-001',
                 'name': 'Viewer A',
-                'role': 'viewer',
                 'link_role': 'viewer',
               },
             ],

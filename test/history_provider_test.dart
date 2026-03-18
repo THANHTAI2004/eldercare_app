@@ -29,12 +29,11 @@ void main() {
 
     provider.handleSessionState(
       isAuthenticated: true,
-      authenticatedUserId: 'patient-001',
-      authenticatedRole: 'patient',
+      authenticatedUserId: 'user-001',
     );
 
     await provider.bindScope(
-      userId: 'patient-001',
+      userId: 'user-001',
       deviceId: 'dev-1',
     );
     await provider.loadForDay(DateTime(2026, 3, 16));

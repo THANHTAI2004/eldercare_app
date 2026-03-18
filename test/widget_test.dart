@@ -122,8 +122,8 @@ void main() {
         refreshToken: 'refresh-456',
       ),
       meResponse: const <String, dynamic>{
-        'user_id': 'patient-001',
-        'role': 'manager',
+        'user_id': 'user-001',
+        'role': 'member',
       },
     );
     await session.login(phoneNumber: '0987654321', password: 'secret');
@@ -147,18 +147,20 @@ void main() {
     expect(find.text('Mo danh sach thiet bi'), findsOneWidget);
   });
 
-  testWidgets('DevicePage shows manager no-device state', (tester) async {
+  testWidgets('DevicePage shows no-device state for authenticated user', (
+    tester,
+  ) async {
     final session = _buildSessionProvider(
       loginTokens: const AuthTokens(
         accessToken: 'access-123',
         refreshToken: 'refresh-456',
       ),
       meResponse: const <String, dynamic>{
-        'user_id': 'patient-001',
+        'user_id': 'user-001',
         'name': 'Nguyen Van A',
         'phone_number': '0987654321',
         'date_of_birth': '1950-01-02',
-        'role': 'manager',
+        'role': 'member',
       },
     );
     await session.login(phoneNumber: '0987654321', password: 'secret');
@@ -183,15 +185,15 @@ void main() {
     expect(find.text('Xem huong dan lien ket'), findsOneWidget);
   });
 
-  testWidgets('HomePage hides ECG action for caregiver', (tester) async {
+  testWidgets('HomePage hides ECG action for viewer', (tester) async {
     final session = _buildSessionProvider(
       loginTokens: const AuthTokens(
         accessToken: 'access-123',
         refreshToken: 'refresh-456',
       ),
       meResponse: const <String, dynamic>{
-        'user_id': 'caregiver-001',
-        'role': 'caregiver',
+        'user_id': 'viewer-001',
+        'role': 'member',
       },
     );
     await session.login(phoneNumber: '0987000001', password: 'secret');
@@ -202,19 +204,17 @@ void main() {
           Device.fromServerJson(const <String, dynamic>{
             'device_id': 'dev-1',
             'name': 'Phong ngu',
-            'link_role': 'caregiver',
+            'link_role': 'viewer',
             'linked_users': <Map<String, dynamic>>[
               <String, dynamic>{
-                'user_id': 'manager-001',
-                'name': 'Manager A',
-                'role': 'manager',
+                'user_id': 'owner-001',
+                'name': 'Owner A',
                 'link_role': 'owner',
               },
               <String, dynamic>{
-                'user_id': 'caregiver-001',
-                'name': 'Caregiver A',
-                'role': 'caregiver',
-                'link_role': 'caregiver',
+                'user_id': 'viewer-001',
+                'name': 'Viewer A',
+                'link_role': 'viewer',
               },
             ],
           }),
@@ -292,6 +292,7 @@ class _TestShell extends StatelessWidget {
 
     return MultiProvider(
       providers: [
+        Provider<ApiClient>.value(value: client),
         ChangeNotifierProvider<SessionProvider>.value(value: session),
         ChangeNotifierProvider<DeviceProvider>.value(value: deviceProvider),
         ChangeNotifierProvider<RealtimeProvider>(
@@ -303,7 +304,6 @@ class _TestShell extends StatelessWidget {
               )..handleSessionState(
                 isAuthenticated: session.isAuthenticated,
                 authenticatedUserId: session.authenticatedUserId,
-                authenticatedRole: session.authenticatedRole,
               ),
         ),
         ChangeNotifierProvider<HistoryProvider>(
@@ -315,7 +315,6 @@ class _TestShell extends StatelessWidget {
               )..handleSessionState(
                 isAuthenticated: session.isAuthenticated,
                 authenticatedUserId: session.authenticatedUserId,
-                authenticatedRole: session.authenticatedRole,
               ),
         ),
         ChangeNotifierProvider<EcgProvider>(

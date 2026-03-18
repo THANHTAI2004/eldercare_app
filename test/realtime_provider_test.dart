@@ -31,11 +31,10 @@ void main() {
 
     provider.handleSessionState(
       isAuthenticated: true,
-      authenticatedUserId: 'patient-001',
-      authenticatedRole: 'patient',
+      authenticatedUserId: 'user-001',
     );
 
-    await provider.init(userId: 'patient-001', deviceId: 'dev-1');
+    await provider.init(userId: 'user-001', deviceId: 'dev-1');
 
     expect(provider.latestStatus, AsyncStatus.success);
     expect(provider.latest?.deviceId, 'dev-1');
@@ -65,12 +64,11 @@ void main() {
 
     provider.handleSessionState(
       isAuthenticated: true,
-      authenticatedUserId: 'patient-001',
-      authenticatedRole: 'patient',
+      authenticatedUserId: 'user-001',
     );
 
-    await provider.init(userId: 'patient-001', deviceId: 'dev-1');
-    await provider.changeUser('patient-001', deviceId: 'dev-2');
+    await provider.init(userId: 'user-001', deviceId: 'dev-1');
+    await provider.changeUser('user-001', deviceId: 'dev-2');
 
     expect(provider.latestStatus, AsyncStatus.success);
     expect(provider.deviceId, 'dev-2');
@@ -85,7 +83,7 @@ void main() {
       cacheStorage: VitalsCacheStorage(),
     );
 
-    await provider.init(userId: 'patient-001', deviceId: 'dev-1');
+    await provider.init(userId: 'user-001', deviceId: 'dev-1');
 
     expect(provider.latestStatus, AsyncStatus.unauthorized);
     expect(provider.error, 'Phien dang nhap khong hop le hoac da het han');

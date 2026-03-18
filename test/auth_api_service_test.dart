@@ -132,7 +132,7 @@ void main() {
     client.setAccessToken('access-123');
     await storage.saveAccessToken('access-123');
     await storage.saveRefreshToken('refresh-456');
-    await storage.saveCurrentUser(<String, dynamic>{'user_id': 'patient-001'});
+    await storage.saveCurrentUser(<String, dynamic>{'user_id': 'user-001'});
 
     await api.logout();
 

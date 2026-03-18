@@ -21,8 +21,15 @@ class _ClaimDevicePageState extends State<ClaimDevicePage> {
 
   bool _isSubmitting = false;
   String? _errorMessage;
+  DeviceApiService? _api;
 
-  DeviceApiService get _api => widget._api ?? DeviceApiService();
+  DeviceApiService get _resolvedApi => _api!;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _api ??= widget._api ?? DeviceApiService(client: context.read<ApiClient>());
+  }
 
   @override
   void dispose() {
@@ -41,7 +48,7 @@ class _ClaimDevicePageState extends State<ClaimDevicePage> {
     });
 
     try {
-      await _api.claimDevice(deviceId: _deviceIdCtrl.text.trim());
+      await _resolvedApi.claimDevice(deviceId: _deviceIdCtrl.text.trim());
       if (!mounted) return;
       final session = context.read<SessionProvider>();
       await context.read<DeviceProvider>().syncFromServer(

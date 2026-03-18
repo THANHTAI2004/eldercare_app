@@ -31,7 +31,7 @@ void main() {
       meResponse: const <String, dynamic>{
         'user_id': 'owner-001',
         'name': 'Owner A',
-        'role': 'manager',
+        'role': 'member',
       },
     );
     await session.login(phoneNumber: '0987654321', password: 'MatKhau123');
@@ -47,7 +47,6 @@ void main() {
             <String, dynamic>{
               'user_id': 'owner-001',
               'name': 'Owner A',
-              'role': 'manager',
               'link_role': 'owner',
             },
           ],
@@ -86,12 +85,70 @@ void main() {
     expect(deviceProvider.devices.single.resolvedDeviceId, 'dev-esp-001');
     expect(find.text('result:true'), findsOneWidget);
   });
+
+  testWidgets('claim device uses shared ApiClient bearer token by default', (
+    tester,
+  ) async {
+    final session = buildSessionProvider(
+      loginTokens: const AuthTokens(
+        accessToken: 'access-123',
+        refreshToken: 'refresh-456',
+      ),
+      meResponse: const <String, dynamic>{
+        'user_id': 'owner-001',
+        'name': 'Owner A',
+        'role': 'member',
+      },
+    );
+    await session.login(phoneNumber: '0987654321', password: 'MatKhau123');
+
+    final deviceProvider = DeviceProvider(
+      api: _TrackingMyDevicesApiService(devices: const <Device>[]),
+    );
+    await deviceProvider.load();
+
+    final sharedClient = ApiClient(
+      baseUrl: 'https://example.com',
+      timeoutMs: 1000,
+    )..setAccessToken('shared-access');
+    sharedClient.dio.httpClientAdapter = StubHttpClientAdapter(
+      handler: (options, _) async {
+        expect(options.path, '/api/v1/devices/dev-esp-009/claim');
+        expect(options.headers['Authorization'], 'Bearer shared-access');
+        return jsonResponse(<String, dynamic>{'ok': true}, 200);
+      },
+    );
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          Provider<ApiClient>.value(value: sharedClient),
+          ChangeNotifierProvider<SessionProvider>.value(value: session),
+          ChangeNotifierProvider<DeviceProvider>.value(value: deviceProvider),
+        ],
+        child: const MaterialApp(home: _ClaimFlowHost()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Mo man lien ket'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Ma thiet bi'),
+      'dev-esp-009',
+    );
+    await tester.tap(find.byIcon(Icons.add_link));
+    await tester.pumpAndSettle();
+
+    expect(find.text('result:true'), findsOneWidget);
+  });
 }
 
 class _ClaimFlowHost extends StatefulWidget {
-  const _ClaimFlowHost({required this.api});
+  const _ClaimFlowHost({this.api});
 
-  final DeviceApiService api;
+  final DeviceApiService? api;
 
   @override
   State<_ClaimFlowHost> createState() => _ClaimFlowHostState();
