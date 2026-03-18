@@ -14,9 +14,7 @@ void main() {
     setUpSharedPreferences();
   });
 
-  testWidgets('manager with no devices sees claim device CTA', (
-    tester,
-  ) async {
+  testWidgets('manager with no devices sees claim device CTA', (tester) async {
     final session = buildSessionProvider(
       loginTokens: const AuthTokens(
         accessToken: 'access-123',
@@ -52,7 +50,7 @@ void main() {
     expect(find.text('Xem huong dan lien ket'), findsOneWidget);
   });
 
-  testWidgets('caregiver with no devices sees contact-manager guidance', (
+  testWidgets('viewer-style account with no devices sees shared guidance', (
     tester,
   ) async {
     final session = buildSessionProvider(
@@ -85,8 +83,8 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    expect(find.text('Ban chua duoc them vao thiet bi nao'), findsOneWidget);
-    expect(find.text('Them thiet bi bang device_id'), findsNothing);
+    expect(find.text('Ban chua co thiet bi nao'), findsOneWidget);
+    expect(find.text('Them thiet bi bang device_id'), findsOneWidget);
     expect(find.text('Xem huong dan lien ket'), findsOneWidget);
   });
 }

@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:eldercare_app/src/domain/models/alert_item.dart';
+import 'package:eldercare_app/src/domain/models/device.dart';
+import 'package:eldercare_app/src/features/devices/device_viewers_page.dart';
 import 'package:eldercare_app/src/state/alerts_provider.dart';
+import 'package:eldercare_app/src/state/device_provider.dart';
 
 class AlertsPage extends StatefulWidget {
   const AlertsPage({super.key});
@@ -26,9 +29,23 @@ class _AlertsPageState extends State<AlertsPage> {
     });
   }
 
+  Future<void> _openAlertDevice(Device device) async {
+    await context.read<DeviceProvider>().setCurrent(device.id);
+    if (!mounted) return;
+    Navigator.pop(context, device.resolvedDeviceId);
+  }
+
+  Future<void> _openOwnerManagement(Device device) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => DeviceViewersPage(device: device)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<AlertsProvider>();
+    final deviceProvider = context.watch<DeviceProvider>();
     final visibleItems = provider.visibleItems;
 
     return Scaffold(
@@ -116,19 +133,28 @@ class _AlertsPageState extends State<AlertsPage> {
             else if (visibleItems.isEmpty)
               const _EmptyAlertsState()
             else
-              ...visibleItems.map(
-                (item) => Padding(
+              ...visibleItems.map((item) {
+                final linkedDevice = deviceProvider.findById(item.deviceId);
+                return Padding(
                   padding: const EdgeInsets.only(bottom: 12),
                   child: _AlertCard(
                     item: item,
+                    linkedDevice: linkedDevice,
                     onAcknowledge: item.acknowledged || provider.isAcknowledging
                         ? null
                         : () => context.read<AlertsProvider>().acknowledge(
                             item.id,
                           ),
+                    onOpenDevice: linkedDevice == null
+                        ? null
+                        : () => _openAlertDevice(linkedDevice),
+                    onManageDevice:
+                        linkedDevice != null && linkedDevice.isOwnerLink
+                        ? () => _openOwnerManagement(linkedDevice)
+                        : null,
                   ),
-                ),
-              ),
+                );
+              }),
           ],
         ),
       ),
@@ -166,10 +192,19 @@ class _SummaryCard extends StatelessWidget {
 }
 
 class _AlertCard extends StatelessWidget {
-  const _AlertCard({required this.item, required this.onAcknowledge});
+  const _AlertCard({
+    required this.item,
+    required this.linkedDevice,
+    required this.onAcknowledge,
+    required this.onOpenDevice,
+    required this.onManageDevice,
+  });
 
   final AlertItem item;
+  final Device? linkedDevice;
   final VoidCallback? onAcknowledge;
+  final VoidCallback? onOpenDevice;
+  final VoidCallback? onManageDevice;
 
   @override
   Widget build(BuildContext context) {
@@ -197,6 +232,14 @@ class _AlertCard extends StatelessWidget {
                     avatar: Icon(Icons.check, size: 18),
                     label: Text('Da ack'),
                   ),
+                if (linkedDevice != null) ...[
+                  const SizedBox(width: 8),
+                  Chip(
+                    label: Text(
+                      _deviceRoleLabel(linkedDevice!.normalizedLinkRole),
+                    ),
+                  ),
+                ],
               ],
             ),
             const SizedBox(height: 8),
@@ -229,16 +272,66 @@ class _AlertCard extends StatelessWidget {
             const SizedBox(height: 10),
             Text('Luc tao: ${item.createdAt.toLocal()}'),
             if (item.deviceId != null) Text('device_id: ${item.deviceId}'),
+            if (linkedDevice != null) ...[
+              const SizedBox(height: 4),
+              Text('Device trong app: ${linkedDevice!.name}'),
+            ],
+            if (linkedDevice == null && item.deviceId != null) ...[
+              const SizedBox(height: 4),
+              const Text(
+                'Device nay chua co trong danh sach /api/v1/me/devices cua ban.',
+              ),
+            ],
             const SizedBox(height: 12),
-            FilledButton.icon(
-              onPressed: onAcknowledge,
-              icon: const Icon(Icons.done_all),
-              label: Text(item.acknowledged ? 'Da acknowledge' : 'Acknowledge'),
+            Row(
+              children: [
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: onAcknowledge,
+                    icon: const Icon(Icons.done_all),
+                    label: Text(
+                      item.acknowledged ? 'Da acknowledge' : 'Acknowledge',
+                    ),
+                  ),
+                ),
+                if (onOpenDevice != null) ...[
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: onOpenDevice,
+                      icon: const Icon(Icons.monitor_heart_outlined),
+                      label: const Text('Mo device'),
+                    ),
+                  ),
+                ],
+              ],
             ),
+            if (onManageDevice != null) ...[
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: onManageDevice,
+                  icon: const Icon(Icons.group_outlined),
+                  label: const Text('Quan ly viewer'),
+                ),
+              ),
+            ],
           ],
         ),
       ),
     );
+  }
+}
+
+String _deviceRoleLabel(String? linkRole) {
+  switch (linkRole) {
+    case 'owner':
+      return 'Owner';
+    case 'viewer':
+      return 'Viewer';
+    default:
+      return 'Khong ro';
   }
 }
 

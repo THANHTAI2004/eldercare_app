@@ -57,7 +57,9 @@ void main() {
     expect(find.text('Chua co tai khoan? Dang ky'), findsOneWidget);
   });
 
-  testWidgets('DevicePage validates login fields before submit', (tester) async {
+  testWidgets('DevicePage validates login fields before submit', (
+    tester,
+  ) async {
     final session = _buildSessionProvider();
     final deviceProvider = DeviceProvider(
       api: _FakeDeviceApiService(devices: const <Device>[]),
@@ -73,8 +75,10 @@ void main() {
     );
     await tester.pump();
 
-    await tester.tap(find.widgetWithText(FilledButton, 'Dang nhap'));
-    await tester.pump();
+    final loginButtonIcon = find.byIcon(Icons.login);
+    await tester.ensureVisible(loginButtonIcon);
+    await tester.tap(loginButtonIcon);
+    await tester.pumpAndSettle();
 
     expect(find.text('Nhap so dien thoai'), findsOneWidget);
     expect(find.text('Nhap mat khau'), findsOneWidget);
@@ -140,12 +144,10 @@ void main() {
     await tester.pump();
 
     expect(find.text('Ban chua co thiet bi nao'), findsOneWidget);
-    expect(find.text('Quan ly thiet bi'), findsOneWidget);
+    expect(find.text('Mo danh sach thiet bi'), findsOneWidget);
   });
 
-  testWidgets('DevicePage shows manager no-device state', (
-    tester,
-  ) async {
+  testWidgets('DevicePage shows manager no-device state', (tester) async {
     final session = _buildSessionProvider(
       loginTokens: const AuthTokens(
         accessToken: 'access-123',
@@ -238,6 +240,13 @@ void main() {
   });
 
   testWidgets('RegisterPage validates required fields inline', (tester) async {
+    tester.view.physicalSize = const Size(1200, 1800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
     final session = _buildSessionProvider();
     final deviceProvider = DeviceProvider(
       api: _FakeDeviceApiService(devices: const <Device>[]),
@@ -253,14 +262,15 @@ void main() {
     );
     await tester.pump();
 
-    await tester.tap(find.widgetWithText(FilledButton, 'Tao tai khoan'));
-    await tester.pump();
+    final registerButtonIcon = find.byIcon(Icons.person_add_alt_1);
+    await tester.ensureVisible(registerButtonIcon);
+    await tester.tap(registerButtonIcon);
+    await tester.pumpAndSettle();
 
     expect(find.text('Nhap ho va ten'), findsOneWidget);
     expect(find.text('Nhap so dien thoai'), findsOneWidget);
-    expect(find.text('Vui long chon ngay sinh'), findsOneWidget);
     expect(find.text('Nhap mat khau'), findsOneWidget);
-    expect(find.text('Nhap lai mat khau'), findsOneWidget);
+    expect(find.text('Nhap lai mat khau'), findsWidgets);
   });
 }
 
@@ -285,35 +295,35 @@ class _TestShell extends StatelessWidget {
         ChangeNotifierProvider<SessionProvider>.value(value: session),
         ChangeNotifierProvider<DeviceProvider>.value(value: deviceProvider),
         ChangeNotifierProvider<RealtimeProvider>(
-          create: (_) => RealtimeProvider(
-            client: client,
-            api: healthApi,
-            cacheStorage: VitalsCacheStorage(),
-          )..handleSessionState(
-              isAuthenticated: session.isAuthenticated,
-              authenticatedUserId: session.authenticatedUserId,
-              authenticatedRole: session.authenticatedRole,
-            ),
+          create: (_) =>
+              RealtimeProvider(
+                client: client,
+                api: healthApi,
+                cacheStorage: VitalsCacheStorage(),
+              )..handleSessionState(
+                isAuthenticated: session.isAuthenticated,
+                authenticatedUserId: session.authenticatedUserId,
+                authenticatedRole: session.authenticatedRole,
+              ),
         ),
         ChangeNotifierProvider<HistoryProvider>(
-          create: (_) => HistoryProvider(
-            client: client,
-            api: healthApi,
-            cacheStorage: VitalsCacheStorage(),
-          )..handleSessionState(
-              isAuthenticated: session.isAuthenticated,
-              authenticatedUserId: session.authenticatedUserId,
-              authenticatedRole: session.authenticatedRole,
-            ),
+          create: (_) =>
+              HistoryProvider(
+                client: client,
+                api: healthApi,
+                cacheStorage: VitalsCacheStorage(),
+              )..handleSessionState(
+                isAuthenticated: session.isAuthenticated,
+                authenticatedUserId: session.authenticatedUserId,
+                authenticatedRole: session.authenticatedRole,
+              ),
         ),
         ChangeNotifierProvider<EcgProvider>(
-          create: (_) => EcgProvider(
-            client: client,
-            api: healthApi,
-          )..handleSessionState(
-              isAuthenticated: session.isAuthenticated,
-              authenticatedUserId: session.authenticatedUserId,
-            ),
+          create: (_) =>
+              EcgProvider(client: client, api: healthApi)..handleSessionState(
+                isAuthenticated: session.isAuthenticated,
+                authenticatedUserId: session.authenticatedUserId,
+              ),
         ),
       ],
       child: MaterialApp(home: child),

@@ -61,32 +61,35 @@ void main() {
     expect(provider.authenticatedRole, 'patient');
   });
 
-  test('restoreSession loads current user and marks provider authenticated', () async {
-    final client = ApiClient(baseUrl: 'https://example.com', timeoutMs: 1000);
-    final storage = AuthStorage(secureStore: MemorySecureStore());
-    final authApi = _FakeAuthApiService(
-      client: client,
-      storage: storage,
-      restoredTokens: const AuthTokens(
-        accessToken: 'restored-access',
-        refreshToken: 'restored-refresh',
-      ),
-      meResponse: const <String, dynamic>{
-        'user_id': 'patient-001',
-        'role': 'patient',
-      },
-    );
-    final provider = SessionProvider(client: client, authApi: authApi);
+  test(
+    'restoreSession loads current user and marks provider authenticated',
+    () async {
+      final client = ApiClient(baseUrl: 'https://example.com', timeoutMs: 1000);
+      final storage = AuthStorage(secureStore: MemorySecureStore());
+      final authApi = _FakeAuthApiService(
+        client: client,
+        storage: storage,
+        restoredTokens: const AuthTokens(
+          accessToken: 'restored-access',
+          refreshToken: 'restored-refresh',
+        ),
+        meResponse: const <String, dynamic>{
+          'user_id': 'patient-001',
+          'role': 'patient',
+        },
+      );
+      final provider = SessionProvider(client: client, authApi: authApi);
 
-    final restored = await provider.restoreSession();
+      final restored = await provider.restoreSession();
 
-    expect(restored, isTrue);
-    expect(authApi.restoreCalls, 1);
-    expect(authApi.meCalls, 1);
-    expect(provider.isAuthenticated, isTrue);
-    expect(provider.authenticatedUserId, 'patient-001');
-    expect(provider.authenticatedRole, 'patient');
-  });
+      expect(restored, isTrue);
+      expect(authApi.restoreCalls, 1);
+      expect(authApi.meCalls, 1);
+      expect(provider.isAuthenticated, isTrue);
+      expect(provider.authenticatedUserId, 'patient-001');
+      expect(provider.authenticatedRole, 'patient');
+    },
+  );
 
   test('restoreSession clears state when me fails', () async {
     final client = ApiClient(baseUrl: 'https://example.com', timeoutMs: 1000);
@@ -112,7 +115,10 @@ void main() {
     expect(restored, isFalse);
     expect(provider.isAuthenticated, isFalse);
     expect(provider.authenticatedUserId, isEmpty);
-    expect(provider.error, 'Phien dang nhap da het han, vui long dang nhap lai');
+    expect(
+      provider.error,
+      'Phien dang nhap da het han, vui long dang nhap lai',
+    );
     expect(provider.lastErrorStatusCode, 401);
     expect(authApi.clearCalls, 1);
   });
@@ -277,14 +283,12 @@ class _FakeAuthApiService extends AuthApiService {
     required super.storage,
     this.loginTokens,
     this.restoredTokens,
-    this.savedCurrentUser,
     this.meResponse = const <String, dynamic>{},
     this.meError,
   });
 
   final AuthTokens? loginTokens;
   final AuthTokens? restoredTokens;
-  final Map<String, dynamic>? savedCurrentUser;
   final Map<String, dynamic> meResponse;
   final ApiRequestException? meError;
 
@@ -321,7 +325,7 @@ class _FakeAuthApiService extends AuthApiService {
 
   @override
   Future<Map<String, dynamic>?> loadSavedCurrentUser() async {
-    return savedCurrentUser;
+    return null;
   }
 
   @override

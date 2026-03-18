@@ -37,13 +37,13 @@ class EldercareApp extends StatelessWidget {
           )..bootstrap(),
         ),
         ChangeNotifierProxyProvider<SessionProvider, RealtimeProvider>(
-          create: (context) =>
-              RealtimeProvider(
-                client: context.read<ApiClient>(),
-                cacheStorage: context.read<VitalsCacheStorage>(),
-              ),
+          create: (context) => RealtimeProvider(
+            client: context.read<ApiClient>(),
+            cacheStorage: context.read<VitalsCacheStorage>(),
+          ),
           update: (context, session, realtime) {
-            final provider = realtime ??
+            final provider =
+                realtime ??
                 RealtimeProvider(
                   client: context.read<ApiClient>(),
                   cacheStorage: context.read<VitalsCacheStorage>(),
@@ -51,17 +51,17 @@ class EldercareApp extends StatelessWidget {
             provider.handleSessionState(
               isAuthenticated: session.isAuthenticated,
               authenticatedUserId: session.authenticatedUserId,
-              authenticatedRole: session.authenticatedRole,
             );
             return provider;
           },
         ),
         ChangeNotifierProxyProvider<SessionProvider, DeviceProvider>(
-          create: (context) =>
-              DeviceProvider(api: DeviceApiService(client: context.read<ApiClient>()))
-                ..load(),
+          create: (context) => DeviceProvider(
+            api: DeviceApiService(client: context.read<ApiClient>()),
+          )..load(),
           update: (context, session, deviceProvider) {
-            final provider = deviceProvider ??
+            final provider =
+                deviceProvider ??
                 DeviceProvider(
                   api: DeviceApiService(client: context.read<ApiClient>()),
                 );
@@ -73,13 +73,13 @@ class EldercareApp extends StatelessWidget {
           },
         ),
         ChangeNotifierProxyProvider<SessionProvider, HistoryProvider>(
-          create: (context) =>
-              HistoryProvider(
-                client: context.read<ApiClient>(),
-                cacheStorage: context.read<VitalsCacheStorage>(),
-              ),
+          create: (context) => HistoryProvider(
+            client: context.read<ApiClient>(),
+            cacheStorage: context.read<VitalsCacheStorage>(),
+          ),
           update: (context, session, historyProvider) {
-            final provider = historyProvider ??
+            final provider =
+                historyProvider ??
                 HistoryProvider(
                   client: context.read<ApiClient>(),
                   cacheStorage: context.read<VitalsCacheStorage>(),
@@ -87,7 +87,6 @@ class EldercareApp extends StatelessWidget {
             provider.handleSessionState(
               isAuthenticated: session.isAuthenticated,
               authenticatedUserId: session.authenticatedUserId,
-              authenticatedRole: session.authenticatedRole,
             );
             return provider;
           },
@@ -105,10 +104,12 @@ class EldercareApp extends StatelessWidget {
           },
         ),
         ChangeNotifierProxyProvider<SessionProvider, AlertsProvider>(
-          create: (context) =>
-              AlertsProvider(api: AlertsApiService(client: context.read<ApiClient>())),
+          create: (context) => AlertsProvider(
+            api: AlertsApiService(client: context.read<ApiClient>()),
+          ),
           update: (context, session, alertsProvider) {
-            final provider = alertsProvider ??
+            final provider =
+                alertsProvider ??
                 AlertsProvider(
                   api: AlertsApiService(client: context.read<ApiClient>()),
                 );

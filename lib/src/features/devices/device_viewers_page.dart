@@ -4,8 +4,8 @@ import 'package:eldercare_app/src/data/api/api_client.dart';
 import 'package:eldercare_app/src/data/api/device_api_service.dart';
 import 'package:eldercare_app/src/domain/models/device.dart';
 
-class DeviceCaregiversPage extends StatefulWidget {
-  const DeviceCaregiversPage({
+class DeviceViewersPage extends StatefulWidget {
+  const DeviceViewersPage({
     super.key,
     required this.device,
     DeviceApiService? api,
@@ -15,10 +15,10 @@ class DeviceCaregiversPage extends StatefulWidget {
   final DeviceApiService? _api;
 
   @override
-  State<DeviceCaregiversPage> createState() => _DeviceCaregiversPageState();
+  State<DeviceViewersPage> createState() => _DeviceViewersPageState();
 }
 
-class _DeviceCaregiversPageState extends State<DeviceCaregiversPage> {
+class _DeviceViewersPageState extends State<DeviceViewersPage> {
   final _formKey = GlobalKey<FormState>();
   final _identifierCtrl = TextEditingController();
 
@@ -28,6 +28,7 @@ class _DeviceCaregiversPageState extends State<DeviceCaregiversPage> {
   List<DeviceLinkedUser> _linkedUsers = const <DeviceLinkedUser>[];
 
   DeviceApiService get _api => widget._api ?? DeviceApiService();
+  bool get _canManageViewers => widget.device.isOwnerLink;
 
   @override
   void initState() {
@@ -71,8 +72,8 @@ class _DeviceCaregiversPageState extends State<DeviceCaregiversPage> {
     }
   }
 
-  Future<void> _addCaregiver() async {
-    if (!(_formKey.currentState?.validate() ?? false)) {
+  Future<void> _addViewer() async {
+    if (!_canManageViewers || !(_formKey.currentState?.validate() ?? false)) {
       return;
     }
 
@@ -86,7 +87,7 @@ class _DeviceCaregiversPageState extends State<DeviceCaregiversPage> {
     });
 
     try {
-      await _api.addCaregiver(
+      await _api.addViewer(
         deviceId: widget.device.resolvedDeviceId,
         userId: userId,
         phoneNumber: phoneNumber,
@@ -95,7 +96,7 @@ class _DeviceCaregiversPageState extends State<DeviceCaregiversPage> {
       await _loadUsers();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Da them nguoi cham soc vao thiet bi.')),
+        const SnackBar(content: Text('Da them viewer vao thiet bi.')),
       );
     } catch (e) {
       if (!mounted) return;
@@ -111,21 +112,23 @@ class _DeviceCaregiversPageState extends State<DeviceCaregiversPage> {
     }
   }
 
-  Future<void> _removeCaregiver(DeviceLinkedUser user) async {
+  Future<void> _removeViewer(DeviceLinkedUser user) async {
+    if (!_canManageViewers) return;
+
     setState(() {
       _isSubmitting = true;
       _errorMessage = null;
     });
 
     try {
-      await _api.removeCaregiver(
+      await _api.removeViewer(
         deviceId: widget.device.resolvedDeviceId,
         userId: user.id,
       );
       await _loadUsers();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Da go nguoi cham soc ${user.displayName}.')),
+        SnackBar(content: Text('Da go viewer ${user.displayName}.')),
       );
     } catch (e) {
       if (!mounted) return;
@@ -146,36 +149,30 @@ class _DeviceCaregiversPageState extends State<DeviceCaregiversPage> {
     return RegExp(r'^(0|\+84)[0-9]{9,10}$').hasMatch(normalized);
   }
 
-  bool _isCaregiverLink(DeviceLinkedUser user) {
-    final role = user.role?.trim().toLowerCase() ?? '';
-    final linkRole = user.linkRole?.trim().toLowerCase() ?? '';
-    return role == 'caregiver' || linkRole == 'caregiver';
-  }
-
   String _friendlyError(Object e) {
     if (e is ApiRequestException) {
       if (e.statusCode == 404) {
-        return 'Khong tim thay tai khoan nguoi cham soc can them.';
+        return 'Khong tim thay tai khoan viewer can them.';
       }
       if (e.statusCode == 409) {
         return 'Tai khoan nay da duoc them vao thiet bi.';
       }
       if (e.statusCode == 403) {
-        return 'Tai khoan hien tai khong co quyen quan ly nguoi cham soc.';
+        return 'Ban khong co quyen quan ly viewer cua thiet bi nay.';
       }
       return e.message;
     }
-    return 'Khong the cap nhat danh sach nguoi cham soc.';
+    return 'Khong the cap nhat danh sach viewer.';
   }
 
   @override
   Widget build(BuildContext context) {
-    final caregivers = _linkedUsers
-        .where(_isCaregiverLink)
+    final viewers = _linkedUsers
+        .where((user) => user.isViewerLink)
         .toList(growable: false);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Nguoi cham soc cua thiet bi')),
+      appBar: AppBar(title: const Text('Quan ly viewer')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -191,101 +188,115 @@ class _DeviceCaregiversPageState extends State<DeviceCaregiversPage> {
                   ),
                   const SizedBox(height: 6),
                   Text('Ma thiet bi: ${widget.device.resolvedDeviceId}'),
+                  Text(
+                    'Quyen cua ban tren device nay: ${_roleLabel(widget.device.normalizedLinkRole)}',
+                  ),
                   if (widget.device.primaryUserId != null)
-                    Text('Nguoi quan ly: ${widget.device.primaryUserId}'),
+                    Text('Chu thiet bi: ${widget.device.primaryUserId}'),
                 ],
               ),
             ),
           ),
           const SizedBox(height: 12),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Them nguoi cham soc',
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Nhap user_id hoac so dien thoai cua nguoi cham soc de cap quyen xem du lieu thiet bi.',
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _identifierCtrl,
-                      enabled: !_isSubmitting,
-                      decoration: const InputDecoration(
-                        labelText: 'User ID hoac so dien thoai',
-                      ),
-                      validator: (value) {
-                        if (value == null || value.trim().isEmpty) {
-                          return 'Nhap user_id hoac so dien thoai';
-                        }
-                        return null;
-                      },
-                      onFieldSubmitted: (_) => _addCaregiver(),
-                    ),
-                    if (_errorMessage != null &&
-                        _errorMessage!.trim().isNotEmpty) ...[
-                      const SizedBox(height: 12),
-                      _InlineError(message: _errorMessage!),
-                    ],
-                    const SizedBox(height: 16),
-                    FilledButton.icon(
-                      onPressed: _isSubmitting ? null : _addCaregiver,
-                      icon: _isSubmitting
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                              ),
-                            )
-                          : const Icon(Icons.person_add_alt_1),
-                      label: Text(
-                        _isSubmitting
-                            ? 'Dang cap nhat...'
-                            : 'Them nguoi cham soc',
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          if (_isLoading)
-            const Center(child: CircularProgressIndicator())
-          else if (caregivers.isEmpty)
+          if (!_canManageViewers)
             const Card(
               child: Padding(
                 padding: EdgeInsets.all(20),
                 child: Text(
-                  'Chua co nguoi cham soc nao duoc them vao thiet bi nay.',
+                  'Chi owner moi co the quan ly viewer cua thiet bi nay.',
                   textAlign: TextAlign.center,
                 ),
               ),
             )
           else
-            ...caregivers.map(
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Them viewer',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Nhap user_id hoac so dien thoai cua nguoi can duoc cap quyen xem device nay.',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _identifierCtrl,
+                        enabled: !_isSubmitting,
+                        decoration: const InputDecoration(
+                          labelText: 'User ID hoac so dien thoai',
+                        ),
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return 'Nhap user_id hoac so dien thoai';
+                          }
+                          return null;
+                        },
+                        onFieldSubmitted: (_) => _addViewer(),
+                      ),
+                      if (_errorMessage != null &&
+                          _errorMessage!.trim().isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        _InlineError(message: _errorMessage!),
+                      ],
+                      const SizedBox(height: 16),
+                      FilledButton.icon(
+                        onPressed: _isSubmitting ? null : _addViewer,
+                        icon: _isSubmitting
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.person_add_alt_1),
+                        label: Text(
+                          _isSubmitting ? 'Dang cap nhat...' : 'Them viewer',
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          const SizedBox(height: 12),
+          if (_isLoading)
+            const Center(child: CircularProgressIndicator())
+          else if (viewers.isEmpty)
+            const Card(
+              child: Padding(
+                padding: EdgeInsets.all(20),
+                child: Text(
+                  'Chua co viewer nao duoc chia se voi thiet bi nay.',
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            )
+          else
+            ...viewers.map(
               (user) => Padding(
                 padding: const EdgeInsets.only(bottom: 12),
                 child: Card(
                   child: ListTile(
                     title: Text(user.displayName),
-                    subtitle: Text(_caregiverSubtitle(user)),
-                    trailing: IconButton(
-                      tooltip: 'Xoa nguoi cham soc',
-                      onPressed: _isSubmitting
-                          ? null
-                          : () => _removeCaregiver(user),
-                      icon: const Icon(Icons.person_remove_outlined),
-                    ),
+                    subtitle: Text(_viewerSubtitle(user)),
+                    trailing: !_canManageViewers
+                        ? null
+                        : IconButton(
+                            tooltip: 'Xoa viewer',
+                            onPressed: _isSubmitting
+                                ? null
+                                : () => _removeViewer(user),
+                            icon: const Icon(Icons.person_remove_outlined),
+                          ),
                   ),
                 ),
               ),
@@ -295,15 +306,26 @@ class _DeviceCaregiversPageState extends State<DeviceCaregiversPage> {
     );
   }
 
-  String _caregiverSubtitle(DeviceLinkedUser user) {
+  String _viewerSubtitle(DeviceLinkedUser user) {
     final segments = <String>[];
     if ((user.phoneNumber ?? '').trim().isNotEmpty) {
       segments.add(user.phoneNumber!.trim());
     }
-    if ((user.linkRole ?? '').trim().isNotEmpty) {
-      segments.add('Lien ket: ${user.linkRole}');
+    if ((user.normalizedLinkRole ?? '').trim().isNotEmpty) {
+      segments.add('Lien ket: ${_roleLabel(user.normalizedLinkRole)}');
     }
     return segments.isEmpty ? user.id : segments.join(' | ');
+  }
+
+  String _roleLabel(String? role) {
+    switch (role) {
+      case 'owner':
+        return 'Owner';
+      case 'viewer':
+        return 'Viewer';
+      default:
+        return 'Khong ro';
+    }
   }
 }
 

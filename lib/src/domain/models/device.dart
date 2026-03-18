@@ -16,6 +16,9 @@ class DeviceLinkedUser {
   final String? phoneNumber;
 
   String get displayName => name.trim().isEmpty ? id : name;
+  String? get normalizedLinkRole => _normalizeLinkRole(linkRole);
+  bool get isOwnerLink => normalizedLinkRole == 'owner';
+  bool get isViewerLink => normalizedLinkRole == 'viewer';
 
   factory DeviceLinkedUser.fromJson(Map<String, dynamic> json) {
     // Primary contract is snake_case from backend.
@@ -33,11 +36,9 @@ class DeviceLinkedUser {
         id;
     final role = _readString(json['role']);
     final linkRole =
-        _readString(json['link_role']) ??
-        _readString(json['linkRole']);
+        _readString(json['link_role']) ?? _readString(json['linkRole']);
     final phoneNumber =
-        _readString(json['phone_number']) ??
-        _readString(json['phone']);
+        _readString(json['phone_number']) ?? _readString(json['phone']);
 
     return DeviceLinkedUser(
       id: id,
@@ -95,9 +96,10 @@ class Device {
     return fallback;
   }
 
-  bool get isOwnerLink => (linkRole?.trim().toLowerCase() ?? '') == 'owner';
-  bool get isCaregiverLink =>
-      (linkRole?.trim().toLowerCase() ?? '') == 'caregiver';
+  String? get normalizedLinkRole => _normalizeLinkRole(linkRole);
+  bool get isOwnerLink => normalizedLinkRole == 'owner';
+  bool get isViewerLink => normalizedLinkRole == 'viewer';
+  bool get isCaregiverLink => isViewerLink;
 
   Device copyWith({
     String? id,
@@ -177,8 +179,7 @@ class Device {
         _readString(json['owner_user_id']) ??
         (links.isEmpty ? null : links.first.id);
     final linkRole =
-        _readString(json['link_role']) ??
-        _readString(json['linkRole']);
+        _readString(json['link_role']) ?? _readString(json['linkRole']);
     final name =
         _readString(json['name']) ??
         _readString(json['display_name']) ??
@@ -230,9 +231,7 @@ class Device {
           _readString(json['legacyUserId']) ??
           _readString(json['userId']) ??
           _readString(json['user_id']),
-      linkRole:
-          _readString(json['linkRole']) ??
-          _readString(json['link_role']),
+      linkRole: _readString(json['linkRole']) ?? _readString(json['link_role']),
       linkedUsers: linkedUsers,
       isLocalOnly: json['isLocalOnly'] == true,
     );
@@ -291,4 +290,11 @@ String? _readString(dynamic value) {
   final text = value?.toString().trim();
   if (text == null || text.isEmpty) return null;
   return text;
+}
+
+String? _normalizeLinkRole(String? value) {
+  final normalized = value?.trim().toLowerCase();
+  if (normalized == null || normalized.isEmpty) return null;
+  if (normalized == 'caregiver') return 'viewer';
+  return normalized;
 }

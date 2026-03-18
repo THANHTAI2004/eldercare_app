@@ -11,8 +11,8 @@ import 'package:eldercare_app/src/core/app_strings.dart';
 import 'package:eldercare_app/src/core/validators.dart';
 import 'package:eldercare_app/src/domain/models/device.dart';
 import 'package:eldercare_app/src/features/devices/claim_device_page.dart';
-import 'package:eldercare_app/src/features/devices/device_caregivers_page.dart';
 import 'package:eldercare_app/src/features/devices/device_qr_scanner_page.dart';
+import 'package:eldercare_app/src/features/devices/device_viewers_page.dart';
 import 'package:eldercare_app/src/features/home/home_page.dart';
 import 'package:eldercare_app/src/state/device_provider.dart';
 import 'package:eldercare_app/src/state/realtime_provider.dart';
@@ -174,11 +174,9 @@ class _DevicePageState extends State<DevicePage> {
     );
     if (result != true || !mounted) return;
 
-    await _refreshDevices();
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Them thiet bi thanh cong.')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Claim thiet bi thanh cong.')));
   }
 
   Future<void> _logout() async {
@@ -198,7 +196,9 @@ class _DevicePageState extends State<DevicePage> {
     );
   }
 
-  bool _canUseUserId(String? userId) {
+  bool _canUseUserId(String? userId, {String? deviceId}) {
+    if ((deviceId?.trim().isNotEmpty ?? false)) return true;
+
     final session = context.read<SessionProvider>();
     final normalizedUserId = userId?.trim() ?? '';
     if (!session.isUserScopedSession || normalizedUserId.isEmpty) return true;
@@ -215,7 +215,12 @@ class _DevicePageState extends State<DevicePage> {
   }
 
   Future<void> _selectDevice(Device device) async {
-    if (!_canUseUserId(device.primaryUserId)) return;
+    if (!_canUseUserId(
+      device.primaryUserId,
+      deviceId: device.resolvedDeviceId,
+    )) {
+      return;
+    }
 
     final deviceProvider = context.read<DeviceProvider>();
     final realtime = context.read<RealtimeProvider>();
@@ -303,7 +308,7 @@ class _DevicePageState extends State<DevicePage> {
     );
 
     if (shouldSave != true || !mounted) return;
-    if (!_canUseUserId(userCtrl.text)) return;
+    if (!_canUseUserId(userCtrl.text, deviceId: deviceCtrl.text)) return;
 
     final payload = <String, dynamic>{
       'userId': userCtrl.text.trim(),
@@ -331,50 +336,30 @@ class _DevicePageState extends State<DevicePage> {
     if (code == null || code.trim().isEmpty || !mounted) return;
 
     final parsed = Device.fromQr(code);
-    if (!_canUseUserId(parsed.primaryUserId)) return;
+    if (!_canUseUserId(
+      parsed.primaryUserId,
+      deviceId: parsed.resolvedDeviceId,
+    )) {
+      return;
+    }
 
     final deviceProvider = context.read<DeviceProvider>();
     await deviceProvider.addFromQr(code);
   }
 
   Future<void> _handleLinkDevice() async {
-    final session = context.read<SessionProvider>();
-    if (session.isManager) {
-      await _openClaimDevice();
-      return;
-    }
-    if (session.isCaregiver) {
-      await _showLinkGuideDialog();
-      return;
-    }
-
-    if (kDebugMode && _supportsQrScan) {
-      await _scanAndAdd();
-      return;
-    }
-
-    if (kDebugMode) {
-      await _showManualAddDialog();
-      return;
-    }
-
-    await _showLinkGuideDialog();
+    await _openClaimDevice();
   }
 
   Future<void> _showLinkGuideDialog() async {
-    final session = context.read<SessionProvider>();
-    final content = session.isCaregiver
-        ? 'Tai khoan cua ban hien chua duoc them vao thiet bi nao.\n\n'
-              'Vui long lien he nguoi quan ly thiet bi de duoc cap quyen xem du lieu va canh bao.'
-        : 'Tai khoan cua ban hien chua co thiet bi nao duoc lien ket.\n\n'
-              '1. Kiem tra xem thiet bi da duoc cap cho dung tai khoan chua.\n'
-              '2. Neu ben ban co quy trinh quet ma, hay dung nut Quet ma thiet bi trong che do ho tro.\n'
-              '3. Neu backend chua mo tu lien ket, vui long lien he caregiver hoac ky thuat vien de duoc lien ket thiet bi vao tai khoan nay.';
+    const content =
+        'Neu ban la chu thiet bi, hay dung chuc nang them thiet bi bang device_id de claim thiet bi.\n\n'
+        'Neu ban chi can quyen xem, vui long lien he owner cua thiet bi de duoc them vao danh sach viewer.';
     if (!mounted) return;
     await showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Huong dan lien ket thiet bi'),
+        title: const Text('Huong dan them thiet bi'),
         content: Text(content),
         actions: [
           TextButton(
@@ -399,7 +384,7 @@ class _DevicePageState extends State<DevicePage> {
           session.isAuthenticated ? 'Thiet bi da lien ket' : 'Dang nhap',
         ),
         actions: [
-          if (session.isAuthenticated && session.isManager)
+          if (session.isAuthenticated)
             IconButton(
               tooltip: 'Them thiet bi',
               onPressed: _openClaimDevice,
@@ -418,9 +403,7 @@ class _DevicePageState extends State<DevicePage> {
             ),
         ],
       ),
-      floatingActionButton: kDebugMode &&
-              session.isAuthenticated &&
-              session.isManager
+      floatingActionButton: kDebugMode && session.isAuthenticated
           ? Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -447,9 +430,6 @@ class _DevicePageState extends State<DevicePage> {
               deviceProvider: deviceProvider,
               session: session,
               realtime: realtime,
-              canManageDevices: session.isManager,
-              isCaregiver: session.isCaregiver,
-              canScan: kDebugMode && _supportsQrScan,
               onRefresh: _refreshDevices,
               onSelectDevice: _selectDevice,
               onLinkDevice: () {
@@ -528,9 +508,6 @@ class _AuthenticatedBody extends StatelessWidget {
     required this.deviceProvider,
     required this.session,
     required this.realtime,
-    required this.canManageDevices,
-    required this.isCaregiver,
-    required this.canScan,
     required this.onRefresh,
     required this.onSelectDevice,
     required this.onLinkDevice,
@@ -542,9 +519,6 @@ class _AuthenticatedBody extends StatelessWidget {
   final DeviceProvider deviceProvider;
   final SessionProvider session;
   final RealtimeProvider realtime;
-  final bool canManageDevices;
-  final bool isCaregiver;
-  final bool canScan;
   final Future<void> Function() onRefresh;
   final Future<void> Function(Device device) onSelectDevice;
   final VoidCallback onLinkDevice;
@@ -606,7 +580,8 @@ class _AuthenticatedBody extends StatelessWidget {
             controller: searchCtrl,
             decoration: const InputDecoration(
               prefixIcon: Icon(Icons.search),
-              hintText: 'Tim theo ten thiet bi, ma thiet bi, tai khoan lien ket...',
+              hintText:
+                  'Tim theo ten thiet bi, ma thiet bi, tai khoan lien ket...',
             ),
           ),
           const SizedBox(height: 16),
@@ -615,29 +590,15 @@ class _AuthenticatedBody extends StatelessWidget {
           else if (devices.isEmpty)
             _EmptyState(
               title: deviceProvider.devices.isEmpty
-                  ? canManageDevices
-                      ? 'Ban chua co thiet bi nao'
-                      : isCaregiver
-                      ? 'Ban chua duoc them vao thiet bi nao'
-                      : AppStrings.noLinkedDeviceTitle
+                  ? 'Ban chua co thiet bi nao'
                   : 'Khong co thiet bi phu hop',
               message: deviceProvider.devices.isEmpty
-                  ? canManageDevices
-                      ? 'Tai khoan nguoi quan ly cua ban chua co thiet bi nao. Ban co the them thiet bi bang device_id de bat dau theo doi.'
-                      : isCaregiver
-                      ? 'Tai khoan nguoi cham soc cua ban hien chua duoc cap quyen voi thiet bi nao. Vui long lien he nguoi quan ly thiet bi de duoc them vao danh sach chia se.'
-                      : 'Tai khoan cua ban da dang nhap thanh cong nhung hien chua co thiet bi nao duoc lien ket. Ban co the xem huong dan lien ket hoac quet ma thiet bi neu duoc cap quyen.'
+                  ? 'Ban co the them thiet bi bang device_id de claim thiet bi. Neu ban chi can quyen xem, vui long lien he chu thiet bi de duoc cap quyen viewer.'
                   : 'Thu doi bo loc tim kiem hoac lam moi danh sach thiet bi.',
-              actionLabel: deviceProvider.devices.isEmpty && canManageDevices
+              actionLabel: deviceProvider.devices.isEmpty
                   ? 'Them thiet bi bang device_id'
-                  : deviceProvider.devices.isEmpty && canScan
-                  ? 'Quet ma thiet bi'
-                  : deviceProvider.devices.isEmpty && kDebugMode && !isCaregiver
-                  ? 'Lien ket thiet bi'
                   : null,
-              onAction: deviceProvider.devices.isEmpty
-                  ? onLinkDevice
-                  : null,
+              onAction: deviceProvider.devices.isEmpty ? onLinkDevice : null,
               secondaryActionLabel: deviceProvider.devices.isEmpty
                   ? AppStrings.noLinkedDeviceGuide
                   : null,
@@ -652,12 +613,11 @@ class _AuthenticatedBody extends StatelessWidget {
                 child: _DeviceCard(
                   device: device,
                   isCurrent: deviceProvider.current?.id == device.id,
-                  canManageCaregivers: canManageDevices,
-                  onManageCaregivers: () async {
+                  onManageViewers: () async {
                     await Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => DeviceCaregiversPage(device: device),
+                        builder: (_) => DeviceViewersPage(device: device),
                       ),
                     );
                     await onRefresh();
@@ -736,21 +696,22 @@ class _DeviceCard extends StatelessWidget {
   const _DeviceCard({
     required this.device,
     required this.isCurrent,
-    required this.canManageCaregivers,
-    required this.onManageCaregivers,
+    required this.onManageViewers,
     required this.onSelect,
   });
 
   final Device device;
   final bool isCurrent;
-  final bool canManageCaregivers;
-  final Future<void> Function() onManageCaregivers;
+  final Future<void> Function() onManageViewers;
   final VoidCallback onSelect;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final linkedUsers = device.linkedUsers;
+    final viewers = device.linkedUsers
+        .where((user) => user.isViewerLink)
+        .toList(growable: false);
+    final roleLabel = _deviceAccessRoleLabel(device.normalizedLinkRole);
 
     return Card(
       child: Padding(
@@ -778,6 +739,8 @@ class _DeviceCard extends StatelessWidget {
                       Text('Ma thiet bi: ${device.resolvedDeviceId}'),
                       if (device.primaryUserId != null)
                         Text('Tai khoan chinh: ${device.primaryUserId}'),
+                      const SizedBox(height: 6),
+                      Chip(label: Text('Quyen cua ban: $roleLabel')),
                     ],
                   ),
                 ),
@@ -798,29 +761,31 @@ class _DeviceCard extends StatelessWidget {
               ),
             ],
             const SizedBox(height: 12),
-            Text(
-              'Nguoi dung lien ket',
-              style: theme.textTheme.titleSmall,
-            ),
-            const SizedBox(height: 8),
-            if (linkedUsers.isEmpty)
+            if (device.isOwnerLink) ...[
               Text(
-                'Thiet bi nay hien chua hien thi danh sach nguoi dung lien ket.',
-                style: theme.textTheme.bodySmall,
-              )
-            else
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: linkedUsers
-                    .map(
-                      (user) => Chip(
-                        label: Text(_linkedUserLabel(user)),
-                      ),
-                    )
-                    .toList(growable: false),
+                'Viewer dang duoc chia se',
+                style: theme.textTheme.titleSmall,
               ),
-            const SizedBox(height: 12),
+              const SizedBox(height: 8),
+              if (viewers.isEmpty)
+                Text(
+                  'Chua co viewer nao duoc them vao thiet bi nay.',
+                  style: theme.textTheme.bodySmall,
+                )
+              else
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: viewers
+                      .map((user) => Chip(label: Text(_linkedUserLabel(user))))
+                      .toList(growable: false),
+                ),
+              const SizedBox(height: 12),
+            ] else
+              Text(
+                'Tai khoan nay chi co quyen xem du lieu va canh bao cua device nay.',
+                style: theme.textTheme.bodySmall,
+              ),
             Row(
               children: [
                 Expanded(
@@ -830,15 +795,15 @@ class _DeviceCard extends StatelessWidget {
                     label: const Text('Theo doi device nay'),
                   ),
                 ),
-                if (canManageCaregivers) ...[
+                if (device.isOwnerLink) ...[
                   const SizedBox(width: 12),
                   Expanded(
                     child: OutlinedButton.icon(
                       onPressed: () {
-                        onManageCaregivers();
+                        onManageViewers();
                       },
                       icon: const Icon(Icons.group_outlined),
-                      label: const Text('Quan ly nguoi cham soc'),
+                      label: const Text('Quan ly viewer'),
                     ),
                   ),
                 ],
@@ -854,20 +819,31 @@ class _DeviceCard extends StatelessWidget {
 String _linkedUserLabel(DeviceLinkedUser user) {
   final segments = <String>[user.displayName];
   final role = user.role?.trim() ?? '';
-  final linkRole = user.linkRole?.trim() ?? '';
+  final linkRole = user.normalizedLinkRole ?? '';
   final phoneNumber = user.phoneNumber?.trim() ?? '';
 
   if (role.isNotEmpty) {
     segments.add('Vai tro: $role');
   }
   if (linkRole.isNotEmpty) {
-    segments.add('Lien ket: $linkRole');
+    segments.add('Lien ket: ${_deviceAccessRoleLabel(linkRole)}');
   }
   if (phoneNumber.isNotEmpty) {
     segments.add(phoneNumber);
   }
 
   return segments.join(' | ');
+}
+
+String _deviceAccessRoleLabel(String? linkRole) {
+  switch (linkRole) {
+    case 'owner':
+      return 'Owner';
+    case 'viewer':
+      return 'Viewer';
+    default:
+      return 'Khong ro';
+  }
 }
 
 class _InlineBanner extends StatelessWidget {
@@ -935,10 +911,7 @@ class _EmptyState extends StatelessWidget {
             Text(message, textAlign: TextAlign.center),
             if (actionLabel != null && onAction != null) ...[
               const SizedBox(height: 16),
-              FilledButton(
-                onPressed: onAction,
-                child: Text(actionLabel!),
-              ),
+              FilledButton(onPressed: onAction, child: Text(actionLabel!)),
             ],
             if (secondaryActionLabel != null && onSecondaryAction != null) ...[
               const SizedBox(height: 8),

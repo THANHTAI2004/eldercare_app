@@ -31,7 +31,6 @@ class RealtimeProvider extends ChangeNotifier {
   final VitalsCacheStorage _cacheStorage;
 
   String _authenticatedUserId = '';
-  String _authenticatedRole = '';
   bool _isAuthenticated = false;
   bool _initialized = false;
 
@@ -56,11 +55,8 @@ class RealtimeProvider extends ChangeNotifier {
   bool get hasDevice => deviceId.isNotEmpty;
   bool get isAuthenticated => _isAuthenticated;
   String get authenticatedUserId => _authenticatedUserId;
-  String get authenticatedRole => _authenticatedRole;
   bool get isUserScopedSession =>
-      _isAuthenticated &&
-      _authenticatedUserId.isNotEmpty &&
-      _authenticatedRole != 'caregiver';
+      _isAuthenticated && _authenticatedUserId.isNotEmpty;
 
   bool get isOnline {
     final t = _lastSeenUtc;
@@ -87,19 +83,17 @@ class RealtimeProvider extends ChangeNotifier {
   void handleSessionState({
     required bool isAuthenticated,
     required String authenticatedUserId,
-    required String authenticatedRole,
+    String authenticatedRole = '',
   }) {
     final authChanged =
         _isAuthenticated != isAuthenticated ||
-        _authenticatedUserId != authenticatedUserId ||
-        _authenticatedRole != authenticatedRole;
+        _authenticatedUserId != authenticatedUserId;
 
     if (!authChanged) return;
 
     final previousUserId = _authenticatedUserId;
     _isAuthenticated = isAuthenticated;
     _authenticatedUserId = authenticatedUserId.trim();
-    _authenticatedRole = authenticatedRole.trim().toLowerCase();
 
     final shouldResetData =
         !_isAuthenticated ||
@@ -132,7 +126,7 @@ class RealtimeProvider extends ChangeNotifier {
     _initialized = true;
 
     if (nextUserId != null) {
-      if (!_canAccessUserId(nextUserId)) {
+      if (!_canAccessUserId(nextUserId, candidateDeviceId: nextDeviceId)) {
         latest = null;
         _livePoints.clear();
         error = _userScopeError();
@@ -176,7 +170,7 @@ class RealtimeProvider extends ChangeNotifier {
       return;
     }
 
-    if (!_canAccessUserId(nextUserId)) {
+    if (!_canAccessUserId(nextUserId, candidateDeviceId: nextDeviceId)) {
       latestStatus = AsyncStatus.error;
       error = _userScopeError();
       lastErrorStatusCode = 403;
@@ -328,7 +322,10 @@ class RealtimeProvider extends ChangeNotifier {
     _lastSeenUtc = null;
   }
 
-  bool _canAccessUserId(String candidateUserId) {
+  bool _canAccessUserId(String candidateUserId, {String? candidateDeviceId}) {
+    if ((candidateDeviceId?.trim().isNotEmpty ?? false)) {
+      return true;
+    }
     final trimmed = candidateUserId.trim();
     if (!isUserScopedSession) return true;
     return trimmed.isEmpty || trimmed == authenticatedUserId;
@@ -372,7 +369,9 @@ class RealtimeProvider extends ChangeNotifier {
       }
       if (e.statusCode == 404) return 'Khong tim thay du lieu tren server';
       if (e.statusCode == 422) return 'Du lieu gui len chua dung dinh dang';
-      if (e.statusCode == 429) return 'Dang bi gioi han request, vui long thu lai sau';
+      if (e.statusCode == 429) {
+        return 'Dang bi gioi han request, vui long thu lai sau';
+      }
       return e.message;
     }
     return fallback;

@@ -33,6 +33,19 @@ class DeviceProvider extends ChangeNotifier {
   List<Device> get devices => List.unmodifiable(_devices);
   Device? get current => _current;
 
+  Device? findById(String? id) {
+    final normalizedId = id?.trim() ?? '';
+    if (normalizedId.isEmpty) return null;
+
+    for (final device in _devices) {
+      if (device.id == normalizedId ||
+          device.resolvedDeviceId == normalizedId) {
+        return device;
+      }
+    }
+    return null;
+  }
+
   Future<void> handleSessionState({
     required bool isAuthenticated,
     required String authenticatedUserId,
@@ -68,10 +81,6 @@ class DeviceProvider extends ChangeNotifier {
       _devices
         ..clear()
         ..addAll(merged);
-
-      if (_devices.isEmpty) {
-        _applyDevFallbackIfNeeded();
-      }
 
       _selectCurrent(preferredUserId: authenticatedUserId);
       _log(
@@ -291,6 +300,7 @@ class DeviceProvider extends ChangeNotifier {
               id: fallbackUserId,
               name: fallbackUserId,
               role: 'dev',
+              linkRole: 'owner',
             ),
           ];
 
@@ -298,6 +308,7 @@ class DeviceProvider extends ChangeNotifier {
       id: resolvedDeviceId,
       name: 'Dev fallback $resolvedDeviceId',
       legacyUserId: fallbackUserId.isEmpty ? null : fallbackUserId,
+      linkRole: 'owner',
       linkedUsers: linkedUsers,
       isLocalOnly: true,
     );
@@ -366,6 +377,7 @@ class DeviceProvider extends ChangeNotifier {
     final existing = _devices[index];
     _devices[index] = next.copyWith(
       name: next.name.trim().isEmpty ? existing.name : next.name,
+      linkRole: next.linkRole ?? existing.linkRole,
       linkedUsers: next.linkedUsers.isEmpty
           ? existing.linkedUsers
           : next.linkedUsers,

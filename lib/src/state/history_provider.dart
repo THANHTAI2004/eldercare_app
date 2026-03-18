@@ -30,7 +30,6 @@ class HistoryProvider extends ChangeNotifier {
   final VitalsCacheStorage _cacheStorage;
 
   String _authenticatedUserId = '';
-  String _authenticatedRole = '';
   bool _isAuthenticated = false;
 
   String userId = '';
@@ -51,18 +50,16 @@ class HistoryProvider extends ChangeNotifier {
   void handleSessionState({
     required bool isAuthenticated,
     required String authenticatedUserId,
-    required String authenticatedRole,
+    String authenticatedRole = '',
   }) {
     final authChanged =
         _isAuthenticated != isAuthenticated ||
-        _authenticatedUserId != authenticatedUserId ||
-        _authenticatedRole != authenticatedRole;
+        _authenticatedUserId != authenticatedUserId;
     if (!authChanged) return;
 
     final previousUserId = _authenticatedUserId;
     _isAuthenticated = isAuthenticated;
     _authenticatedUserId = authenticatedUserId.trim();
-    _authenticatedRole = authenticatedRole.trim().toLowerCase();
 
     if (!_isAuthenticated ||
         (previousUserId.isNotEmpty && previousUserId != _authenticatedUserId)) {
@@ -92,7 +89,7 @@ class HistoryProvider extends ChangeNotifier {
     }
 
     if (nextUserId != null) {
-      if (!_canAccessUserId(nextUserId)) {
+      if (!_canAccessUserId(nextUserId, candidateDeviceId: nextDeviceId)) {
         status = AsyncStatus.error;
         error = _userScopeError();
         lastErrorStatusCode = 403;
@@ -208,12 +205,14 @@ class HistoryProvider extends ChangeNotifier {
   }
 
   List<VitalPoint> pointsForLocalDay(DateTime dayLocal) {
-    return _points.where((p) {
-      final t = p.time.toLocal();
-      return t.year == dayLocal.year &&
-          t.month == dayLocal.month &&
-          t.day == dayLocal.day;
-    }).toList(growable: false);
+    return _points
+        .where((p) {
+          final t = p.time.toLocal();
+          return t.year == dayLocal.year &&
+              t.month == dayLocal.month &&
+              t.day == dayLocal.day;
+        })
+        .toList(growable: false);
   }
 
   List<VitalPoint> metricPointsForSelectedDay(Metric metric) {
@@ -238,16 +237,17 @@ class HistoryProvider extends ChangeNotifier {
     selectedDayLocal = _todayLocal();
   }
 
-  bool _canAccessUserId(String candidateUserId) {
+  bool _canAccessUserId(String candidateUserId, {String? candidateDeviceId}) {
+    if ((candidateDeviceId?.trim().isNotEmpty ?? false)) {
+      return true;
+    }
     final trimmed = candidateUserId.trim();
     if (!_isUserScopedSession) return true;
     return trimmed.isEmpty || trimmed == _authenticatedUserId;
   }
 
   bool get _isUserScopedSession =>
-      _isAuthenticated &&
-      _authenticatedUserId.isNotEmpty &&
-      _authenticatedRole != 'caregiver';
+      _isAuthenticated && _authenticatedUserId.isNotEmpty;
 
   String _userScopeError() {
     return 'Tai khoan hien tai chi duoc xem du lieu cua $_authenticatedUserId';
@@ -289,7 +289,9 @@ class HistoryProvider extends ChangeNotifier {
         return 'Tai khoan hien tai khong co quyen truy cap du lieu nay';
       }
       if (e.statusCode == 404) return 'Khong tim thay du lieu tren server';
-      if (e.statusCode == 429) return 'Dang bi gioi han request, vui long thu lai sau';
+      if (e.statusCode == 429) {
+        return 'Dang bi gioi han request, vui long thu lai sau';
+      }
       return e.message;
     }
     return fallback;

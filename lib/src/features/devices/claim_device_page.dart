@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import 'package:eldercare_app/src/data/api/api_client.dart';
 import 'package:eldercare_app/src/data/api/device_api_service.dart';
+import 'package:eldercare_app/src/state/device_provider.dart';
+import 'package:eldercare_app/src/state/session_provider.dart';
 
 class ClaimDevicePage extends StatefulWidget {
   const ClaimDevicePage({super.key, DeviceApiService? api}) : _api = api;
@@ -40,6 +43,11 @@ class _ClaimDevicePageState extends State<ClaimDevicePage> {
     try {
       await _api.claimDevice(deviceId: _deviceIdCtrl.text.trim());
       if (!mounted) return;
+      final session = context.read<SessionProvider>();
+      await context.read<DeviceProvider>().syncFromServer(
+        authenticatedUserId: session.authenticatedUserId,
+      );
+      if (!mounted) return;
       Navigator.pop(context, true);
     } catch (e) {
       final message = _friendlyError(e);
@@ -65,7 +73,7 @@ class _ClaimDevicePageState extends State<ClaimDevicePage> {
         return 'Thiet bi nay da co nguoi quan ly.';
       }
       if (e.statusCode == 403) {
-        return 'Tai khoan hien tai khong co quyen them thiet bi.';
+        return 'Tai khoan hien tai khong the claim thiet bi nay.';
       }
       return e.message;
     }
@@ -75,7 +83,7 @@ class _ClaimDevicePageState extends State<ClaimDevicePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Them thiet bi')),
+      appBar: AppBar(title: const Text('Claim thiet bi')),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 520),
@@ -91,12 +99,12 @@ class _ClaimDevicePageState extends State<ClaimDevicePage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Them thiet bi bang device_id',
+                          'Claim thiet bi bang device_id',
                           style: Theme.of(context).textTheme.titleLarge,
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'Nhap ma thiet bi do he thong cap de nhan quyen quan ly va dong bo vao danh sach thiet bi cua ban.',
+                          'Nhap device_id de claim thiet bi. Neu thanh cong, app se dong bo lai danh sach /api/v1/me/devices.',
                           style: Theme.of(context).textTheme.bodyMedium,
                         ),
                         const SizedBox(height: 20),
@@ -133,8 +141,8 @@ class _ClaimDevicePageState extends State<ClaimDevicePage> {
                               : const Icon(Icons.add_link),
                           label: Text(
                             _isSubmitting
-                                ? 'Dang them thiet bi...'
-                                : 'Them thiet bi',
+                                ? 'Dang claim thiet bi...'
+                                : 'Claim thiet bi',
                           ),
                         ),
                       ],

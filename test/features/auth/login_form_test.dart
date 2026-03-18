@@ -33,8 +33,10 @@ void main() {
     );
     await tester.pump();
 
-    await tester.tap(find.widgetWithText(FilledButton, 'Dang nhap'));
-    await tester.pump();
+    final loginButtonIcon = find.byIcon(Icons.login);
+    await tester.ensureVisible(loginButtonIcon);
+    await tester.tap(loginButtonIcon);
+    await tester.pumpAndSettle();
 
     expect(find.text('Nhap so dien thoai'), findsOneWidget);
     expect(find.text('Nhap mat khau'), findsOneWidget);
@@ -66,8 +68,10 @@ void main() {
       find.widgetWithText(TextFormField, 'Mat khau'),
       'MatKhau123',
     );
-    await tester.tap(find.widgetWithText(FilledButton, 'Dang nhap'));
-    await tester.pump();
+    final loginButtonIcon = find.byIcon(Icons.login);
+    await tester.ensureVisible(loginButtonIcon);
+    await tester.tap(loginButtonIcon);
+    await tester.pumpAndSettle();
 
     expect(find.text('So dien thoai khong hop le'), findsOneWidget);
   });
@@ -109,8 +113,10 @@ void main() {
       find.widgetWithText(TextFormField, 'Mat khau'),
       'MatKhau123',
     );
-    await tester.tap(find.widgetWithText(FilledButton, 'Dang nhap'));
-    await tester.pump();
+    final loginButtonIcon = find.byIcon(Icons.login);
+    await tester.ensureVisible(loginButtonIcon);
+    await tester.tap(loginButtonIcon);
+    await tester.pumpAndSettle();
 
     expect(session.isAuthenticated, isTrue);
     expect(session.authenticatedUserId, 'patient-001');

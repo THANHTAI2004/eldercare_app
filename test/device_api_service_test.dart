@@ -73,38 +73,27 @@ void main() {
     await service.claimDevice(deviceId: 'dev-esp-001');
   });
 
-  test('addCaregiver and removeCaregiver call caregiver endpoints', () async {
+  test('addViewer and removeViewer call viewer endpoints', () async {
     final client = ApiClient(baseUrl: 'https://example.com', timeoutMs: 1000);
     final service = DeviceApiService(client: client);
     var removeCalled = false;
     client.dio.httpClientAdapter = StubHttpClientAdapter(
       handler: (options, _) async {
         if (options.method == 'POST') {
-          expect(options.path, '/api/v1/devices/dev-esp-001/caregivers');
-          expect(options.data, <String, dynamic>{
-            'phone_number': '0987654321',
-          });
+          expect(options.path, '/api/v1/devices/dev-esp-001/viewers');
+          expect(options.data, <String, dynamic>{'phone_number': '0987654321'});
           return jsonResponse(<String, dynamic>{'ok': true}, 200);
         }
 
         expect(options.method, 'DELETE');
-        expect(
-          options.path,
-          '/api/v1/devices/dev-esp-001/caregivers/caregiver-001',
-        );
+        expect(options.path, '/api/v1/devices/dev-esp-001/viewers/viewer-001');
         removeCalled = true;
         return jsonResponse(<String, dynamic>{'ok': true}, 200);
       },
     );
 
-    await service.addCaregiver(
-      deviceId: 'dev-esp-001',
-      phoneNumber: '0987654321',
-    );
-    await service.removeCaregiver(
-      deviceId: 'dev-esp-001',
-      userId: 'caregiver-001',
-    );
+    await service.addViewer(deviceId: 'dev-esp-001', phoneNumber: '0987654321');
+    await service.removeViewer(deviceId: 'dev-esp-001', userId: 'viewer-001');
 
     expect(removeCalled, isTrue);
   });

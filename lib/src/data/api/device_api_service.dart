@@ -19,15 +19,19 @@ class DeviceApiService {
     await _client.postJson('/api/v1/devices/$deviceId/claim');
   }
 
-  Future<List<DeviceLinkedUser>> getLinkedUsers({required String deviceId}) async {
-    final json = await _client.getJson('/api/v1/devices/$deviceId/linked-users');
+  Future<List<DeviceLinkedUser>> getLinkedUsers({
+    required String deviceId,
+  }) async {
+    final json = await _client.getJson(
+      '/api/v1/devices/$deviceId/linked-users',
+    );
     return _extractMany(json)
         .map(DeviceLinkedUser.fromJson)
         .where((user) => user.id.trim().isNotEmpty)
         .toList(growable: false);
   }
 
-  Future<void> addCaregiver({
+  Future<void> addViewer({
     required String deviceId,
     String? userId,
     String? phoneNumber,
@@ -35,7 +39,7 @@ class DeviceApiService {
     final normalizedUserId = userId?.trim() ?? '';
     final normalizedPhoneNumber = phoneNumber?.trim() ?? '';
     await _client.postJson(
-      '/api/v1/devices/$deviceId/caregivers',
+      '/api/v1/devices/$deviceId/viewers',
       data: <String, dynamic>{
         if (normalizedUserId.isNotEmpty) 'user_id': normalizedUserId,
         if (normalizedPhoneNumber.isNotEmpty)
@@ -44,11 +48,30 @@ class DeviceApiService {
     );
   }
 
+  Future<void> removeViewer({
+    required String deviceId,
+    required String userId,
+  }) async {
+    await _client.deleteJson('/api/v1/devices/$deviceId/viewers/$userId');
+  }
+
+  Future<void> addCaregiver({
+    required String deviceId,
+    String? userId,
+    String? phoneNumber,
+  }) async {
+    await addViewer(
+      deviceId: deviceId,
+      userId: userId,
+      phoneNumber: phoneNumber,
+    );
+  }
+
   Future<void> removeCaregiver({
     required String deviceId,
     required String userId,
   }) async {
-    await _client.deleteJson('/api/v1/devices/$deviceId/caregivers/$userId');
+    await removeViewer(deviceId: deviceId, userId: userId);
   }
 
   List<Map<String, dynamic>> _extractMany(Map<String, dynamic> json) {

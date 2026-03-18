@@ -9,11 +9,9 @@ import 'package:eldercare_app/src/domain/models/current_user.dart';
 import 'package:eldercare_app/src/domain/models/register_request.dart';
 
 class SessionProvider extends ChangeNotifier {
-  SessionProvider({
-    required ApiClient client,
-    required AuthApiService authApi,
-  }) : _client = client,
-       _authApi = authApi {
+  SessionProvider({required ApiClient client, required AuthApiService authApi})
+    : _client = client,
+      _authApi = authApi {
     _client.configureAuthCallbacks(
       onRefreshAccessToken: _refreshAccessToken,
       onUnauthorized: _handleUnauthorized,
@@ -44,8 +42,6 @@ class SessionProvider extends ChangeNotifier {
 
   String get authenticatedRole => currentUser?.role.trim().toLowerCase() ?? '';
   String get authenticatedPhoneNumber => currentUser?.phoneNumber.trim() ?? '';
-  bool get isManager => authenticatedRole == 'manager';
-  bool get isCaregiver => authenticatedRole == 'caregiver';
 
   String get authenticatedRoleLabel {
     final user = currentUser;
@@ -53,10 +49,9 @@ class SessionProvider extends ChangeNotifier {
     return authenticatedRole;
   }
 
+  // Device permissions now come from each device.linkRole instead of user.role.
   bool get isUserScopedSession =>
-      isAuthenticated &&
-      authenticatedUserId.isNotEmpty &&
-      !isCaregiver;
+      isAuthenticated && authenticatedUserId.isNotEmpty;
 
   Future<void> bootstrap() {
     return _bootstrapFuture ??= _bootstrapSession();
@@ -100,10 +95,7 @@ class SessionProvider extends ChangeNotifier {
       return true;
     } catch (e) {
       if (!silent) {
-        error = _friendlyError(
-          e,
-          fallback: AppStrings.sessionRestoreFailed,
-        );
+        error = _friendlyError(e, fallback: AppStrings.sessionRestoreFailed);
         lastErrorStatusCode = e is ApiRequestException ? e.statusCode : null;
       }
       await _clearSession(

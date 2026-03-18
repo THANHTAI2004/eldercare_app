@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import 'package:eldercare_app/src/app/routes.dart';
 import 'package:eldercare_app/src/domain/models/device.dart';
+import 'package:eldercare_app/src/features/devices/device_viewers_page.dart';
 import 'package:eldercare_app/src/state/async_status.dart';
 import 'package:eldercare_app/src/state/device_provider.dart';
 import 'package:eldercare_app/src/state/ecg_provider.dart';
@@ -30,11 +31,11 @@ class _HomePageState extends State<HomePage> {
 
     if (name.isEmpty) return 'Thiet bi $id';
 
-    final ln = name.toLowerCase();
-    final lid = id.toLowerCase();
-    if (ln.contains(lid)) return name;
+    final normalizedName = name.toLowerCase();
+    final normalizedId = id.toLowerCase();
+    if (normalizedName.contains(normalizedId)) return name;
 
-    return '$name • $id';
+    return '$name | $id';
   }
 
   void _syncRealtime() {
@@ -69,6 +70,15 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _requestEcg(Device device) async {
+    if (!device.isOwnerLink) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Chi owner moi co the yeu cau ECG cho thiet bi nay.'),
+        ),
+      );
+      return;
+    }
+
     final rt = context.read<RealtimeProvider>();
     final ecg = context.read<EcgProvider>();
 
@@ -133,11 +143,32 @@ class _HomePageState extends State<HomePage> {
     final history = context.read<HistoryProvider>();
     await rt.refreshLatest();
     await history.loadForDay(
-      DateTime(
-        DateTime.now().year,
-        DateTime.now().month,
-        DateTime.now().day,
-      ),
+      DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day),
+    );
+  }
+
+  Future<void> _openAlerts() async {
+    final selectedDeviceId = await Navigator.pushNamed<String?>(
+      context,
+      AppRoutes.alerts,
+    );
+    if (!mounted ||
+        selectedDeviceId == null ||
+        selectedDeviceId.trim().isEmpty) {
+      return;
+    }
+    await _selectDevice(selectedDeviceId.trim());
+  }
+
+  Future<void> _openOwnerManagement(Device device) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => DeviceViewersPage(device: device)),
+    );
+    if (!mounted) return;
+    final session = context.read<SessionProvider>();
+    await context.read<DeviceProvider>().syncFromServer(
+      authenticatedUserId: session.authenticatedUserId,
     );
   }
 
@@ -167,7 +198,7 @@ class _HomePageState extends State<HomePage> {
         actions: [
           IconButton(
             tooltip: 'Canh bao',
-            onPressed: () => Navigator.pushNamed(context, AppRoutes.alerts),
+            onPressed: _openAlerts,
             icon: const Icon(Icons.notifications_none),
           ),
           IconButton(
@@ -203,7 +234,7 @@ class _HomePageState extends State<HomePage> {
           child: device == null
               ? ListView(
                   physics: const AlwaysScrollableScrollPhysics(),
-                  children: [_buildNoDeviceView(context, rt)],
+                  children: [_buildNoDeviceView(context)],
                 )
               : ListView(
                   physics: const AlwaysScrollableScrollPhysics(),
@@ -244,13 +275,15 @@ class _HomePageState extends State<HomePage> {
                       else
                         _ErrorBanner(
                           message: rt.error!,
-                          actionLabel: rt.hasSessionExpiredError ||
+                          actionLabel:
+                              rt.hasSessionExpiredError ||
                                   !session.isAuthenticated
                               ? 'Dang nhap lai'
                               : rt.hasPermissionError
                               ? 'Doi thiet bi'
                               : null,
-                          onAction: rt.hasSessionExpiredError ||
+                          onAction:
+                              rt.hasSessionExpiredError ||
                                   !session.isAuthenticated
                               ? () => Navigator.pushNamed(
                                   context,
@@ -272,7 +305,8 @@ class _HomePageState extends State<HomePage> {
                             'Lich su trong ngay hien dang dung du lieu luu tam.',
                       ),
                     ],
-                    if (ecg.message != null && ecg.message!.trim().isNotEmpty) ...[
+                    if (ecg.message != null &&
+                        ecg.message!.trim().isNotEmpty) ...[
                       const SizedBox(height: 12),
                       _InfoBanner(message: ecg.message!),
                     ],
@@ -296,13 +330,19 @@ class _HomePageState extends State<HomePage> {
                         ),
                       ),
                     ],
-                    if (!session.isCaregiver) ...[
+                    if (device.isOwnerLink) ...[
                       const SizedBox(height: 16),
                       _EcgActionCard(
-                        enabled:
-                            device.hasExplicitDeviceId && !ecg.isLoading,
+                        enabled: device.hasExplicitDeviceId && !ecg.isLoading,
                         isLoading: ecg.isLoading,
                         onTap: () => _requestEcg(device),
+                      ),
+                      const SizedBox(height: 16),
+                      FeatureButton(
+                        icon: Icons.group_outlined,
+                        title: 'Quan ly viewer',
+                        subtitle: 'Them va xoa nguoi duoc xem device nay',
+                        onTap: () => _openOwnerManagement(device),
                       ),
                     ],
                     const SizedBox(height: 16),
@@ -317,15 +357,18 @@ class _HomePageState extends State<HomePage> {
                     FeatureButton(
                       icon: Icons.notifications_active_outlined,
                       title: 'Canh bao',
-                      subtitle: 'Xem va acknowledge alerts',
-                      onTap: () =>
-                          Navigator.pushNamed(context, AppRoutes.alerts),
+                      subtitle: 'Xem canh bao va mo dung device',
+                      onTap: _openAlerts,
                     ),
                     const SizedBox(height: 16),
                     FeatureButton(
                       icon: Icons.devices,
-                      title: 'Thiet bi',
-                      subtitle: 'Quan ly thiet bi cua ban',
+                      title: device.isOwnerLink
+                          ? 'Quan ly thiet bi'
+                          : 'Thong tin thiet bi',
+                      subtitle: device.isOwnerLink
+                          ? 'Xem danh sach device va quyen chia se'
+                          : 'Xem device dang duoc chia se cho ban',
                       onTap: () =>
                           Navigator.pushNamed(context, AppRoutes.devices),
                     ),
@@ -356,22 +399,14 @@ class _HomePageState extends State<HomePage> {
     return 'Device da duoc chon nhung chua co du lieu moi nhat. Thu refresh lai sau khi thiet bi gui reading.';
   }
 
-  Widget _buildNoDeviceView(BuildContext context, RealtimeProvider rt) {
+  Widget _buildNoDeviceView(BuildContext context) {
     final session = context.watch<SessionProvider>();
     final scheme = Theme.of(context).colorScheme;
     final title = session.isAuthenticated
-        ? session.isManager
-              ? 'Ban chua co thiet bi nao'
-              : session.isCaregiver
-              ? 'Ban chua duoc them vao thiet bi nao'
-              : 'Chua chon thiet bi'
+        ? 'Ban chua co thiet bi nao'
         : 'Chua dang nhap';
     final message = session.isAuthenticated
-        ? session.isManager
-              ? 'Tai khoan nguoi quan ly cua ban chua co thiet bi nao.\nMo muc Thiet bi de them thiet bi bang device_id va bat dau theo doi.'
-              : session.isCaregiver
-              ? 'Tai khoan nguoi cham soc cua ban hien chua duoc chia se thiet bi nao.\nVui long lien he nguoi quan ly thiet bi de duoc them vao danh sach theo doi.'
-              : 'Tai khoan da dang nhap nhung chua co device duoc chon.\nMo muc Thiet bi de chon device dang theo doi.'
+        ? 'Ban co the them thiet bi bang device_id de claim thiet bi.\nNeu ban la viewer, vui long lien he owner de duoc cap quyen xem.'
         : 'Ban can dang nhap truoc, sau do app se tai danh sach device da lien ket tu server.';
     return Center(
       child: Column(
@@ -381,13 +416,10 @@ class _HomePageState extends State<HomePage> {
           const SizedBox(height: 12),
           Text(
             title,
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 6),
-          Text(
-            message,
-            textAlign: TextAlign.center,
-          ),
+          Text(message, textAlign: TextAlign.center),
           const SizedBox(height: 16),
           FilledButton.icon(
             onPressed: () => Navigator.pushNamed(context, AppRoutes.devices),
@@ -397,7 +429,7 @@ class _HomePageState extends State<HomePage> {
                   : Icons.login,
             ),
             label: Text(
-              session.isAuthenticated ? 'Quan ly thiet bi' : 'Dang nhap',
+              session.isAuthenticated ? 'Mo danh sach thiet bi' : 'Dang nhap',
             ),
           ),
         ],
@@ -478,7 +510,7 @@ class _DeviceSelectorCard extends StatelessWidget {
             Text(
               current == null
                   ? 'Chua co device hien tai.'
-                  : 'User chinh: ${current.primaryUserId ?? 'khong ro'} • Linked users: ${current.linkedUsers.length}',
+                  : 'Quyen: ${_deviceRoleLabel(current.normalizedLinkRole)} | Linked users: ${current.linkedUsers.length}',
               style: Theme.of(context).textTheme.bodySmall,
             ),
             const SizedBox(height: 8),
@@ -494,6 +526,17 @@ class _DeviceSelectorCard extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+String _deviceRoleLabel(String? linkRole) {
+  switch (linkRole) {
+    case 'owner':
+      return 'Owner';
+    case 'viewer':
+      return 'Viewer';
+    default:
+      return 'Khong ro';
   }
 }
 
