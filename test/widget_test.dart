@@ -179,7 +179,7 @@ void main() {
     await tester.pump();
 
     expect(find.text('Ban chua co thiet bi nao'), findsOneWidget);
-    expect(find.text('Them thiet bi bang device_id'), findsOneWidget);
+    expect(find.text('Them thiet bi bang ma thiet bi'), findsOneWidget);
     expect(find.text('Xem huong dan lien ket'), findsOneWidget);
   });
 

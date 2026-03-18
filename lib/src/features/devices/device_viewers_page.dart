@@ -20,7 +20,7 @@ class DeviceViewersPage extends StatefulWidget {
 
 class _DeviceViewersPageState extends State<DeviceViewersPage> {
   final _formKey = GlobalKey<FormState>();
-  final _identifierCtrl = TextEditingController();
+  final _userIdCtrl = TextEditingController();
 
   bool _isLoading = true;
   bool _isSubmitting = false;
@@ -34,13 +34,19 @@ class _DeviceViewersPageState extends State<DeviceViewersPage> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_canManageViewers) {
+        setState(() {
+          _isLoading = false;
+        });
+        return;
+      }
       _loadUsers();
     });
   }
 
   @override
   void dispose() {
-    _identifierCtrl.dispose();
+    _userIdCtrl.dispose();
     super.dispose();
   }
 
@@ -77,9 +83,7 @@ class _DeviceViewersPageState extends State<DeviceViewersPage> {
       return;
     }
 
-    final identifier = _identifierCtrl.text.trim();
-    final phoneNumber = _looksLikePhoneNumber(identifier) ? identifier : null;
-    final userId = phoneNumber == null ? identifier : null;
+    final userId = _userIdCtrl.text.trim();
 
     setState(() {
       _isSubmitting = true;
@@ -90,13 +94,12 @@ class _DeviceViewersPageState extends State<DeviceViewersPage> {
       await _api.addViewer(
         deviceId: widget.device.resolvedDeviceId,
         userId: userId,
-        phoneNumber: phoneNumber,
       );
-      _identifierCtrl.clear();
+      _userIdCtrl.clear();
       await _loadUsers();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Da them viewer vao thiet bi.')),
+        const SnackBar(content: Text('Da them nguoi xem vao thiet bi.')),
       );
     } catch (e) {
       if (!mounted) return;
@@ -128,7 +131,7 @@ class _DeviceViewersPageState extends State<DeviceViewersPage> {
       await _loadUsers();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Da go viewer ${user.displayName}.')),
+        SnackBar(content: Text('Da xoa nguoi xem ${user.displayName}.')),
       );
     } catch (e) {
       if (!mounted) return;
@@ -144,21 +147,19 @@ class _DeviceViewersPageState extends State<DeviceViewersPage> {
     }
   }
 
-  bool _looksLikePhoneNumber(String value) {
-    final normalized = value.replaceAll(RegExp(r'\s+'), '');
-    return RegExp(r'^(0|\+84)[0-9]{9,10}$').hasMatch(normalized);
-  }
-
   String _friendlyError(Object e) {
     if (e is ApiRequestException) {
+      if (e.statusCode == 403) {
+        return 'Ban khong co quyen quan ly viewer cua thiet bi nay.';
+      }
       if (e.statusCode == 404) {
-        return 'Khong tim thay tai khoan viewer can them.';
+        return 'Khong tim thay thiet bi hoac user can them.';
       }
       if (e.statusCode == 409) {
         return 'Tai khoan nay da duoc them vao thiet bi.';
       }
-      if (e.statusCode == 403) {
-        return 'Ban khong co quyen quan ly viewer cua thiet bi nay.';
+      if (e.statusCode == 422) {
+        return 'Du lieu gui len khong dung dinh dang server yeu cau.';
       }
       return e.message;
     }
@@ -218,24 +219,22 @@ class _DeviceViewersPageState extends State<DeviceViewersPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Them viewer',
+                        'Them nguoi xem',
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Nhap user_id hoac so dien thoai cua nguoi can duoc cap quyen xem device nay.',
+                        'Nhap user_id cua tai khoan can duoc cap quyen xem thiet bi nay.',
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
                       const SizedBox(height: 12),
                       TextFormField(
-                        controller: _identifierCtrl,
+                        controller: _userIdCtrl,
                         enabled: !_isSubmitting,
-                        decoration: const InputDecoration(
-                          labelText: 'User ID hoac so dien thoai',
-                        ),
+                        decoration: const InputDecoration(labelText: 'user_id'),
                         validator: (value) {
                           if (value == null || value.trim().isEmpty) {
-                            return 'Nhap user_id hoac so dien thoai';
+                            return 'Nhap user_id';
                           }
                           return null;
                         },
@@ -259,7 +258,7 @@ class _DeviceViewersPageState extends State<DeviceViewersPage> {
                               )
                             : const Icon(Icons.person_add_alt_1),
                         label: Text(
-                          _isSubmitting ? 'Dang cap nhat...' : 'Them viewer',
+                          _isSubmitting ? 'Dang cap nhat...' : 'Them nguoi xem',
                         ),
                       ),
                     ],
@@ -275,7 +274,7 @@ class _DeviceViewersPageState extends State<DeviceViewersPage> {
               child: Padding(
                 padding: EdgeInsets.all(20),
                 child: Text(
-                  'Chua co viewer nao duoc chia se voi thiet bi nay.',
+                  'Chua co nguoi xem nao duoc chia se voi thiet bi nay.',
                   textAlign: TextAlign.center,
                 ),
               ),

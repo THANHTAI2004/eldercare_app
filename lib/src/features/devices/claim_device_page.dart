@@ -73,17 +73,17 @@ class _ClaimDevicePageState extends State<ClaimDevicePage> {
         return 'Thiet bi nay da co nguoi quan ly.';
       }
       if (e.statusCode == 403) {
-        return 'Tai khoan hien tai khong the claim thiet bi nay.';
+        return 'Tai khoan hien tai khong the lien ket thiet bi nay.';
       }
       return e.message;
     }
-    return 'Them thiet bi that bai. Vui long thu lai.';
+    return 'Lien ket thiet bi that bai. Vui long thu lai.';
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Claim thiet bi')),
+      appBar: AppBar(title: const Text('Lien ket thiet bi')),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 520),
@@ -99,12 +99,12 @@ class _ClaimDevicePageState extends State<ClaimDevicePage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Claim thiet bi bang device_id',
+                          'Them thiet bi bang ma thiet bi',
                           style: Theme.of(context).textTheme.titleLarge,
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'Nhap device_id de claim thiet bi. Neu thanh cong, app se dong bo lai danh sach /api/v1/me/devices.',
+                          'Nhap ma thiet bi de lien ket thiet bi vao tai khoan cua ban. Neu thanh cong, app se dong bo lai danh sach /api/v1/me/devices.',
                           style: Theme.of(context).textTheme.bodyMedium,
                         ),
                         const SizedBox(height: 20),
@@ -112,7 +112,7 @@ class _ClaimDevicePageState extends State<ClaimDevicePage> {
                           controller: _deviceIdCtrl,
                           enabled: !_isSubmitting,
                           decoration: const InputDecoration(
-                            labelText: 'Device ID',
+                            labelText: 'Ma thiet bi',
                           ),
                           validator: (value) {
                             if (value == null || value.trim().isEmpty) {
@@ -141,8 +141,8 @@ class _ClaimDevicePageState extends State<ClaimDevicePage> {
                               : const Icon(Icons.add_link),
                           label: Text(
                             _isSubmitting
-                                ? 'Dang claim thiet bi...'
-                                : 'Claim thiet bi',
+                                ? 'Dang lien ket thiet bi...'
+                                : 'Lien ket thiet bi',
                           ),
                         ),
                       ],

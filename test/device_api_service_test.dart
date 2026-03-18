@@ -81,7 +81,7 @@ void main() {
       handler: (options, _) async {
         if (options.method == 'POST') {
           expect(options.path, '/api/v1/devices/dev-esp-001/viewers');
-          expect(options.data, <String, dynamic>{'phone_number': '0987654321'});
+          expect(options.data, <String, dynamic>{'user_id': 'viewer-001'});
           return jsonResponse(<String, dynamic>{'ok': true}, 200);
         }
 
@@ -92,7 +92,7 @@ void main() {
       },
     );
 
-    await service.addViewer(deviceId: 'dev-esp-001', phoneNumber: '0987654321');
+    await service.addViewer(deviceId: 'dev-esp-001', userId: 'viewer-001');
     await service.removeViewer(deviceId: 'dev-esp-001', userId: 'viewer-001');
 
     expect(removeCalled, isTrue);

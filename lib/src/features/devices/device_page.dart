@@ -174,9 +174,9 @@ class _DevicePageState extends State<DevicePage> {
     );
     if (result != true || !mounted) return;
 
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Claim thiet bi thanh cong.')));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Lien ket thiet bi thanh cong.')),
+    );
   }
 
   Future<void> _logout() async {
@@ -353,13 +353,13 @@ class _DevicePageState extends State<DevicePage> {
 
   Future<void> _showLinkGuideDialog() async {
     const content =
-        'Neu ban la chu thiet bi, hay dung chuc nang them thiet bi bang device_id de claim thiet bi.\n\n'
+        'Neu ban la chu thiet bi, hay dung chuc nang them thiet bi bang ma thiet bi de lien ket thiet bi.\n\n'
         'Neu ban chi can quyen xem, vui long lien he owner cua thiet bi de duoc them vao danh sach viewer.';
     if (!mounted) return;
     await showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Huong dan them thiet bi'),
+        title: const Text('Huong dan lien ket thiet bi'),
         content: Text(content),
         actions: [
           TextButton(
@@ -386,7 +386,7 @@ class _DevicePageState extends State<DevicePage> {
         actions: [
           if (session.isAuthenticated)
             IconButton(
-              tooltip: 'Them thiet bi',
+              tooltip: 'Lien ket thiet bi',
               onPressed: _openClaimDevice,
               icon: const Icon(Icons.add_link),
             ),
@@ -593,10 +593,10 @@ class _AuthenticatedBody extends StatelessWidget {
                   ? 'Ban chua co thiet bi nao'
                   : 'Khong co thiet bi phu hop',
               message: deviceProvider.devices.isEmpty
-                  ? 'Ban co the them thiet bi bang device_id de claim thiet bi. Neu ban chi can quyen xem, vui long lien he chu thiet bi de duoc cap quyen viewer.'
+                  ? 'Ban co the them thiet bi bang ma thiet bi de lien ket thiet bi. Neu ban chi can quyen xem, vui long lien he chu thiet bi de duoc cap quyen viewer.'
                   : 'Thu doi bo loc tim kiem hoac lam moi danh sach thiet bi.',
               actionLabel: deviceProvider.devices.isEmpty
-                  ? 'Them thiet bi bang device_id'
+                  ? 'Them thiet bi bang ma thiet bi'
                   : null,
               onAction: deviceProvider.devices.isEmpty ? onLinkDevice : null,
               secondaryActionLabel: deviceProvider.devices.isEmpty

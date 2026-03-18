@@ -22,6 +22,7 @@ class DeviceLinkedUser {
 
   factory DeviceLinkedUser.fromJson(Map<String, dynamic> json) {
     // Primary contract is snake_case from backend.
+    // All new UI/services rely on snake_case.
     // camelCase and compact aliases are kept only for backward compatibility.
     final id =
         _readString(json['user_id']) ??
@@ -165,6 +166,7 @@ class Device {
 
   factory Device.fromServerJson(Map<String, dynamic> json) {
     // Primary contract is snake_case from backend.
+    // All new UI/services rely on snake_case.
     // camelCase fallbacks are kept only for backward compatibility.
     final deviceId =
         _readString(json['device_id']) ??

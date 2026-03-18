@@ -33,18 +33,12 @@ class DeviceApiService {
 
   Future<void> addViewer({
     required String deviceId,
-    String? userId,
-    String? phoneNumber,
+    required String userId,
   }) async {
-    final normalizedUserId = userId?.trim() ?? '';
-    final normalizedPhoneNumber = phoneNumber?.trim() ?? '';
+    final normalizedUserId = userId.trim();
     await _client.postJson(
       '/api/v1/devices/$deviceId/viewers',
-      data: <String, dynamic>{
-        if (normalizedUserId.isNotEmpty) 'user_id': normalizedUserId,
-        if (normalizedPhoneNumber.isNotEmpty)
-          'phone_number': normalizedPhoneNumber,
-      },
+      data: <String, dynamic>{'user_id': normalizedUserId},
     );
   }
 
@@ -57,14 +51,9 @@ class DeviceApiService {
 
   Future<void> addCaregiver({
     required String deviceId,
-    String? userId,
-    String? phoneNumber,
+    required String userId,
   }) async {
-    await addViewer(
-      deviceId: deviceId,
-      userId: userId,
-      phoneNumber: phoneNumber,
-    );
+    await addViewer(deviceId: deviceId, userId: userId);
   }
 
   Future<void> removeCaregiver({
