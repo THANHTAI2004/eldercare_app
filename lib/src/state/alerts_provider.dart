@@ -14,7 +14,9 @@ class AlertsProvider extends ChangeNotifier {
   final AlertsApiService _api;
 
   final List<AlertItem> _items = <AlertItem>[];
-  String _userId = '';
+  String _sessionIdentity = '';
+  String _deviceId = '';
+  bool _isAuthenticated = false;
 
   bool isLoading = false;
   bool isAcknowledging = false;
@@ -46,23 +48,40 @@ class AlertsProvider extends ChangeNotifier {
   }
 
   int get activeCount => _items.where((item) => !item.acknowledged).length;
+  String get deviceId => _deviceId;
+  bool get isAuthenticated => _isAuthenticated;
 
   void handleSessionState({
     required bool isAuthenticated,
     required String authenticatedUserId,
   }) {
-    if (!isAuthenticated || authenticatedUserId.trim().isEmpty) {
-      _userId = '';
+    final nextSessionIdentity = authenticatedUserId.trim();
+    final authChanged =
+        _isAuthenticated != isAuthenticated ||
+        _sessionIdentity != nextSessionIdentity;
+    if (!authChanged) return;
+
+    final previousSessionIdentity = _sessionIdentity;
+    _isAuthenticated = isAuthenticated;
+    _sessionIdentity = nextSessionIdentity;
+
+    if (!_isAuthenticated ||
+        (previousSessionIdentity.isNotEmpty &&
+            previousSessionIdentity != _sessionIdentity)) {
+      _deviceId = '';
       _items.clear();
       error = null;
       lastErrorStatusCode = null;
-      notifyListeners();
-      return;
     }
 
-    final normalizedUserId = authenticatedUserId.trim();
-    if (_userId == normalizedUserId) return;
-    _userId = normalizedUserId;
+    notifyListeners();
+  }
+
+  void bindDevice(String? deviceId) {
+    final nextDeviceId = deviceId?.trim() ?? '';
+    if (_deviceId == nextDeviceId) return;
+
+    _deviceId = nextDeviceId;
     _items.clear();
     error = null;
     lastErrorStatusCode = null;
@@ -70,8 +89,10 @@ class AlertsProvider extends ChangeNotifier {
   }
 
   Future<void> loadAlerts() async {
-    if (_userId.isEmpty) {
+    if (!_isAuthenticated || _deviceId.isEmpty) {
       _items.clear();
+      error = null;
+      lastErrorStatusCode = null;
       notifyListeners();
       return;
     }
@@ -82,11 +103,14 @@ class AlertsProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final alerts = await _api.getAlerts(userId: _userId);
-      alerts.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      final alerts = await _api.getMyAlerts(deviceId: _deviceId);
+      final scopedAlerts = alerts
+          .where((item) => (item.deviceId?.trim() ?? '') == _deviceId)
+          .toList(growable: false);
+      scopedAlerts.sort((a, b) => b.createdAt.compareTo(a.createdAt));
       _items
         ..clear()
-        ..addAll(alerts);
+        ..addAll(scopedAlerts);
     } catch (e) {
       if (e is ApiRequestException) {
         error = _friendlyError(e);

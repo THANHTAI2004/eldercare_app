@@ -23,7 +23,7 @@ void main() {
       hr: 71,
     );
     await cache.saveLatest(
-      scopeKey: cache.scopeKey(userId: 'user-001', deviceId: 'dev-1'),
+      scopeKey: cache.scopeKey(userId: '', deviceId: 'dev-1'),
       point: cachedPoint,
     );
 
@@ -38,7 +38,7 @@ void main() {
       authenticatedUserId: 'user-001',
     );
 
-    await provider.init(userId: 'user-001', deviceId: 'dev-1');
+    await provider.init(deviceId: 'dev-1');
 
     expect(provider.latest?.hr, 71);
     expect(provider.isShowingCachedLatest, isTrue);

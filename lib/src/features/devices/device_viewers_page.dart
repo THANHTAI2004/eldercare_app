@@ -201,8 +201,6 @@ class _DeviceViewersPageState extends State<DeviceViewersPage> {
                   Text(
                     'Quyen tren thiet bi hien tai: ${deviceAccessRoleLabel(widget.device.normalizedLinkRole)}',
                   ),
-                  if (widget.device.primaryUserId != null)
-                    Text('Chu thiet bi: ${widget.device.primaryUserId}'),
                 ],
               ),
             ),

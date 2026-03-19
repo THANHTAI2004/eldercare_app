@@ -90,16 +90,15 @@ class _DevicePageState extends State<DevicePage> {
     final realtime = context.read<RealtimeProvider>();
     final session = context.read<SessionProvider>();
     final current = context.read<DeviceProvider>().current;
-    final userId = current?.primaryUserId ?? session.authenticatedUserId;
     final deviceId = current?.resolvedDeviceId ?? '';
-    final bindingKey = '$userId::$deviceId';
+    final bindingKey = '${session.authenticatedUserId}::$deviceId';
 
     if (_lastRealtimeBindingKey == bindingKey) return;
     _lastRealtimeBindingKey = bindingKey;
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (!mounted || current == null) return;
-      await realtime.init(userId: userId, deviceId: deviceId);
+      if (!mounted) return;
+      await realtime.init(deviceId: deviceId);
     });
   }
 
@@ -197,41 +196,12 @@ class _DevicePageState extends State<DevicePage> {
     );
   }
 
-  bool _canUseUserId(String? userId, {String? deviceId}) {
-    if ((deviceId?.trim().isNotEmpty ?? false)) return true;
-
-    final session = context.read<SessionProvider>();
-    final normalizedUserId = userId?.trim() ?? '';
-    if (!session.isUserScopedSession || normalizedUserId.isEmpty) return true;
-    if (normalizedUserId == session.authenticatedUserId) return true;
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Session hien tai chi duoc theo doi user ${session.authenticatedUserId}.',
-        ),
-      ),
-    );
-    return false;
-  }
-
   Future<void> _selectDevice(Device device) async {
-    if (!_canUseUserId(
-      device.primaryUserId,
-      deviceId: device.resolvedDeviceId,
-    )) {
-      return;
-    }
-
     final deviceProvider = context.read<DeviceProvider>();
     final realtime = context.read<RealtimeProvider>();
-    final session = context.read<SessionProvider>();
 
     await deviceProvider.setCurrent(device.id);
-    await realtime.changeUser(
-      device.primaryUserId ?? session.authenticatedUserId,
-      deviceId: device.resolvedDeviceId,
-    );
+    await realtime.changeDevice(device.resolvedDeviceId);
 
     if (!mounted) return;
     await Navigator.push(
@@ -245,9 +215,7 @@ class _DevicePageState extends State<DevicePage> {
 
     final session = context.read<SessionProvider>();
     final formKey = GlobalKey<FormState>();
-    final lockedUserId = session.isUserScopedSession
-        ? session.authenticatedUserId
-        : '';
+    final lockedUserId = session.isAuthenticated ? session.authenticatedUserId : '';
     final userCtrl = TextEditingController(text: lockedUserId);
     final deviceCtrl = TextEditingController(text: Env.debugDefaultDeviceId);
     final nameCtrl = TextEditingController();
@@ -309,7 +277,6 @@ class _DevicePageState extends State<DevicePage> {
     );
 
     if (shouldSave != true || !mounted) return;
-    if (!_canUseUserId(userCtrl.text, deviceId: deviceCtrl.text)) return;
 
     final payload = <String, dynamic>{
       'userId': userCtrl.text.trim(),
@@ -335,14 +302,6 @@ class _DevicePageState extends State<DevicePage> {
       MaterialPageRoute(builder: (_) => const DeviceQrScannerPage()),
     );
     if (code == null || code.trim().isEmpty || !mounted) return;
-
-    final parsed = Device.fromQr(code);
-    if (!_canUseUserId(
-      parsed.primaryUserId,
-      deviceId: parsed.resolvedDeviceId,
-    )) {
-      return;
-    }
 
     final deviceProvider = context.read<DeviceProvider>();
     await deviceProvider.addFromQr(code);
@@ -534,8 +493,6 @@ class _AuthenticatedBody extends StatelessWidget {
           final haystacks = <String>[
             device.name.toLowerCase(),
             device.resolvedDeviceId.toLowerCase(),
-            if (device.primaryUserId != null)
-              device.primaryUserId!.toLowerCase(),
             ...device.linkedUsers.map((user) => user.displayName.toLowerCase()),
             ...device.linkedUsers
                 .map((user) => user.phoneNumber?.toLowerCase())
@@ -739,8 +696,6 @@ class _DeviceCard extends StatelessWidget {
                       Text(device.name, style: theme.textTheme.titleMedium),
                       const SizedBox(height: 4),
                       Text('Ma thiet bi: ${device.resolvedDeviceId}'),
-                      if (device.primaryUserId != null)
-                        Text('Tai khoan chinh: ${device.primaryUserId}'),
                       const SizedBox(height: 6),
                       Chip(label: Text('Quyen tren thiet bi nay: $roleLabel')),
                     ],

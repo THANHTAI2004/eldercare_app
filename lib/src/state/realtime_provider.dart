@@ -30,11 +30,10 @@ class RealtimeProvider extends ChangeNotifier {
   final HealthApiService _api;
   final VitalsCacheStorage _cacheStorage;
 
-  String _authenticatedUserId = '';
+  String _sessionIdentity = '';
   bool _isAuthenticated = false;
   bool _initialized = false;
 
-  String userId = '';
   String deviceId = '';
 
   AsyncStatus latestStatus = AsyncStatus.idle;
@@ -51,12 +50,8 @@ class RealtimeProvider extends ChangeNotifier {
 
   final Duration onlineThreshold = const Duration(seconds: 20);
 
-  bool get hasUser => userId.isNotEmpty;
   bool get hasDevice => deviceId.isNotEmpty;
   bool get isAuthenticated => _isAuthenticated;
-  String get authenticatedUserId => _authenticatedUserId;
-  bool get isUserScopedSession =>
-      _isAuthenticated && _authenticatedUserId.isNotEmpty;
 
   bool get isOnline {
     final t = _lastSeenUtc;
@@ -84,80 +79,70 @@ class RealtimeProvider extends ChangeNotifier {
     required bool isAuthenticated,
     required String authenticatedUserId,
   }) {
+    final nextSessionIdentity = authenticatedUserId.trim();
     final authChanged =
         _isAuthenticated != isAuthenticated ||
-        _authenticatedUserId != authenticatedUserId;
+        _sessionIdentity != nextSessionIdentity;
 
     if (!authChanged) return;
 
-    final previousUserId = _authenticatedUserId;
+    final previousSessionIdentity = _sessionIdentity;
     _isAuthenticated = isAuthenticated;
-    _authenticatedUserId = authenticatedUserId.trim();
+    _sessionIdentity = nextSessionIdentity;
 
     final shouldResetData =
         !_isAuthenticated ||
-        (previousUserId.isNotEmpty && previousUserId != _authenticatedUserId);
+        (previousSessionIdentity.isNotEmpty &&
+            previousSessionIdentity != _sessionIdentity);
     if (shouldResetData) {
       _clearLatestState();
-    }
-
-    if (_isAuthenticated && userId.isEmpty && _authenticatedUserId.isNotEmpty) {
-      userId = _authenticatedUserId;
     }
 
     notifyListeners();
   }
 
-  Future<void> init({String? userId, String? deviceId}) async {
-    final nextUserId = userId?.trim();
-    final nextDeviceId = deviceId?.trim();
+  Future<void> init({String? deviceId}) async {
+    final nextDeviceId = deviceId?.trim() ?? '';
 
     if (_initialized) {
-      if (nextUserId != null && nextUserId != this.userId) {
-        await changeUser(nextUserId, deviceId: nextDeviceId);
-      } else if (nextDeviceId != null && nextDeviceId != this.deviceId) {
-        await changeUser(this.userId, deviceId: nextDeviceId);
-      } else if (hasUser || hasDevice) {
+      if (nextDeviceId != this.deviceId) {
+        await changeDevice(nextDeviceId);
+      } else if (hasDevice) {
         await refreshLatest();
+      } else {
+        latest = null;
+        latestStatus = AsyncStatus.empty;
+        error = null;
+        lastErrorStatusCode = null;
+        isShowingCachedLatest = false;
+        _resetSeen();
+        notifyListeners();
       }
       return;
     }
     _initialized = true;
 
-    if (nextUserId != null) {
-      if (!_canAccessUserId(nextUserId, candidateDeviceId: nextDeviceId)) {
-        latest = null;
-        _livePoints.clear();
-        error = _userScopeError();
-        lastErrorStatusCode = 403;
-        latestStatus = AsyncStatus.error;
-        _resetSeen();
-        notifyListeners();
-        return;
-      }
-      this.userId = nextUserId;
-    }
-    if (nextDeviceId != null) {
-      this.deviceId = nextDeviceId;
-    }
-
-    if (!hasUser && authenticatedUserId.isNotEmpty) {
-      this.userId = authenticatedUserId;
+    this.deviceId = nextDeviceId;
+    if (!hasDevice) {
+      latest = null;
+      latestStatus = AsyncStatus.empty;
+      error = null;
+      lastErrorStatusCode = null;
+      isShowingCachedLatest = false;
+      _resetSeen();
+      notifyListeners();
+      return;
     }
 
     await _restoreCachedLatestIfAvailable();
     await refreshLatest();
   }
 
-  Future<void> changeUser(String newUserId, {String? deviceId}) async {
-    final nextUserId = newUserId.trim();
-    final nextDeviceId = deviceId?.trim();
+  Future<void> changeDevice(String newDeviceId) async {
+    final nextDeviceId = newDeviceId.trim();
 
-    if (nextUserId.isEmpty) {
-      userId = '';
-      if (nextDeviceId != null) {
-        this.deviceId = nextDeviceId;
-      }
+    if (nextDeviceId.isEmpty) {
+      deviceId = '';
       latest = null;
       _livePoints.clear();
       latestStatus = AsyncStatus.empty;
@@ -169,18 +154,7 @@ class RealtimeProvider extends ChangeNotifier {
       return;
     }
 
-    if (!_canAccessUserId(nextUserId, candidateDeviceId: nextDeviceId)) {
-      latestStatus = AsyncStatus.error;
-      error = _userScopeError();
-      lastErrorStatusCode = 403;
-      notifyListeners();
-      return;
-    }
-
-    userId = nextUserId;
-    if (nextDeviceId != null) {
-      this.deviceId = nextDeviceId;
-    }
+    deviceId = nextDeviceId;
 
     latest = null;
     _livePoints.clear();
@@ -196,7 +170,7 @@ class RealtimeProvider extends ChangeNotifier {
   }
 
   Future<void> refreshLatest({bool silent = false}) async {
-    if (!hasUser && !hasDevice) {
+    if (!hasDevice) {
       latest = null;
       latestStatus = AsyncStatus.empty;
       error = null;
@@ -227,9 +201,7 @@ class RealtimeProvider extends ChangeNotifier {
         notifyListeners();
       }
 
-      final point = hasDevice
-          ? await _api.getLatestByDevice(deviceId: deviceId)
-          : await _api.getLatestByUser(userId: userId, deviceId: deviceId);
+      final point = await _api.getLatestByDevice(deviceId: deviceId);
       final isNew = latest == null || latest!.time != point.time;
 
       latest = point;
@@ -292,7 +264,6 @@ class RealtimeProvider extends ChangeNotifier {
 
   void _clearLatestState() {
     _initialized = false;
-    userId = '';
     deviceId = '';
     latest = null;
     error = null;
@@ -321,21 +292,8 @@ class RealtimeProvider extends ChangeNotifier {
     _lastSeenUtc = null;
   }
 
-  bool _canAccessUserId(String candidateUserId, {String? candidateDeviceId}) {
-    if ((candidateDeviceId?.trim().isNotEmpty ?? false)) {
-      return true;
-    }
-    final trimmed = candidateUserId.trim();
-    if (!isUserScopedSession) return true;
-    return trimmed.isEmpty || trimmed == authenticatedUserId;
-  }
-
-  String _userScopeError() {
-    return 'Tai khoan hien tai chi duoc xem du lieu cua $authenticatedUserId';
-  }
-
   Future<void> _restoreCachedLatestIfAvailable() async {
-    if (!hasUser && !hasDevice) return;
+    if (!hasDevice) return;
     final cached = await _cacheStorage.loadLatest(scopeKey: _scopeKey);
     if (cached == null) return;
     latest = cached;
@@ -346,7 +304,7 @@ class RealtimeProvider extends ChangeNotifier {
   }
 
   String get _scopeKey =>
-      _cacheStorage.scopeKey(userId: userId, deviceId: deviceId);
+      _cacheStorage.scopeKey(userId: '', deviceId: deviceId);
 
   String _staleMessage(Object e) {
     if (e is ApiRequestException && e.isNetworkError) {

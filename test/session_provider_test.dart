@@ -283,6 +283,7 @@ class _FakeAuthApiService extends AuthApiService {
     required super.storage,
     this.loginTokens,
     this.restoredTokens,
+    this.savedCurrentUser,
     this.meResponse = const <String, dynamic>{},
     this.meError,
   });

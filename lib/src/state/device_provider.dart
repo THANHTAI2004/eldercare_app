@@ -82,7 +82,7 @@ class DeviceProvider extends ChangeNotifier {
         ..clear()
         ..addAll(merged);
 
-      _selectCurrent(preferredUserId: authenticatedUserId);
+      _selectCurrent();
       _log(
         'Device sync completed: total=${_devices.length}, current=${_current?.id ?? 'none'}',
       );
@@ -314,7 +314,7 @@ class DeviceProvider extends ChangeNotifier {
     );
   }
 
-  void _selectCurrent({required String preferredUserId}) {
+  void _selectCurrent() {
     if (_devices.isEmpty) {
       _current = null;
       return;
@@ -324,15 +324,6 @@ class DeviceProvider extends ChangeNotifier {
     if (currentId != null) {
       for (final device in _devices) {
         if (device.id == currentId) {
-          _current = device;
-          return;
-        }
-      }
-    }
-
-    if (preferredUserId.trim().isNotEmpty) {
-      for (final device in _devices) {
-        if (device.primaryUserId == preferredUserId) {
           _current = device;
           return;
         }

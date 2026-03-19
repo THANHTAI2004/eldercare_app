@@ -32,10 +32,7 @@ void main() {
       authenticatedUserId: 'user-001',
     );
 
-    await provider.bindScope(
-      userId: 'user-001',
-      deviceId: 'dev-1',
-    );
+    await provider.bindScope(deviceId: 'dev-1');
     await provider.loadForDay(DateTime(2026, 3, 16));
 
     expect(provider.status, AsyncStatus.success);

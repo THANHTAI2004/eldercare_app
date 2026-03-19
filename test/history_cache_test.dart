@@ -25,7 +25,7 @@ void main() {
       ),
     ];
     await cache.saveHistory(
-      scopeKey: cache.scopeKey(userId: 'user-001', deviceId: 'dev-1'),
+      scopeKey: cache.scopeKey(userId: '', deviceId: 'dev-1'),
       points: cachedPoints,
     );
 
@@ -40,7 +40,7 @@ void main() {
       authenticatedUserId: 'user-001',
     );
 
-    await provider.bindScope(userId: 'user-001', deviceId: 'dev-1');
+    await provider.bindScope(deviceId: 'dev-1');
     await provider.loadForDay(DateTime(2026, 3, 16));
 
     expect(provider.points, hasLength(1));

@@ -17,10 +17,9 @@ class EcgProvider extends ChangeNotifier {
 
   final HealthApiService _api;
 
-  String _authenticatedUserId = '';
+  String _sessionIdentity = '';
   bool _isAuthenticated = false;
 
-  String userId = '';
   String deviceId = '';
 
   AsyncStatus status = AsyncStatus.idle;
@@ -35,36 +34,29 @@ class EcgProvider extends ChangeNotifier {
     required bool isAuthenticated,
     required String authenticatedUserId,
   }) {
+    final nextSessionIdentity = authenticatedUserId.trim();
     final authChanged =
         _isAuthenticated != isAuthenticated ||
-        _authenticatedUserId != authenticatedUserId;
+        _sessionIdentity != nextSessionIdentity;
     if (!authChanged) return;
 
-    final previousUserId = _authenticatedUserId;
+    final previousSessionIdentity = _sessionIdentity;
     _isAuthenticated = isAuthenticated;
-    _authenticatedUserId = authenticatedUserId.trim();
+    _sessionIdentity = nextSessionIdentity;
 
     if (!_isAuthenticated ||
-        (previousUserId.isNotEmpty && previousUserId != _authenticatedUserId)) {
+        (previousSessionIdentity.isNotEmpty &&
+            previousSessionIdentity != _sessionIdentity)) {
       _reset();
-    }
-
-    if (_isAuthenticated && userId.isEmpty && _authenticatedUserId.isNotEmpty) {
-      userId = _authenticatedUserId;
     }
 
     notifyListeners();
   }
 
-  void bindScope({String? userId, String? deviceId}) {
-    final nextUserId = userId?.trim();
+  void bindScope({String? deviceId}) {
     final nextDeviceId = deviceId?.trim();
     final scopeChanged =
-        (nextUserId != null && nextUserId != this.userId) ||
-        (nextDeviceId != null && nextDeviceId != this.deviceId);
-    if (nextUserId != null) {
-      this.userId = nextUserId;
-    }
+        nextDeviceId != null && nextDeviceId != this.deviceId;
     if (nextDeviceId != null) {
       this.deviceId = nextDeviceId;
     }
@@ -157,7 +149,6 @@ class EcgProvider extends ChangeNotifier {
   }
 
   void _reset() {
-    userId = '';
     deviceId = '';
     status = AsyncStatus.idle;
     message = null;

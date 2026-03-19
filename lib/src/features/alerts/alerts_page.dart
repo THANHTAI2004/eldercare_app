@@ -16,17 +16,18 @@ class AlertsPage extends StatefulWidget {
 }
 
 class _AlertsPageState extends State<AlertsPage> {
-  bool _didLoad = false;
+  String? _lastScopeKey;
 
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (_didLoad) return;
-    _didLoad = true;
+  void _syncAlertScope(String? deviceId, AlertsProvider provider) {
+    final nextDeviceId = deviceId?.trim() ?? '';
+    final nextScopeKey = '${provider.isAuthenticated}::$nextDeviceId';
+    if (_lastScopeKey == nextScopeKey) return;
+    _lastScopeKey = nextScopeKey;
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
-      await context.read<AlertsProvider>().loadAlerts();
+      provider.bindDevice(nextDeviceId);
+      await provider.loadAlerts();
     });
   }
 
@@ -47,6 +48,8 @@ class _AlertsPageState extends State<AlertsPage> {
   Widget build(BuildContext context) {
     final provider = context.watch<AlertsProvider>();
     final deviceProvider = context.watch<DeviceProvider>();
+    final currentDeviceId = deviceProvider.current?.resolvedDeviceId;
+    _syncAlertScope(currentDeviceId, provider);
     final visibleItems = provider.visibleItems;
 
     return Scaffold(
@@ -126,6 +129,12 @@ class _AlertsPageState extends State<AlertsPage> {
               _Banner(
                 message: provider.error!,
                 isError: provider.lastErrorStatusCode != 404,
+              ),
+            ] else if ((currentDeviceId ?? '').isEmpty) ...[
+              const SizedBox(height: 12),
+              const _Banner(
+                message: 'Chua co thiet bi dang theo doi de tai canh bao.',
+                isError: false,
               ),
             ],
             const SizedBox(height: 16),

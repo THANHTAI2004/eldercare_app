@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -44,20 +45,15 @@ class _HomePageState extends State<HomePage> {
     final session = context.read<SessionProvider>();
     final history = context.read<HistoryProvider>();
     final ecg = context.read<EcgProvider>();
-    final userId = current?.primaryUserId ?? session.authenticatedUserId;
     final deviceId = current?.resolvedDeviceId ?? '';
-    final bindingKey = '$userId::$deviceId';
+    final bindingKey = '${session.authenticatedUserId}::$deviceId';
     if (_lastBindingKey == bindingKey) return;
     _lastBindingKey = bindingKey;
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
-      await context.read<RealtimeProvider>().init(
-        userId: userId,
-        deviceId: deviceId,
-      );
+      await context.read<RealtimeProvider>().init(deviceId: deviceId);
       await history.bindScope(
-        userId: userId,
         deviceId: deviceId,
         dayLocal: DateTime(
           DateTime.now().year,
@@ -66,7 +62,7 @@ class _HomePageState extends State<HomePage> {
         ),
         load: true,
       );
-      ecg.bindScope(userId: userId, deviceId: deviceId);
+      ecg.bindScope(deviceId: deviceId);
     });
   }
 
@@ -84,10 +80,7 @@ class _HomePageState extends State<HomePage> {
     final ecg = context.read<EcgProvider>();
 
     try {
-      ecg.bindScope(
-        userId: device.primaryUserId,
-        deviceId: device.resolvedDeviceId,
-      );
+      ecg.bindScope(deviceId: device.resolvedDeviceId);
       final result = await ecg.requestEcg();
       await rt.refreshLatest(silent: true);
       if (!mounted) return;
@@ -113,30 +106,22 @@ class _HomePageState extends State<HomePage> {
     final history = context.read<HistoryProvider>();
     final ecg = context.read<EcgProvider>();
     final rt = context.read<RealtimeProvider>();
-    final session = context.read<SessionProvider>();
     await deviceProvider.setCurrent(selectedDeviceId);
 
     final current = deviceProvider.current;
     if (current == null) return;
 
-    await rt.changeUser(
-      current.primaryUserId ?? session.authenticatedUserId,
-      deviceId: current.resolvedDeviceId,
-    );
+    await rt.changeDevice(current.resolvedDeviceId);
     await history.bindScope(
-      userId: current.primaryUserId ?? session.authenticatedUserId,
       deviceId: current.resolvedDeviceId,
       dayLocal: DateTime(
         DateTime.now().year,
         DateTime.now().month,
         DateTime.now().day,
-      ),
-      load: true,
-    );
-    ecg.bindScope(
-      userId: current.primaryUserId ?? session.authenticatedUserId,
-      deviceId: current.resolvedDeviceId,
-    );
+        ),
+        load: true,
+      );
+    ecg.bindScope(deviceId: current.resolvedDeviceId);
   }
 
   Future<void> _refreshAll() async {
@@ -149,16 +134,12 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _openAlerts() async {
-    final selectedDeviceId = await Navigator.pushNamed<String?>(
-      context,
-      AppRoutes.alerts,
-    );
-    if (!mounted ||
-        selectedDeviceId == null ||
-        selectedDeviceId.trim().isEmpty) {
+    final result = await Navigator.pushNamed(context, AppRoutes.alerts);
+    final selectedDeviceId = result is String ? result.trim() : '';
+    if (!mounted || selectedDeviceId.isEmpty) {
       return;
     }
-    await _selectDevice(selectedDeviceId.trim());
+    await _selectDevice(selectedDeviceId);
   }
 
   Future<void> _openOwnerManagement(Device device) async {
@@ -263,9 +244,9 @@ class _HomePageState extends State<HomePage> {
                     Align(
                       alignment: Alignment.centerLeft,
                       child: Text(
-                        rt.hasUser
+                        rt.hasDevice
                             ? 'Cap nhat: ${rt.lastSeenText}'
-                            : 'Chua co user dang theo doi',
+                            : 'Chua co thiet bi dang theo doi',
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                     ),
@@ -311,7 +292,7 @@ class _HomePageState extends State<HomePage> {
                       const SizedBox(height: 12),
                       _InfoBanner(message: ecg.message!),
                     ],
-                    if (!device.hasExplicitDeviceId) ...[
+                    if (kDebugMode && !device.hasExplicitDeviceId) ...[
                       const SizedBox(height: 12),
                       const _InfoBanner(
                         message:
@@ -401,7 +382,7 @@ class _HomePageState extends State<HomePage> {
     if (rt.hasNoDataError) {
       return 'Device da duoc lien ket nhung chua co reading nao tren server.';
     }
-    if (device.isLocalOnly) {
+    if (kDebugMode && device.isLocalOnly) {
       return 'Day la device fallback debug. Neu dang o production, hay dang nhap va sync linked devices tu server.';
     }
     return 'Device da duoc chon nhung chua co du lieu moi nhat. Thu refresh lai sau khi thiet bi gui reading.';

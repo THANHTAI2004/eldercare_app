@@ -18,10 +18,7 @@ void main() {
       isAuthenticated: true,
       authenticatedUserId: 'user-001',
     );
-    provider.bindScope(
-      userId: 'user-001',
-      deviceId: 'dev-1',
-    );
+    provider.bindScope(deviceId: 'dev-1');
 
     final result = await provider.requestEcg();
 
@@ -40,10 +37,7 @@ void main() {
       isAuthenticated: true,
       authenticatedUserId: 'user-001',
     );
-    provider.bindScope(
-      userId: 'user-001',
-      deviceId: 'dev-1',
-    );
+    provider.bindScope(deviceId: 'dev-1');
 
     final result = await provider.requestEcg();
 

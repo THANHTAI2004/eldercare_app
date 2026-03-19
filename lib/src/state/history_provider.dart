@@ -29,10 +29,9 @@ class HistoryProvider extends ChangeNotifier {
   final HealthApiService _api;
   final VitalsCacheStorage _cacheStorage;
 
-  String _authenticatedUserId = '';
+  String _sessionIdentity = '';
   bool _isAuthenticated = false;
 
-  String userId = '';
   String deviceId = '';
   DateTime selectedDayLocal = _todayLocal();
 
@@ -51,58 +50,39 @@ class HistoryProvider extends ChangeNotifier {
     required bool isAuthenticated,
     required String authenticatedUserId,
   }) {
+    final nextSessionIdentity = authenticatedUserId.trim();
     final authChanged =
         _isAuthenticated != isAuthenticated ||
-        _authenticatedUserId != authenticatedUserId;
+        _sessionIdentity != nextSessionIdentity;
     if (!authChanged) return;
 
-    final previousUserId = _authenticatedUserId;
+    final previousSessionIdentity = _sessionIdentity;
     _isAuthenticated = isAuthenticated;
-    _authenticatedUserId = authenticatedUserId.trim();
+    _sessionIdentity = nextSessionIdentity;
 
     if (!_isAuthenticated ||
-        (previousUserId.isNotEmpty && previousUserId != _authenticatedUserId)) {
+        (previousSessionIdentity.isNotEmpty &&
+            previousSessionIdentity != _sessionIdentity)) {
       _reset();
-    }
-
-    if (_isAuthenticated && userId.isEmpty && _authenticatedUserId.isNotEmpty) {
-      userId = _authenticatedUserId;
     }
 
     notifyListeners();
   }
 
   Future<void> bindScope({
-    String? userId,
     String? deviceId,
     DateTime? dayLocal,
     bool load = false,
   }) async {
-    final nextUserId = userId?.trim();
     final nextDeviceId = deviceId?.trim();
     final scopeChanged =
-        (nextUserId != null && nextUserId != this.userId) ||
-        (nextDeviceId != null && nextDeviceId != this.deviceId);
+        nextDeviceId != null && nextDeviceId != this.deviceId;
     if (dayLocal != null) {
       selectedDayLocal = DateTime(dayLocal.year, dayLocal.month, dayLocal.day);
     }
 
-    if (nextUserId != null) {
-      if (!_canAccessUserId(nextUserId, candidateDeviceId: nextDeviceId)) {
-        status = AsyncStatus.error;
-        error = _userScopeError();
-        lastErrorStatusCode = 403;
-        notifyListeners();
-        return;
-      }
-      this.userId = nextUserId;
-    }
     if (nextDeviceId != null) {
       this.deviceId = nextDeviceId;
-    }
-
-    if (this.userId.isEmpty && _authenticatedUserId.isNotEmpty) {
-      this.userId = _authenticatedUserId;
     }
 
     if (scopeChanged) {
@@ -134,7 +114,7 @@ class HistoryProvider extends ChangeNotifier {
       return;
     }
 
-    if (userId.isEmpty && deviceId.isEmpty) {
+    if (deviceId.isEmpty) {
       _points.clear();
       status = AsyncStatus.empty;
       error = null;
@@ -151,13 +131,10 @@ class HistoryProvider extends ChangeNotifier {
       isShowingCachedHistory = false;
       notifyListeners();
 
-      final loaded = deviceId.isNotEmpty
-          ? await _api.getHistoryByDevice(deviceId: deviceId, limit: limit)
-          : await _api.getVitalsByUser(
-              userId: userId,
-              deviceId: deviceId,
-              limit: limit,
-            );
+      final loaded = await _api.getHistoryByDevice(
+        deviceId: deviceId,
+        limit: limit,
+      );
       loaded.sort((a, b) => a.time.compareTo(b.time));
 
       _points
@@ -226,7 +203,6 @@ class HistoryProvider extends ChangeNotifier {
   }
 
   void _reset() {
-    userId = '';
     deviceId = '';
     status = AsyncStatus.idle;
     error = null;
@@ -236,24 +212,8 @@ class HistoryProvider extends ChangeNotifier {
     selectedDayLocal = _todayLocal();
   }
 
-  bool _canAccessUserId(String candidateUserId, {String? candidateDeviceId}) {
-    if ((candidateDeviceId?.trim().isNotEmpty ?? false)) {
-      return true;
-    }
-    final trimmed = candidateUserId.trim();
-    if (!_isUserScopedSession) return true;
-    return trimmed.isEmpty || trimmed == _authenticatedUserId;
-  }
-
-  bool get _isUserScopedSession =>
-      _isAuthenticated && _authenticatedUserId.isNotEmpty;
-
-  String _userScopeError() {
-    return 'Tai khoan hien tai chi duoc xem du lieu cua $_authenticatedUserId';
-  }
-
   Future<void> _restoreCachedHistoryIfAvailable() async {
-    if (userId.isEmpty && deviceId.isEmpty) return;
+    if (deviceId.isEmpty) return;
     final cached = await _cacheStorage.loadHistory(scopeKey: _scopeKey);
     if (cached.isEmpty) return;
     _points
@@ -267,7 +227,7 @@ class HistoryProvider extends ChangeNotifier {
   }
 
   String get _scopeKey =>
-      _cacheStorage.scopeKey(userId: userId, deviceId: deviceId);
+      _cacheStorage.scopeKey(userId: '', deviceId: deviceId);
 
   String _staleMessage(Object e) {
     if (e is ApiRequestException && e.isNetworkError) {

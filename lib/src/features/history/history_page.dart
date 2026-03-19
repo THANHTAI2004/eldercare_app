@@ -36,16 +36,11 @@ class _HistoryPageState extends State<HistoryPage> {
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final current = context.read<DeviceProvider>().current;
-      final session = context.read<SessionProvider>();
       final realtime = context.read<RealtimeProvider>();
       final history = context.read<HistoryProvider>();
-      await realtime.init(
-        userId: current?.primaryUserId,
-        deviceId: current?.resolvedDeviceId,
-      );
+      await realtime.init(deviceId: current?.resolvedDeviceId);
       await history.bindScope(
-        userId: current?.primaryUserId ?? session.authenticatedUserId,
-        deviceId: current?.resolvedDeviceId,
+        deviceId: current?.resolvedDeviceId ?? '',
         dayLocal: _dayLocal,
         load: true,
       );
