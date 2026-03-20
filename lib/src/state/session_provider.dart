@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import 'package:eldercare_app/src/core/app_strings.dart';
-import 'package:eldercare_app/src/config/env.dart';
+import 'package:eldercare_app/src/core/validators.dart';
 import 'package:eldercare_app/src/data/api/api_client.dart';
 import 'package:eldercare_app/src/data/api/auth_api_service.dart';
 import 'package:eldercare_app/src/domain/models/auth_tokens.dart';
@@ -52,10 +52,7 @@ class SessionProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final restored = await restoreSession(silent: true);
-      if (!restored && Env.hasDebugLoginCredentials) {
-        await login(silent: true);
-      }
+      await restoreSession(silent: true);
     } finally {
       isBootstrapping = false;
       notifyListeners();
@@ -107,8 +104,8 @@ class SessionProvider extends ChangeNotifier {
     String? password,
     bool silent = false,
   }) async {
-    final nextPhoneNumber = (phoneNumber ?? Env.debugLoginPhoneNumber).trim();
-    final nextPassword = password ?? Env.debugLoginPassword;
+    final nextPhoneNumber = AppValidators.normalizePhoneNumber(phoneNumber);
+    final nextPassword = password ?? '';
 
     if (nextPhoneNumber.isEmpty || nextPassword.isEmpty) {
       if (!silent) {
@@ -164,7 +161,7 @@ class SessionProvider extends ChangeNotifier {
       await _authApi.register(
         RegisterRequest(
           name: name.trim(),
-          phoneNumber: phoneNumber.trim(),
+          phoneNumber: AppValidators.normalizePhoneNumber(phoneNumber),
           dateOfBirth: dateOfBirth.trim(),
           password: password,
         ),

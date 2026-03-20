@@ -76,7 +76,7 @@ class EcgProvider extends ChangeNotifier {
   }) async {
     if (!_isAuthenticated) {
       status = AsyncStatus.unauthorized;
-      error = 'Phien dang nhap khong hop le hoac da het han';
+      error = 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn';
       lastErrorStatusCode = 401;
       notifyListeners();
       throw StateError(error!);
@@ -84,7 +84,7 @@ class EcgProvider extends ChangeNotifier {
 
     if (deviceId.trim().isEmpty) {
       status = AsyncStatus.error;
-      error = 'Device ID is empty';
+      error = 'Chưa có mã thiết bị để gửi yêu cầu ECG';
       lastErrorStatusCode = null;
       notifyListeners();
       throw StateError(error!);
@@ -93,7 +93,7 @@ class EcgProvider extends ChangeNotifier {
     status = AsyncStatus.loading;
     error = null;
     lastErrorStatusCode = null;
-    message = 'Da gui lenh ECG, dang cho ket qua moi...';
+    message = 'Đã gửi lệnh ECG, đang chờ kết quả mới...';
     notifyListeners();
 
     try {
@@ -114,21 +114,21 @@ class EcgProvider extends ChangeNotifier {
       if (ecgResult != null) {
         lastResult!['ecg_result'] = ecgResult;
         status = AsyncStatus.success;
-        message = 'Da nhan duoc ket qua ECG moi cho device hien tai.';
+        message = 'Đã nhận được kết quả ECG mới cho thiết bị hiện tại.';
       } else {
         status = AsyncStatus.empty;
         message =
-            'Da gui lenh ECG nhung chua co ket qua moi trong thoi gian cho.';
+            'Đã gửi lệnh ECG nhưng chưa có kết quả mới trong thời gian chờ.';
       }
       return lastResult!;
     } catch (e) {
       lastErrorStatusCode = e is ApiRequestException ? e.statusCode : null;
       if (lastErrorStatusCode == 401) {
         status = AsyncStatus.unauthorized;
-        error = 'Phien dang nhap khong hop le hoac da het han';
+        error = 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn';
       } else {
         status = AsyncStatus.error;
-        error = _friendlyError(e, fallback: 'Yeu cau ECG that bai');
+        error = _friendlyError(e, fallback: 'Yêu cầu ECG thất bại');
       }
       message = null;
       notifyListeners();
@@ -160,16 +160,16 @@ class EcgProvider extends ChangeNotifier {
   String _friendlyError(Object e, {required String fallback}) {
     if (e is ApiRequestException) {
       if (e.statusCode == 401) {
-        return 'Phien dang nhap khong hop le hoac da het han';
+        return 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn';
       }
       if (e.statusCode == 403) {
-        return 'Tai khoan hien tai khong co quyen yeu cau ECG';
+        return 'Tài khoản hiện tại không có quyền yêu cầu ECG';
       }
       if (e.statusCode == 409) {
-        return 'Yeu cau dang cho xu ly, vui long thu lai sau';
+        return 'Yêu cầu đang chờ xử lý, vui lòng thử lại sau';
       }
       if (e.statusCode == 429) {
-        return 'Dang bi gioi han request, vui long thu lai sau';
+        return 'Đang bị giới hạn yêu cầu, vui lòng thử lại sau';
       }
       return e.message;
     }

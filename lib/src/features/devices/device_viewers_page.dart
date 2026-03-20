@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'package:eldercare_app/src/core/device_access_labels.dart';
 import 'package:eldercare_app/src/data/api/api_client.dart';
 import 'package:eldercare_app/src/data/api/device_api_service.dart';
-import 'package:eldercare_app/src/core/device_access_labels.dart';
 import 'package:eldercare_app/src/domain/models/device.dart';
 
 class DeviceViewersPage extends StatefulWidget {
@@ -108,7 +108,7 @@ class _DeviceViewersPageState extends State<DeviceViewersPage> {
       await _loadUsers();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Da them nguoi xem vao thiet bi.')),
+        const SnackBar(content: Text('Đã thêm người xem vào thiết bị.')),
       );
     } catch (e) {
       if (!mounted) return;
@@ -140,7 +140,7 @@ class _DeviceViewersPageState extends State<DeviceViewersPage> {
       await _loadUsers();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Da xoa nguoi xem ${user.displayName}.')),
+        SnackBar(content: Text('Đã xóa người xem ${user.displayName}.')),
       );
     } catch (e) {
       if (!mounted) return;
@@ -159,20 +159,20 @@ class _DeviceViewersPageState extends State<DeviceViewersPage> {
   String _friendlyError(Object e) {
     if (e is ApiRequestException) {
       if (e.statusCode == 403) {
-        return 'Tai khoan hien tai khong phai chu thiet bi nay.';
+        return 'Tài khoản hiện tại không phải chủ thiết bị này.';
       }
       if (e.statusCode == 404) {
-        return 'Khong tim thay thiet bi hoac user can them.';
+        return 'Không tìm thấy thiết bị hoặc tài khoản cần thêm.';
       }
       if (e.statusCode == 409) {
-        return 'Tai khoan nay da duoc them vao thiet bi.';
+        return 'Tài khoản này đã được thêm vào thiết bị.';
       }
       if (e.statusCode == 422) {
-        return 'Du lieu gui len khong dung dinh dang server yeu cau.';
+        return 'Dữ liệu gửi lên không đúng định dạng máy chủ yêu cầu.';
       }
       return e.message;
     }
-    return 'Khong the cap nhat danh sach viewer.';
+    return 'Không thể cập nhật danh sách người xem.';
   }
 
   @override
@@ -182,7 +182,7 @@ class _DeviceViewersPageState extends State<DeviceViewersPage> {
         .toList(growable: false);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Quan ly viewer')),
+      appBar: AppBar(title: const Text('Quản lý người xem')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -197,9 +197,9 @@ class _DeviceViewersPageState extends State<DeviceViewersPage> {
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                   const SizedBox(height: 6),
-                  Text('Ma thiet bi: ${widget.device.resolvedDeviceId}'),
+                  Text('Mã thiết bị: ${widget.device.resolvedDeviceId}'),
                   Text(
-                    'Quyen tren thiet bi hien tai: ${deviceAccessRoleLabel(widget.device.normalizedLinkRole)}',
+                    'Quyền trên thiết bị hiện tại: ${deviceAccessRoleLabel(widget.device.normalizedLinkRole)}',
                   ),
                 ],
               ),
@@ -211,7 +211,7 @@ class _DeviceViewersPageState extends State<DeviceViewersPage> {
               child: Padding(
                 padding: EdgeInsets.all(20),
                 child: Text(
-                  'Chi chu thiet bi moi co the quan ly nguoi xem cua thiet bi nay.',
+                  'Chỉ chủ thiết bị mới có thể quản lý người xem của thiết bị này.',
                   textAlign: TextAlign.center,
                 ),
               ),
@@ -226,22 +226,24 @@ class _DeviceViewersPageState extends State<DeviceViewersPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Them nguoi xem',
+                        'Thêm người xem',
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Nhap user_id cua tai khoan can duoc cap quyen xem thiet bi nay.',
+                        'Nhập mã tài khoản của người cần được cấp quyền xem thiết bị này.',
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: _userIdCtrl,
                         enabled: !_isSubmitting,
-                        decoration: const InputDecoration(labelText: 'user_id'),
+                        decoration: const InputDecoration(
+                          labelText: 'Mã tài khoản',
+                        ),
                         validator: (value) {
                           if (value == null || value.trim().isEmpty) {
-                            return 'Nhap user_id';
+                            return 'Nhập mã tài khoản';
                           }
                           return null;
                         },
@@ -265,7 +267,7 @@ class _DeviceViewersPageState extends State<DeviceViewersPage> {
                               )
                             : const Icon(Icons.person_add_alt_1),
                         label: Text(
-                          _isSubmitting ? 'Dang cap nhat...' : 'Them nguoi xem',
+                          _isSubmitting ? 'Đang cập nhật...' : 'Thêm người xem',
                         ),
                       ),
                     ],
@@ -281,7 +283,7 @@ class _DeviceViewersPageState extends State<DeviceViewersPage> {
               child: Padding(
                 padding: EdgeInsets.all(20),
                 child: Text(
-                  'Chua co nguoi xem nao duoc chia se voi thiet bi nay.',
+                  'Chưa có người xem nào được chia sẻ với thiết bị này.',
                   textAlign: TextAlign.center,
                 ),
               ),
@@ -297,7 +299,7 @@ class _DeviceViewersPageState extends State<DeviceViewersPage> {
                     trailing: !_canManageViewers
                         ? null
                         : IconButton(
-                            tooltip: 'Xoa viewer',
+                            tooltip: 'Xóa người xem',
                             onPressed: _isSubmitting
                                 ? null
                                 : () => _removeViewer(user),
@@ -319,7 +321,7 @@ class _DeviceViewersPageState extends State<DeviceViewersPage> {
     }
     if ((user.normalizedLinkRole ?? '').trim().isNotEmpty) {
       segments.add(
-        'Quyen tren thiet bi nay: ${deviceAccessRoleLabel(user.normalizedLinkRole)}',
+        'Quyền trên thiết bị này: ${deviceAccessRoleLabel(user.normalizedLinkRole)}',
       );
     }
     return segments.isEmpty ? user.id : segments.join(' | ');

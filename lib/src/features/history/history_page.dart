@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:eldercare_app/src/domain/models/metric.dart';
+import 'package:eldercare_app/src/core/app_layout.dart';
 import 'package:eldercare_app/src/state/async_status.dart';
 import 'package:eldercare_app/src/state/device_provider.dart';
 import 'package:eldercare_app/src/state/history_provider.dart';
@@ -47,8 +48,8 @@ class _HistoryPageState extends State<HistoryPage> {
     });
   }
 
-  Future<void> _onPickDay(DateTime d) async {
-    final dayLocal = DateTime(d.year, d.month, d.day);
+  Future<void> _onPickDay(DateTime day) async {
+    final dayLocal = DateTime(day.year, day.month, day.day);
     setState(() => _dayLocal = dayLocal);
 
     await context.read<HistoryProvider>().loadForDay(dayLocal);
@@ -59,15 +60,25 @@ class _HistoryPageState extends State<HistoryPage> {
     final history = context.watch<HistoryProvider>();
     final session = context.watch<SessionProvider>();
     final currentDevice = context.watch<DeviceProvider>().current;
+    final layout = AppLayout.of(context);
+    final isCompact = layout == AppLayoutSize.compact;
+    final contentMaxWidth = AppLayout.maxContentWidth(context, override: 1100);
+    final pagePadding = AppLayout.pagePadding(
+      context,
+      compact: 12,
+      medium: 20,
+      expanded: 24,
+      bottom: 16,
+    );
 
     final dayPoints = history.metricPointsForSelectedDay(_metric);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Lich su'),
+        title: const Text('Lịch sử'),
         actions: [
           IconButton(
-            tooltip: 'Lam moi ngay dang chon',
+            tooltip: 'Làm mới ngày đang chọn',
             onPressed: history.status.isLoading
                 ? null
                 : () => history.loadForDay(_dayLocal),
@@ -75,39 +86,58 @@ class _HistoryPageState extends State<HistoryPage> {
           ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
+      body: Align(
+        alignment: Alignment.topCenter,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: contentMaxWidth),
+          child: Padding(
+        padding: pagePadding,
         child: Column(
           children: [
-            Row(
-              children: [
-                DatePickerButton(value: _dayLocal, onChanged: _onPickDay),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: MetricDropdown(
-                    value: _metric,
-                    onChanged: (m) => setState(() => _metric = m),
+            if (isCompact)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  DatePickerButton(value: _dayLocal, onChanged: _onPickDay),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: MetricDropdown(
+                      value: _metric,
+                      onChanged: (metric) => setState(() => _metric = metric),
+                    ),
                   ),
-                ),
-              ],
-            ),
+                ],
+              )
+            else
+              Row(
+                children: [
+                  DatePickerButton(value: _dayLocal, onChanged: _onPickDay),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: MetricDropdown(
+                      value: _metric,
+                      onChanged: (metric) => setState(() => _metric = metric),
+                    ),
+                  ),
+                ],
+              ),
             if (history.error != null && history.error!.trim().isNotEmpty) ...[
               const SizedBox(height: 12),
               _HistoryBanner(
                 message: history.error!,
-                isError:
-                    !history.hasNoDataError && !history.isShowingCachedHistory,
+                isError: !history.hasNoDataError,
               ),
             ] else if (!session.isAuthenticated) ...[
               const SizedBox(height: 12),
               const _HistoryBanner(
-                message: 'Ban chua dang nhap. Vao muc Thiet bi de dang nhap.',
+                message: 'Bạn chưa đăng nhập. Vào mục Thiết bị để đăng nhập.',
                 isError: false,
               ),
             ] else if (currentDevice == null) ...[
               const SizedBox(height: 12),
               const _HistoryBanner(
-                message: 'Chua co device dang theo doi. Hay chon device truoc.',
+                message: 'Chưa có thiết bị đang theo dõi. Hãy chọn thiết bị trước.',
                 isError: false,
               ),
             ],
@@ -116,15 +146,17 @@ class _HistoryPageState extends State<HistoryPage> {
               child: history.status.isLoading && dayPoints.isEmpty
                   ? const Center(child: CircularProgressIndicator())
                   : dayPoints.isEmpty
-                  ? const _HistoryEmptyState()
-                  : LineChartCard(
-                      title: 'Theo gio trong ngay',
-                      metric: _metric,
-                      points: dayPoints,
-                      showHourAxis: true,
-                    ),
+                      ? const _HistoryEmptyState()
+                      : LineChartCard(
+                          title: 'Theo giờ trong ngày',
+                          metric: _metric,
+                          points: dayPoints,
+                          showHourAxis: true,
+                        ),
             ),
           ],
+        ),
+          ),
         ),
       ),
     );
@@ -174,14 +206,14 @@ class _HistoryEmptyState extends StatelessWidget {
           Icon(Icons.show_chart, size: 56, color: scheme.outline),
           const SizedBox(height: 12),
           const Text(
-            'Chua co du lieu lich su',
+            'Chưa có dữ liệu lịch sử',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 6),
           Text(
             history.hasNoDataError
-                ? 'Device da duoc lien ket nhung chua co history tren server.'
-                : 'Thu doi ngay khac hoac refresh lai sau khi thiet bi gui du lieu moi.',
+                ? 'Thiết bị đã được liên kết nhưng chưa có dữ liệu lịch sử trên máy chủ.'
+                : 'Thử đổi ngày khác hoặc làm mới lại sau khi thiết bị gửi dữ liệu mới.',
             textAlign: TextAlign.center,
           ),
         ],

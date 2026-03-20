@@ -6,7 +6,6 @@ import 'package:eldercare_app/src/data/api/auth_api_service.dart';
 import 'package:eldercare_app/src/data/api/device_api_service.dart';
 import 'package:eldercare_app/src/data/api/health_api_service.dart';
 import 'package:eldercare_app/src/data/local/auth_storage.dart';
-import 'package:eldercare_app/src/data/local/vitals_cache_storage.dart';
 import 'package:eldercare_app/src/domain/models/auth_tokens.dart';
 import 'package:eldercare_app/src/domain/models/device.dart';
 import 'package:eldercare_app/src/domain/models/register_request.dart';
@@ -45,20 +44,18 @@ class AuthTestShell extends StatelessWidget {
           create: (_) => RealtimeProvider(
             client: client,
             api: healthApi,
-            cacheStorage: VitalsCacheStorage(),
           )..handleSessionState(
-              isAuthenticated: session.isAuthenticated,
-              authenticatedUserId: session.authenticatedUserId,
+            isAuthenticated: session.isAuthenticated,
+            authenticatedUserId: session.authenticatedUserId,
             ),
         ),
         ChangeNotifierProvider<HistoryProvider>(
           create: (_) => HistoryProvider(
             client: client,
             api: healthApi,
-            cacheStorage: VitalsCacheStorage(),
           )..handleSessionState(
-              isAuthenticated: session.isAuthenticated,
-              authenticatedUserId: session.authenticatedUserId,
+            isAuthenticated: session.isAuthenticated,
+            authenticatedUserId: session.authenticatedUserId,
             ),
         ),
         ChangeNotifierProvider<EcgProvider>(
@@ -111,6 +108,8 @@ class FakeAuthApiService extends AuthApiService {
 
   int loginCalls = 0;
   int registerCalls = 0;
+  String? lastLoginPhoneNumber;
+  String? lastLoginPassword;
   RegisterRequest? lastRegisterRequest;
 
   @override
@@ -119,6 +118,8 @@ class FakeAuthApiService extends AuthApiService {
     required String password,
   }) async {
     loginCalls += 1;
+    lastLoginPhoneNumber = phoneNumber;
+    lastLoginPassword = password;
     if (loginTokens == null) {
       throw StateError('Missing fake login tokens');
     }

@@ -73,7 +73,7 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.enterText(
-      find.widgetWithText(TextFormField, 'Ma thiet bi'),
+      find.widgetWithText(TextFormField, 'Mã thiết bị'),
       'dev-esp-001',
     );
     await tester.tap(find.byIcon(Icons.add_link));
@@ -135,7 +135,7 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.enterText(
-      find.widgetWithText(TextFormField, 'Ma thiet bi'),
+      find.widgetWithText(TextFormField, 'Mã thiết bị'),
       'dev-esp-009',
     );
     await tester.tap(find.byIcon(Icons.add_link));

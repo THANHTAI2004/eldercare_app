@@ -36,7 +36,7 @@ class AlertItem {
         _readString(json['title']) ??
         _readString(json['name']) ??
         _readString(json['type']) ??
-        'Canh bao';
+        'Cảnh báo';
     final message =
         _readString(json['message']) ??
         _readString(json['description']) ??

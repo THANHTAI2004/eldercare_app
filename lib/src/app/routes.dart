@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 
 import 'package:eldercare_app/src/features/alerts/alerts_page.dart';
 import 'package:eldercare_app/src/features/auth/register_page.dart';
-import 'package:eldercare_app/src/features/history/history_page.dart';
 import 'package:eldercare_app/src/features/devices/device_page.dart';
+import 'package:eldercare_app/src/features/history/history_page.dart';
 
 class AppRoutes {
   AppRoutes._();
@@ -25,7 +25,7 @@ class AppRoutes {
       settings: settings,
       builder: (_) => Scaffold(
         appBar: AppBar(title: const Text('Không tìm thấy trang')),
-        body: Center(child: Text('Route không tồn tại: ${settings.name}')),
+        body: Center(child: Text('Đường dẫn không tồn tại: ${settings.name}')),
       ),
     );
   }

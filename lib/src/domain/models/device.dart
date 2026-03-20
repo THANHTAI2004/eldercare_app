@@ -149,7 +149,7 @@ class Device {
       id: resolvedDeviceId,
       name: (name?.trim().isNotEmpty ?? false)
           ? name!.trim()
-          : 'Thiet bi $resolvedDeviceId',
+          : 'Thiết bị $resolvedDeviceId',
       legacyUserId: (resolvedUserId?.isNotEmpty ?? false)
           ? resolvedUserId
           : null,
@@ -187,7 +187,7 @@ class Device {
         _readString(json['displayName']) ??
         _readString(json['device_name']) ??
         _readString(json['deviceName']) ??
-        'Thiet bi $deviceId';
+        'Thiết bị $deviceId';
 
     return Device(
       id: deviceId,
@@ -223,7 +223,7 @@ class Device {
     final name =
         _readString(json['name']) ??
         _readString(json['displayName']) ??
-        'Thiet bi $id';
+        'Thiết bị $id';
 
     return Device(
       id: id,

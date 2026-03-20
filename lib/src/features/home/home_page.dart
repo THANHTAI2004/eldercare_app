@@ -1,19 +1,21 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:eldercare_app/src/app/routes.dart';
+import 'package:eldercare_app/src/core/app_layout.dart';
 import 'package:eldercare_app/src/core/device_access_labels.dart';
 import 'package:eldercare_app/src/domain/models/device.dart';
+import 'package:eldercare_app/src/domain/models/metric.dart';
 import 'package:eldercare_app/src/features/devices/device_viewers_page.dart';
-import 'package:eldercare_app/src/state/async_status.dart';
 import 'package:eldercare_app/src/state/device_provider.dart';
 import 'package:eldercare_app/src/state/ecg_provider.dart';
 import 'package:eldercare_app/src/state/history_provider.dart';
+import 'package:eldercare_app/src/state/async_status.dart';
 import 'package:eldercare_app/src/state/realtime_provider.dart';
 import 'package:eldercare_app/src/state/session_provider.dart';
 import 'package:eldercare_app/src/widgets/feature_button.dart';
 import 'package:eldercare_app/src/widgets/medical_monitor_panel.dart';
+import 'package:eldercare_app/src/widgets/responsive_two_pane.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -25,13 +27,31 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   String? _lastBindingKey;
 
+  List<double>? _seriesForMetric(HistoryProvider history, Metric metric) {
+    final metricPoints = history.metricPointsForSelectedDay(metric);
+    if (metricPoints.isEmpty) return null;
+
+    final values = metricPoints
+        .map((point) => point.valueOf(metric))
+        .whereType<double>()
+        .where((value) => value.isFinite)
+        .toList(growable: false);
+    if (values.isEmpty) return null;
+    if (values.length <= 40) return values;
+
+    return List<double>.generate(40, (index) {
+      final sourceIndex = ((values.length - 1) * index / 39).round();
+      return values[sourceIndex];
+    }, growable: false);
+  }
+
   String _deviceLabel(Device? device) {
-    if (device == null) return 'Chua chon thiet bi';
+    if (device == null) return 'Chưa chọn thiết bị';
 
     final name = device.name.trim();
     final id = device.resolvedDeviceId;
 
-    if (name.isEmpty) return 'Thiet bi $id';
+    if (name.isEmpty) return 'Thiết bị $id';
 
     final normalizedName = name.toLowerCase();
     final normalizedId = id.toLowerCase();
@@ -70,32 +90,34 @@ class _HomePageState extends State<HomePage> {
     if (!device.isOwnerLink) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Chi chu thiet bi moi co the yeu cau ECG cho thiet bi nay.'),
+          content: Text(
+            'Chỉ chủ thiết bị mới có thể yêu cầu đo ECG cho thiết bị này.',
+          ),
         ),
       );
       return;
     }
 
-    final rt = context.read<RealtimeProvider>();
+    final realtime = context.read<RealtimeProvider>();
     final ecg = context.read<EcgProvider>();
 
     try {
       ecg.bindScope(deviceId: device.resolvedDeviceId);
       final result = await ecg.requestEcg();
-      await rt.refreshLatest(silent: true);
+      await realtime.refreshLatest(silent: true);
       if (!mounted) return;
       final message =
           result['message']?.toString() ??
           ecg.message ??
-          'Da gui lenh ECG thanh cong. Dang cho ket qua moi.';
+          'Đã gửi yêu cầu đo ECG thành công. Đang chờ kết quả mới.';
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(message)));
-    } catch (e) {
+    } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(ecg.error ?? '$e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(ecg.error ?? '$error')),
+      );
     }
   }
 
@@ -105,29 +127,29 @@ class _HomePageState extends State<HomePage> {
     final deviceProvider = context.read<DeviceProvider>();
     final history = context.read<HistoryProvider>();
     final ecg = context.read<EcgProvider>();
-    final rt = context.read<RealtimeProvider>();
+    final realtime = context.read<RealtimeProvider>();
     await deviceProvider.setCurrent(selectedDeviceId);
 
     final current = deviceProvider.current;
     if (current == null) return;
 
-    await rt.changeDevice(current.resolvedDeviceId);
+    await realtime.changeDevice(current.resolvedDeviceId);
     await history.bindScope(
       deviceId: current.resolvedDeviceId,
       dayLocal: DateTime(
         DateTime.now().year,
         DateTime.now().month,
         DateTime.now().day,
-        ),
-        load: true,
-      );
+      ),
+      load: true,
+    );
     ecg.bindScope(deviceId: current.resolvedDeviceId);
   }
 
   Future<void> _refreshAll() async {
-    final rt = context.read<RealtimeProvider>();
+    final realtime = context.read<RealtimeProvider>();
     final history = context.read<HistoryProvider>();
-    await rt.refreshLatest();
+    await realtime.refreshLatest();
     await history.loadForDay(
       DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day),
     );
@@ -136,9 +158,7 @@ class _HomePageState extends State<HomePage> {
   Future<void> _openAlerts() async {
     final result = await Navigator.pushNamed(context, AppRoutes.alerts);
     final selectedDeviceId = result is String ? result.trim() : '';
-    if (!mounted || selectedDeviceId.isEmpty) {
-      return;
-    }
+    if (!mounted || selectedDeviceId.isEmpty) return;
     await _selectDevice(selectedDeviceId);
   }
 
@@ -162,11 +182,169 @@ class _HomePageState extends State<HomePage> {
     final ecg = context.watch<EcgProvider>();
     final history = context.watch<HistoryProvider>();
     final session = context.watch<SessionProvider>();
-    final rt = context.watch<RealtimeProvider>();
+    final realtime = context.watch<RealtimeProvider>();
     _syncRealtime();
 
-    final latest = rt.latest;
+    final layout = AppLayout.of(context);
+    final isCompact = layout == AppLayoutSize.compact;
+    final isExpanded = layout == AppLayoutSize.expanded;
+    final horizontalPadding = switch (layout) {
+      AppLayoutSize.compact => 12.0,
+      AppLayoutSize.medium => 20.0,
+      AppLayoutSize.expanded => 24.0,
+    };
+    final sectionSpacing = switch (layout) {
+      AppLayoutSize.compact => 12.0,
+      AppLayoutSize.medium => 16.0,
+      AppLayoutSize.expanded => 20.0,
+    };
+    final contentMaxWidth = AppLayout.maxContentWidth(context);
+    final pagePadding = AppLayout.pagePadding(
+      context,
+      compact: 12,
+      medium: 20,
+      expanded: 24,
+      bottom: 20,
+    );
+    final latest = realtime.latest;
     final hasLatest = latest != null;
+
+    Widget buildDeviceContent() {
+      final currentDevice = device!;
+      final primaryChildren = <Widget>[
+        MedicalMonitorPanel(
+          brightness: Brightness.light,
+          hr: latest?.hr?.toDouble(),
+          spo2: latest?.spo2?.toDouble(),
+          temp: latest?.temp,
+          rr: latest?.rr?.toDouble(),
+          hrWave: _seriesForMetric(history, Metric.hr),
+          spo2Wave: _seriesForMetric(history, Metric.spo2),
+          tempWave: _seriesForMetric(history, Metric.temp),
+          rrWave: _seriesForMetric(history, Metric.rr),
+        ),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            realtime.hasDevice
+                ? 'Cập nhật: ${realtime.lastSeenText}'
+                : 'Chưa có thiết bị đang theo dõi',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ),
+        if (realtime.error != null && realtime.error!.trim().isNotEmpty)
+          _ErrorBanner(
+            message: realtime.error!,
+            actionLabel:
+                realtime.hasSessionExpiredError || !session.isAuthenticated
+                ? 'Đăng nhập lại'
+                : realtime.hasPermissionError
+                ? 'Đổi thiết bị'
+                : null,
+            onAction:
+                realtime.hasSessionExpiredError || !session.isAuthenticated
+                ? () => Navigator.pushNamed(context, AppRoutes.devices)
+                : realtime.hasPermissionError
+                ? () => Navigator.pushNamed(context, AppRoutes.devices)
+                : null,
+          ),
+        if (ecg.message != null && ecg.message!.trim().isNotEmpty)
+          _InfoBanner(message: ecg.message!),
+        if (!hasLatest && realtime.isLoadingLatest) const _LoadingPanel(),
+        if (!hasLatest && realtime.latestStatus.isEmpty)
+          _EmptyPanel(
+            message: _noDataMessage(
+              realtime: realtime,
+              session: session,
+            ),
+          ),
+        FeatureButton(
+          icon: Icons.history,
+          title: 'Lịch sử',
+          subtitle: 'Xem lịch sử theo ngày',
+          onTap: () => Navigator.pushNamed(context, AppRoutes.history),
+        ),
+        FeatureButton(
+          icon: Icons.notifications_active_outlined,
+          title: 'Cảnh báo',
+          subtitle: 'Xem cảnh báo và mở đúng thiết bị',
+          onTap: _openAlerts,
+        ),
+      ];
+
+      final secondaryChildren = <Widget>[
+        if (!currentDevice.isOwnerLink)
+          const _InfoBanner(
+            message:
+                'Bạn đang ở chế độ chỉ xem trên thiết bị này. Chỉ chủ thiết bị mới có thể quản lý người xem và gửi yêu cầu đo ECG.',
+          ),
+        if (currentDevice.isOwnerLink)
+          _EcgActionCard(
+            enabled: currentDevice.hasExplicitDeviceId && !ecg.isLoading,
+            isLoading: ecg.isLoading,
+            onTap: () => _requestEcg(currentDevice),
+          ),
+        if (currentDevice.isOwnerLink)
+          FeatureButton(
+            icon: Icons.group_outlined,
+            title: 'Quản lý người xem',
+            subtitle: 'Thêm hoặc xóa tài khoản được xem thiết bị này',
+            onTap: () => _openOwnerManagement(currentDevice),
+          ),
+        FeatureButton(
+          icon: Icons.devices,
+          title: currentDevice.isOwnerLink
+              ? 'Quản lý thiết bị'
+              : 'Thông tin thiết bị',
+          subtitle: currentDevice.isOwnerLink
+              ? 'Xem danh sách thiết bị và quyền chia sẻ'
+              : 'Xem thiết bị đang được chia sẻ cho bạn',
+          onTap: () => Navigator.pushNamed(context, AppRoutes.devices),
+        ),
+      ];
+
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: pagePadding,
+        children: [
+          _DeviceSelectorCard(
+            devices: devices,
+            currentDeviceId: currentDevice.id,
+            isSyncing: deviceProvider.isSyncing,
+            onChanged: _selectDevice,
+            onOpenList: () => Navigator.pushNamed(context, AppRoutes.devices),
+          ),
+          SizedBox(height: sectionSpacing),
+          ResponsiveTwoPane(
+            breakpoint: 1080,
+            spacing: sectionSpacing,
+            primary: _SectionColumn(
+              spacing: sectionSpacing,
+              children: primaryChildren,
+            ),
+            secondary: _SectionColumn(
+              spacing: sectionSpacing,
+              children: secondaryChildren,
+            ),
+          ),
+        ],
+      );
+    }
+
+    Widget buildNoDeviceContent() {
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: pagePadding,
+        children: [
+          Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 520),
+              child: _buildNoDeviceView(context),
+            ),
+          ),
+        ],
+      );
+    }
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -176,253 +354,146 @@ class _HomePageState extends State<HomePage> {
         elevation: 0,
         scrolledUnderElevation: 0,
         title: const Text('Eldercare'),
-        centerTitle: true,
+        centerTitle: !isExpanded,
         actions: [
           IconButton(
-            tooltip: 'Canh bao',
+            tooltip: 'Cảnh báo',
             onPressed: _openAlerts,
             icon: const Icon(Icons.notifications_none),
           ),
           IconButton(
-            tooltip: 'Doi thiet bi',
+            tooltip: 'Đổi thiết bị',
             onPressed: () => Navigator.pushNamed(context, AppRoutes.devices),
             icon: const Icon(Icons.devices),
           ),
           IconButton(
-            tooltip: 'Lam moi du lieu',
-            onPressed: rt.isLoadingLatest ? null : _refreshAll,
+            tooltip: 'Làm mới dữ liệu',
+            onPressed: realtime.isLoadingLatest ? null : _refreshAll,
             icon: const Icon(Icons.refresh),
           ),
         ],
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(50),
+          preferredSize: Size.fromHeight(isCompact ? 46 : 50),
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-            child: Text(
-              _deviceLabel(device),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: Colors.black54),
+            padding: EdgeInsets.fromLTRB(
+              horizontalPadding,
+              0,
+              horizontalPadding,
+              isCompact ? 10 : 12,
+            ),
+            child: Align(
+              alignment: isExpanded
+                  ? Alignment.centerLeft
+                  : Alignment.center,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: contentMaxWidth),
+                child: Text(
+                  _deviceLabel(device),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: Colors.black54),
+                ),
+              ),
             ),
           ),
         ),
       ),
       body: RefreshIndicator(
         onRefresh: _refreshAll,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: device == null
-              ? ListView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  children: [_buildNoDeviceView(context)],
-                )
-              : ListView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  children: [
-                    _DeviceSelectorCard(
-                      devices: devices,
-                      currentDeviceId: device.id,
-                      isSyncing: deviceProvider.isSyncing,
-                      onChanged: _selectDevice,
-                      onOpenList: () =>
-                          Navigator.pushNamed(context, AppRoutes.devices),
-                    ),
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      height: 360,
-                      child: MedicalMonitorPanel(
-                        brightness: Brightness.light,
-                        hr: latest?.hr?.toDouble(),
-                        spo2: latest?.spo2?.toDouble(),
-                        temp: latest?.temp,
-                        rr: latest?.rr?.toDouble(),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        rt.hasDevice
-                            ? 'Cap nhat: ${rt.lastSeenText}'
-                            : 'Chua co thiet bi dang theo doi',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ),
-                    if (rt.error != null && rt.error!.trim().isNotEmpty) ...[
-                      const SizedBox(height: 12),
-                      if (rt.isShowingCachedLatest)
-                        _InfoBanner(message: rt.error!)
-                      else
-                        _ErrorBanner(
-                          message: rt.error!,
-                          actionLabel:
-                              rt.hasSessionExpiredError ||
-                                  !session.isAuthenticated
-                              ? 'Dang nhap lai'
-                              : rt.hasPermissionError
-                              ? 'Doi thiet bi'
-                              : null,
-                          onAction:
-                              rt.hasSessionExpiredError ||
-                                  !session.isAuthenticated
-                              ? () => Navigator.pushNamed(
-                                  context,
-                                  AppRoutes.devices,
-                                )
-                              : rt.hasPermissionError
-                              ? () => Navigator.pushNamed(
-                                  context,
-                                  AppRoutes.devices,
-                                )
-                              : null,
-                        ),
-                    ],
-                    if (history.isShowingCachedHistory &&
-                        (rt.error == null || rt.error!.trim().isEmpty)) ...[
-                      const SizedBox(height: 12),
-                      const _InfoBanner(
-                        message:
-                            'Lich su trong ngay hien dang dung du lieu luu tam.',
-                      ),
-                    ],
-                    if (ecg.message != null &&
-                        ecg.message!.trim().isNotEmpty) ...[
-                      const SizedBox(height: 12),
-                      _InfoBanner(message: ecg.message!),
-                    ],
-                    if (kDebugMode && !device.hasExplicitDeviceId) ...[
-                      const SizedBox(height: 12),
-                      const _InfoBanner(
-                        message:
-                            'Thiet bi nay dang o che do fallback dev, ECG co the khong hoat dong dung contract server.',
-                      ),
-                    ],
-                    if (!device.isOwnerLink) ...[
-                      const SizedBox(height: 12),
-                      const _InfoBanner(
-                        message:
-                            'Ban dang o che do read-only tren thiet bi nay. Chi chu thiet bi moi co the quan ly viewer va gui yeu cau ECG.',
-                      ),
-                    ],
-                    if (!hasLatest && rt.isLoadingLatest) ...[
-                      const SizedBox(height: 12),
-                      const _LoadingPanel(),
-                    ] else if (!hasLatest && rt.latestStatus.isEmpty) ...[
-                      const SizedBox(height: 12),
-                      _EmptyPanel(
-                        message: _noDataMessage(
-                          rt: rt,
-                          session: session,
-                          device: device,
-                        ),
-                      ),
-                    ],
-                    if (device.isOwnerLink) ...[
-                      const SizedBox(height: 16),
-                      _EcgActionCard(
-                        enabled: device.hasExplicitDeviceId && !ecg.isLoading,
-                        isLoading: ecg.isLoading,
-                        onTap: () => _requestEcg(device),
-                      ),
-                      const SizedBox(height: 16),
-                      FeatureButton(
-                        icon: Icons.group_outlined,
-                        title: 'Quan ly viewer',
-                        subtitle: 'Them va xoa nguoi duoc xem device nay',
-                        onTap: () => _openOwnerManagement(device),
-                      ),
-                    ],
-                    const SizedBox(height: 16),
-                    FeatureButton(
-                      icon: Icons.history,
-                      title: 'History',
-                      subtitle: 'Xem lich su theo ngay',
-                      onTap: () =>
-                          Navigator.pushNamed(context, AppRoutes.history),
-                    ),
-                    const SizedBox(height: 16),
-                    FeatureButton(
-                      icon: Icons.notifications_active_outlined,
-                      title: 'Canh bao',
-                      subtitle: 'Xem canh bao va mo dung device',
-                      onTap: _openAlerts,
-                    ),
-                    const SizedBox(height: 16),
-                    FeatureButton(
-                      icon: Icons.devices,
-                      title: device.isOwnerLink
-                          ? 'Quan ly thiet bi'
-                          : 'Thong tin thiet bi',
-                      subtitle: device.isOwnerLink
-                          ? 'Xem danh sach device va quyen chia se'
-                          : 'Xem device dang duoc chia se cho ban',
-                      onTap: () =>
-                          Navigator.pushNamed(context, AppRoutes.devices),
-                    ),
-                  ],
-                ),
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: contentMaxWidth),
+            child: device == null ? buildNoDeviceContent() : buildDeviceContent(),
+          ),
         ),
       ),
     );
   }
 
   String _noDataMessage({
-    required RealtimeProvider rt,
+    required RealtimeProvider realtime,
     required SessionProvider session,
-    required Device device,
   }) {
     if (!session.isAuthenticated) {
-      return 'Ban chua dang nhap. Vao muc Thiet bi de dang nhap va dong bo session.';
+      return 'Bạn chưa đăng nhập. Vào mục Thiết bị để đăng nhập và đồng bộ phiên làm việc.';
     }
-    if (rt.hasPermissionError) {
-      return 'Tai khoan hien tai khong co quyen xem device nay.';
+    if (realtime.hasPermissionError) {
+      return 'Tài khoản hiện tại không có quyền xem thiết bị này.';
     }
-    if (rt.hasNoDataError) {
-      return 'Device da duoc lien ket nhung chua co reading nao tren server.';
+    if (realtime.hasNoDataError) {
+      return 'Thiết bị đã được liên kết nhưng chưa có bản ghi nào trên máy chủ.';
     }
-    if (kDebugMode && device.isLocalOnly) {
-      return 'Day la device fallback debug. Neu dang o production, hay dang nhap va sync linked devices tu server.';
-    }
-    return 'Device da duoc chon nhung chua co du lieu moi nhat. Thu refresh lai sau khi thiet bi gui reading.';
+    return 'Thiết bị đã được chọn nhưng chưa có dữ liệu mới nhất. Hãy thử làm mới lại sau khi thiết bị gửi dữ liệu.';
   }
 
   Widget _buildNoDeviceView(BuildContext context) {
     final session = context.watch<SessionProvider>();
     final scheme = Theme.of(context).colorScheme;
     final title = session.isAuthenticated
-        ? 'Ban chua co thiet bi nao'
-        : 'Chua dang nhap';
+        ? 'Bạn chưa có thiết bị nào'
+        : 'Chưa đăng nhập';
     final message = session.isAuthenticated
-        ? 'Ban co the them thiet bi bang ma thiet bi de lien ket thiet bi.\nNeu ban la nguoi xem, vui long lien he chu thiet bi de duoc cap quyen xem.'
-        : 'Ban can dang nhap truoc, sau do app se tai danh sach device da lien ket tu server.';
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.devices_other, size: 64, color: scheme.outline),
-          const SizedBox(height: 12),
-          Text(
-            title,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 6),
-          Text(message, textAlign: TextAlign.center),
-          const SizedBox(height: 16),
-          FilledButton.icon(
-            onPressed: () => Navigator.pushNamed(context, AppRoutes.devices),
-            icon: Icon(
-              session.isAuthenticated
-                  ? Icons.settings_input_antenna
-                  : Icons.login,
+        ? 'Bạn có thể thêm thiết bị bằng mã thiết bị để liên kết thiết bị.\nNếu bạn là người xem, vui lòng liên hệ chủ thiết bị để được cấp quyền xem.'
+        : 'Bạn cần đăng nhập trước, sau đó ứng dụng sẽ tải danh sách thiết bị đã liên kết từ máy chủ.';
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.devices_other, size: 64, color: scheme.outline),
+            const SizedBox(height: 12),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
             ),
-            label: Text(
-              session.isAuthenticated ? 'Mo danh sach thiet bi' : 'Dang nhap',
+            const SizedBox(height: 6),
+            Text(message, textAlign: TextAlign.center),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: () => Navigator.pushNamed(context, AppRoutes.devices),
+                icon: Icon(
+                  session.isAuthenticated
+                      ? Icons.settings_input_antenna
+                      : Icons.login,
+                ),
+                label: Text(
+                  session.isAuthenticated
+                      ? 'Mở danh sách thiết bị'
+                      : 'Đăng nhập',
+                ),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
+    );
+  }
+}
+
+class _SectionColumn extends StatelessWidget {
+  const _SectionColumn({
+    required this.children,
+    required this.spacing,
+  });
+
+  final List<Widget> children;
+  final double spacing;
+
+  @override
+  Widget build(BuildContext context) {
+    final visibleChildren = children.toList(growable: false);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: _withSpacing(visibleChildren, spacing),
     );
   }
 }
@@ -444,6 +515,9 @@ class _DeviceSelectorCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final layout = AppLayout.of(context);
+    final isCompact = layout == AppLayoutSize.compact;
+
     Device? current;
     for (final device in devices) {
       if (device.id == currentDeviceId) {
@@ -454,17 +528,18 @@ class _DeviceSelectorCard extends StatelessWidget {
 
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(14),
+        padding: EdgeInsets.all(isCompact ? 12 : 16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                Text(
-                  'Thiet bi dang theo doi',
-                  style: Theme.of(context).textTheme.titleMedium,
+                Expanded(
+                  child: Text(
+                    'Thiết bị đang theo dõi',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
                 ),
-                const Spacer(),
                 if (isSyncing)
                   const SizedBox(
                     width: 16,
@@ -473,44 +548,53 @@ class _DeviceSelectorCard extends StatelessWidget {
                   ),
               ],
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: isCompact ? 10 : 8),
             DropdownButtonFormField<String>(
+              isExpanded: true,
               initialValue:
                   devices.any((device) => device.id == currentDeviceId)
                   ? currentDeviceId
                   : null,
               decoration: const InputDecoration(
-                labelText: 'Chon device',
+                labelText: 'Chọn thiết bị',
                 prefixIcon: Icon(Icons.devices),
               ),
               items: devices
                   .map(
                     (device) => DropdownMenuItem<String>(
                       value: device.id,
-                      child: Text(
-                        '${device.name} (${device.resolvedDeviceId})',
-                      ),
+                      child: Text('${device.name} (${device.resolvedDeviceId})'),
                     ),
                   )
                   .toList(growable: false),
               onChanged: devices.length <= 1 ? null : onChanged,
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: isCompact ? 10 : 8),
             Text(
               current == null
-                  ? 'Chua co device hien tai.'
-                  : 'Quyen tren thiet bi hien tai: ${deviceAccessRoleLabel(current.normalizedLinkRole)} | Tai khoan lien ket: ${current.linkedUsers.length}',
+                  ? 'Chưa có thiết bị hiện tại.'
+                  : 'Quyền trên thiết bị hiện tại: ${deviceAccessRoleLabel(current.normalizedLinkRole)} | Tài khoản liên kết: ${current.linkedUsers.length}',
               style: Theme.of(context).textTheme.bodySmall,
             ),
-            const SizedBox(height: 8),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton.icon(
-                onPressed: onOpenList,
-                icon: const Icon(Icons.list_alt),
-                label: const Text('Mo danh sach day du'),
+            SizedBox(height: isCompact ? 10 : 8),
+            if (isCompact)
+              SizedBox(
+                width: double.infinity,
+                child: TextButton.icon(
+                  onPressed: onOpenList,
+                  icon: const Icon(Icons.list_alt),
+                  label: const Text('Mở danh sách thiết bị'),
+                ),
+              )
+            else
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: onOpenList,
+                  icon: const Icon(Icons.list_alt),
+                  label: const Text('Mở danh sách thiết bị'),
+                ),
               ),
-            ),
           ],
         ),
       ),
@@ -529,32 +613,66 @@ class _ErrorBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
 
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: scheme.errorContainer,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(Icons.error_outline, color: scheme.onErrorContainer),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              message,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: scheme.onErrorContainer,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final stackAction =
+            constraints.maxWidth < 360 &&
+            actionLabel != null &&
+            onAction != null;
+
+        return Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: scheme.errorContainer,
+            borderRadius: BorderRadius.circular(16),
           ),
-          if (actionLabel != null && onAction != null) ...[
-            const SizedBox(width: 8),
-            TextButton(onPressed: onAction, child: Text(actionLabel!)),
-          ],
-        ],
-      ),
+          child: stackAction
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(Icons.error_outline, color: scheme.onErrorContainer),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            message,
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(
+                                  color: scheme.onErrorContainer,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    TextButton(onPressed: onAction, child: Text(actionLabel!)),
+                  ],
+                )
+              : Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.error_outline, color: scheme.onErrorContainer),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        message,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: scheme.onErrorContainer,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    if (actionLabel != null && onAction != null) ...[
+                      const SizedBox(width: 8),
+                      TextButton(onPressed: onAction, child: Text(actionLabel!)),
+                    ],
+                  ],
+                ),
+        );
+      },
     );
   }
 }
@@ -606,7 +724,7 @@ class _LoadingPanel extends StatelessWidget {
           children: [
             CircularProgressIndicator(),
             SizedBox(height: 12),
-            Text('Dang tai du lieu moi nhat...'),
+            Text('Đang tải dữ liệu mới nhất...'),
           ],
         ),
       ),
@@ -653,38 +771,58 @@ class _EcgActionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isCompact = AppLayout.isCompact(context);
+
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(14),
+        padding: EdgeInsets.all(isCompact ? 12 : 14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'ECG On-demand',
+              'Đo ECG theo yêu cầu',
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 4),
             Text(
               enabled
-                  ? 'Gui lenh do ECG cho thiet bi dang chon.'
-                  : 'Can deviceId that de gui lenh ECG.',
+                  ? 'Gửi lệnh đo ECG cho thiết bị đang theo dõi.'
+                  : 'Không thể gửi lệnh đo ECG cho thiết bị này.',
               style: Theme.of(context).textTheme.bodySmall,
             ),
             const SizedBox(height: 12),
-            FilledButton.icon(
-              onPressed: enabled ? onTap : null,
-              icon: isLoading
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.favorite_outline),
-              label: Text(isLoading ? 'Dang gui lenh...' : 'Yeu cau ECG'),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: enabled ? onTap : null,
+                icon: isLoading
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.favorite_outline),
+                label: Text(
+                  isLoading ? 'Đang gửi yêu cầu...' : 'Yêu cầu đo ECG',
+                ),
+              ),
             ),
           ],
         ),
       ),
     );
   }
+}
+
+List<Widget> _withSpacing(List<Widget> children, double spacing) {
+  final spacedChildren = <Widget>[];
+
+  for (final child in children) {
+    if (spacedChildren.isNotEmpty) {
+      spacedChildren.add(SizedBox(height: spacing));
+    }
+    spacedChildren.add(child);
+  }
+
+  return spacedChildren;
 }

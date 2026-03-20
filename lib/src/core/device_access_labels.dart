@@ -1,11 +1,10 @@
 String deviceAccessRoleLabel(String? linkRole) {
   switch (linkRole?.trim().toLowerCase()) {
     case 'owner':
-      return 'Chu thiet bi';
+      return 'Chủ thiết bị';
     case 'viewer':
-    case 'caregiver':
-      return 'Nguoi xem';
+      return 'Người xem';
     default:
-      return 'Chua cap nhat';
+      return 'Chưa cập nhật';
   }
 }

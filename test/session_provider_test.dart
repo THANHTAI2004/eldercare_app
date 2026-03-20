@@ -4,6 +4,7 @@ import 'package:eldercare_app/src/data/api/api_client.dart';
 import 'package:eldercare_app/src/data/api/auth_api_service.dart';
 import 'package:eldercare_app/src/data/local/auth_storage.dart';
 import 'package:eldercare_app/src/domain/models/auth_tokens.dart';
+import 'package:eldercare_app/src/domain/models/register_request.dart';
 import 'package:eldercare_app/src/state/session_provider.dart';
 
 import 'support/test_helpers.dart';
@@ -59,6 +60,54 @@ void main() {
     expect(provider.isAuthenticated, isTrue);
     expect(provider.authenticatedUserId, 'user-001');
     expect(provider.authenticatedRole, 'member');
+  });
+
+  test('login normalizes whitespace inside phone number before calling API', () async {
+    final client = ApiClient(baseUrl: 'https://example.com', timeoutMs: 1000);
+    final storage = AuthStorage(secureStore: MemorySecureStore());
+    final authApi = _FakeAuthApiService(
+      client: client,
+      storage: storage,
+      loginTokens: const AuthTokens(
+        accessToken: 'access-token',
+        refreshToken: 'refresh-token',
+      ),
+      meResponse: const <String, dynamic>{
+        'user_id': 'user-001',
+        'role': 'member',
+      },
+    );
+    final provider = SessionProvider(client: client, authApi: authApi);
+
+    final ok = await provider.login(
+      phoneNumber: '0987 654 321',
+      password: 'secret',
+    );
+
+    expect(ok, isTrue);
+    expect(authApi.lastLoginPhoneNumber, '0987654321');
+    expect(authApi.lastLoginPassword, 'secret');
+  });
+
+  test('register normalizes whitespace inside phone number before calling API', () async {
+    final client = ApiClient(baseUrl: 'https://example.com', timeoutMs: 1000);
+    final storage = AuthStorage(secureStore: MemorySecureStore());
+    final authApi = _FakeAuthApiService(
+      client: client,
+      storage: storage,
+    );
+    final provider = SessionProvider(client: client, authApi: authApi);
+
+    final ok = await provider.register(
+      name: 'Nguyen Van A',
+      phoneNumber: '0987 654 321',
+      dateOfBirth: '1950-01-02',
+      password: 'MatKhau123',
+    );
+
+    expect(ok, isTrue);
+    expect(authApi.lastRegisterRequest, isNotNull);
+    expect(authApi.lastRegisterRequest!.phoneNumber, '0987654321');
   });
 
   test(
@@ -117,7 +166,7 @@ void main() {
     expect(provider.authenticatedUserId, isEmpty);
     expect(
       provider.error,
-      'Phien dang nhap da het han, vui long dang nhap lai',
+      'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại',
     );
     expect(provider.lastErrorStatusCode, 401);
     expect(authApi.clearCalls, 1);
@@ -293,6 +342,9 @@ class _FakeAuthApiService extends AuthApiService {
   final Map<String, dynamic>? savedCurrentUser;
   final Map<String, dynamic> meResponse;
   final ApiRequestException? meError;
+  String? lastLoginPhoneNumber;
+  String? lastLoginPassword;
+  RegisterRequest? lastRegisterRequest;
 
   int loginCalls = 0;
   int restoreCalls = 0;
@@ -306,10 +358,17 @@ class _FakeAuthApiService extends AuthApiService {
     required String password,
   }) async {
     loginCalls += 1;
+    lastLoginPhoneNumber = phoneNumber;
+    lastLoginPassword = password;
     if (loginTokens == null) {
       throw StateError('Missing fake login tokens');
     }
     return loginTokens!;
+  }
+
+  @override
+  Future<void> register(RegisterRequest request) async {
+    lastRegisterRequest = request;
   }
 
   @override

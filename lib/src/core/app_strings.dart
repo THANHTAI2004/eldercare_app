@@ -1,25 +1,26 @@
 class AppStrings {
   AppStrings._();
 
-  static const loginPhoneRequired = 'Nhap so dien thoai';
-  static const loginCredentialsRequired = 'Nhap so dien thoai va mat khau de dang nhap';
-  static const loginPasswordRequired = 'Nhap mat khau';
-  static const phoneInvalid = 'So dien thoai khong hop le';
-  static const passwordTooShort = 'Mat khau phai tu 8 ky tu tro len';
+  static const loginPhoneRequired = 'Nhập số điện thoại';
+  static const loginCredentialsRequired =
+      'Nhập số điện thoại và mật khẩu để đăng nhập';
+  static const loginPasswordRequired = 'Nhập mật khẩu';
+  static const phoneInvalid = 'Số điện thoại không hợp lệ';
+  static const passwordTooShort = 'Mật khẩu phải từ 8 ký tự trở lên';
   static const sessionExpired =
-      'Phien dang nhap da het han, vui long dang nhap lai';
-  static const sessionRestoreFailed = 'Khong the khoi phuc phien dang nhap';
-  static const loginFailed = 'Dang nhap that bai';
-  static const loginUnauthorized = 'Sai so dien thoai hoac mat khau';
-  static const loginInvalid = 'So dien thoai hoac mat khau khong hop le';
-  static const serverError = 'Server dang gap loi, vui long thu lai sau';
-  static const rateLimited = 'Dang bi gioi han request, vui long thu lai sau';
-  static const registerFailed = 'Tao tai khoan that bai';
-  static const registerPhoneTaken = 'So dien thoai da duoc dung';
-  static const registerInvalidData = 'Du lieu dang ky chua hop le';
-  static const invalidBirthDate = 'Ngay sinh khong hop le';
-  static const permissionDenied = 'Tai khoan hien tai khong co quyen truy cap';
-  static const noLinkedDeviceTitle = 'Chua co thiet bi lien ket';
-  static const noLinkedDeviceGuide = 'Xem huong dan lien ket';
-  static const registerPickBirthDate = 'Vui long chon ngay sinh';
+      'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại';
+  static const sessionRestoreFailed = 'Không thể khôi phục phiên đăng nhập';
+  static const loginFailed = 'Đăng nhập thất bại';
+  static const loginUnauthorized = 'Sai số điện thoại hoặc mật khẩu';
+  static const loginInvalid = 'Số điện thoại hoặc mật khẩu không hợp lệ';
+  static const serverError = 'Máy chủ đang gặp lỗi, vui lòng thử lại sau';
+  static const rateLimited = 'Đang bị giới hạn yêu cầu, vui lòng thử lại sau';
+  static const registerFailed = 'Tạo tài khoản thất bại';
+  static const registerPhoneTaken = 'Số điện thoại đã được dùng';
+  static const registerInvalidData = 'Dữ liệu đăng ký chưa hợp lệ';
+  static const invalidBirthDate = 'Ngày sinh không hợp lệ';
+  static const permissionDenied = 'Tài khoản hiện tại không có quyền truy cập';
+  static const noLinkedDeviceTitle = 'Chưa có thiết bị liên kết';
+  static const noLinkedDeviceGuide = 'Xem hướng dẫn liên kết';
+  static const registerPickBirthDate = 'Vui lòng chọn ngày sinh';
 }

@@ -47,10 +47,10 @@ void main() {
     await tester.tap(registerButtonIcon);
     await tester.pumpAndSettle();
 
-    expect(find.text('Nhap ho va ten'), findsOneWidget);
-    expect(find.text('Nhap so dien thoai'), findsOneWidget);
-    expect(find.text('Nhap mat khau'), findsOneWidget);
-    expect(find.text('Nhap lai mat khau'), findsWidgets);
+    expect(find.text('Nhập họ và tên'), findsOneWidget);
+    expect(find.text('Nhập số điện thoại'), findsOneWidget);
+    expect(find.text('Nhập mật khẩu'), findsOneWidget);
+    expect(find.text('Nhập lại mật khẩu'), findsWidgets);
   });
 
   testWidgets('register shows date and password mismatch errors', (
@@ -83,15 +83,15 @@ void main() {
       'Nguyen Van A',
     );
     await tester.enterText(
-      find.widgetWithText(TextFormField, 'So dien thoai'),
+      find.widgetWithText(TextFormField, 'Số điện thoại'),
       '0987654321',
     );
     await tester.enterText(
-      find.widgetWithText(TextFormField, 'Mat khau'),
+      find.widgetWithText(TextFormField, 'Mật khẩu'),
       'MatKhau123',
     );
     await tester.enterText(
-      find.widgetWithText(TextFormField, 'Nhap lai mat khau'),
+      find.widgetWithText(TextFormField, 'Nhập lại mật khẩu'),
       'MatKhau999',
     );
     final registerButtonIcon = find.byIcon(Icons.person_add_alt_1);
@@ -99,17 +99,17 @@ void main() {
     await tester.tap(registerButtonIcon);
     await tester.pumpAndSettle();
 
-    expect(find.text('Mat khau nhap lai khong khop'), findsOneWidget);
+    expect(find.text('Mật khẩu nhập lại không khớp'), findsOneWidget);
 
     await tester.enterText(
-      find.widgetWithText(TextFormField, 'Nhap lai mat khau'),
+      find.widgetWithText(TextFormField, 'Nhập lại mật khẩu'),
       'MatKhau123',
     );
     await tester.ensureVisible(registerButtonIcon);
     await tester.tap(registerButtonIcon);
     await tester.pumpAndSettle();
 
-    expect(find.text('Vui long chon ngay sinh'), findsOneWidget);
+    expect(find.text('Vui lòng chọn ngày sinh'), findsOneWidget);
   });
 
   testWidgets('register shows short password error', (tester) async {
@@ -140,15 +140,15 @@ void main() {
       'Nguyen Van A',
     );
     await tester.enterText(
-      find.widgetWithText(TextFormField, 'So dien thoai'),
+      find.widgetWithText(TextFormField, 'Số điện thoại'),
       '0987654321',
     );
     await tester.enterText(
-      find.widgetWithText(TextFormField, 'Mat khau'),
+      find.widgetWithText(TextFormField, 'Mật khẩu'),
       '1234567',
     );
     await tester.enterText(
-      find.widgetWithText(TextFormField, 'Nhap lai mat khau'),
+      find.widgetWithText(TextFormField, 'Nhập lại mật khẩu'),
       '1234567',
     );
     final registerButtonIcon = find.byIcon(Icons.person_add_alt_1);
@@ -156,7 +156,7 @@ void main() {
     await tester.tap(registerButtonIcon);
     await tester.pumpAndSettle();
 
-    expect(find.text('Mat khau phai tu 8 ky tu tro len'), findsOneWidget);
+    expect(find.text('Mật khẩu phải từ 8 ký tự trở lên'), findsOneWidget);
   });
 
   testWidgets('register with valid form calls session register flow', (
@@ -194,15 +194,15 @@ void main() {
       'Nguyen Van A',
     );
     await tester.enterText(
-      find.widgetWithText(TextFormField, 'So dien thoai'),
+      find.widgetWithText(TextFormField, 'Số điện thoại'),
       '0987654321',
     );
     await tester.enterText(
-      find.widgetWithText(TextFormField, 'Mat khau'),
+      find.widgetWithText(TextFormField, 'Mật khẩu'),
       'MatKhau123',
     );
     await tester.enterText(
-      find.widgetWithText(TextFormField, 'Nhap lai mat khau'),
+      find.widgetWithText(TextFormField, 'Nhập lại mật khẩu'),
       'MatKhau123',
     );
     final pickDateButton = find.widgetWithText(TextButton, 'Chon ngay');

@@ -34,7 +34,7 @@ class _DeviceQrScannerPageState extends State<DeviceQrScannerPage> {
     final scheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Quet ma QR thiet bi')),
+      appBar: AppBar(title: const Text('Quét mã QR thiết bị')),
       body: _supportsScanner
           ? Stack(
               children: [
@@ -54,7 +54,7 @@ class _DeviceQrScannerPageState extends State<DeviceQrScannerPage> {
                       ),
                     ),
                     child: Text(
-                      'Dua ma QR cua thiet bi vao khung camera.',
+                      'Đưa mã QR của thiết bị vào khung camera.',
                       textAlign: TextAlign.center,
                       style: TextStyle(color: scheme.onPrimary),
                     ),
@@ -71,18 +71,18 @@ class _DeviceQrScannerPageState extends State<DeviceQrScannerPage> {
                     const Icon(Icons.qr_code_scanner, size: 56),
                     const SizedBox(height: 12),
                     const Text(
-                      'QR scan chua duoc ho tro tren Windows.',
+                      'Quét QR chưa được hỗ trợ trên Windows.',
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 8),
                     const Text(
-                      'Hay dung "Them thiet bi" de nhap thong tin thu cong.',
+                      'Hãy dùng "Thêm thiết bị" để nhập thông tin thủ công.',
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 16),
                     FilledButton(
                       onPressed: () => Navigator.pop(context),
-                      child: const Text('Quay lai'),
+                      child: const Text('Quay lại'),
                     ),
                   ],
                 ),

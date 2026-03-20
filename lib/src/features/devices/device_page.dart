@@ -1,18 +1,14 @@
-import 'dart:convert';
-
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:eldercare_app/src/app/routes.dart';
-import 'package:eldercare_app/src/config/env.dart';
 import 'package:eldercare_app/src/core/app_date_utils.dart';
+import 'package:eldercare_app/src/core/app_layout.dart';
 import 'package:eldercare_app/src/core/app_strings.dart';
 import 'package:eldercare_app/src/core/device_access_labels.dart';
 import 'package:eldercare_app/src/core/validators.dart';
 import 'package:eldercare_app/src/domain/models/device.dart';
 import 'package:eldercare_app/src/features/devices/claim_device_page.dart';
-import 'package:eldercare_app/src/features/devices/device_qr_scanner_page.dart';
 import 'package:eldercare_app/src/features/devices/device_viewers_page.dart';
 import 'package:eldercare_app/src/features/home/home_page.dart';
 import 'package:eldercare_app/src/state/device_provider.dart';
@@ -28,14 +24,8 @@ class DevicePage extends StatefulWidget {
 
 class _DevicePageState extends State<DevicePage> {
   final _searchCtrl = TextEditingController();
-  final _loginPhoneCtrl = TextEditingController(
-    text: kDebugMode ? Env.debugLoginPhoneNumber : '',
-  );
-  final _loginPasswordCtrl = TextEditingController(
-    text: kDebugMode && Env.debugLoginPassword != 'replace-with-password'
-        ? Env.debugLoginPassword
-        : '',
-  );
+  final _loginPhoneCtrl = TextEditingController();
+  final _loginPasswordCtrl = TextEditingController();
 
   String _query = '';
   String? _lastRealtimeBindingKey;
@@ -76,12 +66,6 @@ class _DevicePageState extends State<DevicePage> {
     super.dispose();
   }
 
-  bool get _supportsQrScan {
-    if (kIsWeb) return true;
-    return defaultTargetPlatform == TargetPlatform.android ||
-        defaultTargetPlatform == TargetPlatform.iOS;
-  }
-
   void _handleDeviceProviderChanged() {
     _bindCurrentDeviceToRealtime();
   }
@@ -106,7 +90,7 @@ class _DevicePageState extends State<DevicePage> {
     final session = context.read<SessionProvider>();
     final deviceProvider = context.read<DeviceProvider>();
     final ok = await session.login(
-      phoneNumber: _loginPhoneCtrl.text.trim(),
+      phoneNumber: AppValidators.normalizePhoneNumber(_loginPhoneCtrl.text),
       password: _loginPasswordCtrl.text,
     );
     if (!mounted || !ok) return;
@@ -148,7 +132,7 @@ class _DevicePageState extends State<DevicePage> {
     _loginPasswordCtrl.clear();
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Tao tai khoan thanh cong. Vui long dang nhap.'),
+        content: Text('Tạo tài khoản thành công. Vui lòng đăng nhập.'),
       ),
     );
   }
@@ -163,8 +147,6 @@ class _DevicePageState extends State<DevicePage> {
       );
       return;
     }
-
-    await deviceProvider.ensureDevFallback();
   }
 
   Future<void> _openClaimDevice() async {
@@ -175,7 +157,7 @@ class _DevicePageState extends State<DevicePage> {
     if (result != true || !mounted) return;
 
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Lien ket thiet bi thanh cong.')),
+      const SnackBar(content: Text('Liên kết thiết bị thành công.')),
     );
   }
 
@@ -185,14 +167,11 @@ class _DevicePageState extends State<DevicePage> {
 
     await session.logout();
     await deviceProvider.clear();
-    if (kDebugMode) {
-      await deviceProvider.ensureDevFallback();
-    }
 
     _lastRealtimeBindingKey = null;
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Da dang xuat phien hien tai.')),
+      const SnackBar(content: Text('Đã đăng xuất phiên hiện tại.')),
     );
   }
 
@@ -210,121 +189,24 @@ class _DevicePageState extends State<DevicePage> {
     );
   }
 
-  Future<void> _showManualAddDialog() async {
-    if (!kDebugMode) return;
-
-    final session = context.read<SessionProvider>();
-    final formKey = GlobalKey<FormState>();
-    final lockedUserId = session.isAuthenticated ? session.authenticatedUserId : '';
-    final userCtrl = TextEditingController(text: lockedUserId);
-    final deviceCtrl = TextEditingController(text: Env.debugDefaultDeviceId);
-    final nameCtrl = TextEditingController();
-
-    final shouldSave = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Them device fallback'),
-        content: Form(
-          key: formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextFormField(
-                controller: userCtrl,
-                readOnly: lockedUserId.isNotEmpty,
-                decoration: const InputDecoration(labelText: 'user_id'),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Nhap user_id';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: deviceCtrl,
-                decoration: const InputDecoration(labelText: 'device_id'),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Nhap device_id';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: nameCtrl,
-                decoration: const InputDecoration(labelText: 'Ten hien thi'),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Huy'),
-          ),
-          FilledButton(
-            onPressed: () {
-              if (formKey.currentState?.validate() ?? false) {
-                Navigator.pop(ctx, true);
-              }
-            },
-            child: const Text('Luu'),
-          ),
-        ],
-      ),
-    );
-
-    if (shouldSave != true || !mounted) return;
-
-    final payload = <String, dynamic>{
-      'userId': userCtrl.text.trim(),
-      'deviceId': deviceCtrl.text.trim(),
-      if (nameCtrl.text.trim().isNotEmpty) 'name': nameCtrl.text.trim(),
-    };
-
-    final deviceProvider = context.read<DeviceProvider>();
-    await deviceProvider.addFromQr(jsonEncode(payload));
-  }
-
-  Future<void> _scanAndAdd() async {
-    if (!kDebugMode) return;
-    if (!_supportsQrScan) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Nen tang hien tai chua ho tro quet QR.')),
-      );
-      return;
-    }
-
-    final code = await Navigator.push<String>(
-      context,
-      MaterialPageRoute(builder: (_) => const DeviceQrScannerPage()),
-    );
-    if (code == null || code.trim().isEmpty || !mounted) return;
-
-    final deviceProvider = context.read<DeviceProvider>();
-    await deviceProvider.addFromQr(code);
-  }
-
   Future<void> _handleLinkDevice() async {
     await _openClaimDevice();
   }
 
   Future<void> _showLinkGuideDialog() async {
     const content =
-        'Neu ban la chu thiet bi, hay dung chuc nang them thiet bi bang ma thiet bi de lien ket thiet bi.\n\n'
-        'Neu ban chi can quyen xem, vui long lien he chu thiet bi de duoc them vao danh sach nguoi xem.';
+        'Nếu bạn là chủ thiết bị, hãy dùng chức năng thêm thiết bị bằng mã thiết bị để liên kết thiết bị.\n\n'
+        'Nếu bạn chỉ cần quyền xem, vui lòng liên hệ chủ thiết bị để được thêm vào danh sách người xem.';
     if (!mounted) return;
     await showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Huong dan lien ket thiet bi'),
+        title: const Text('Hướng dẫn liên kết thiết bị'),
         content: Text(content),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Dong'),
+            child: const Text('Đóng'),
           ),
         ],
       ),
@@ -341,48 +223,28 @@ class _DevicePageState extends State<DevicePage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          session.isAuthenticated ? 'Thiet bi da lien ket' : 'Dang nhap',
+          session.isAuthenticated ? 'Thiết bị đã liên kết' : 'Đăng nhập',
         ),
         actions: [
           if (session.isAuthenticated)
             IconButton(
-              tooltip: 'Lien ket thiet bi',
+              tooltip: 'Liên kết thiết bị',
               onPressed: _openClaimDevice,
               icon: const Icon(Icons.add_link),
             ),
           IconButton(
-            tooltip: 'Lam moi',
+            tooltip: 'Làm mới',
             onPressed: _refreshDevices,
             icon: const Icon(Icons.refresh),
           ),
           if (session.isAuthenticated)
             IconButton(
-              tooltip: 'Dang xuat',
+              tooltip: 'Đăng xuất',
               onPressed: _logout,
               icon: const Icon(Icons.logout),
             ),
         ],
       ),
-      floatingActionButton: kDebugMode && session.isAuthenticated
-          ? Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                FloatingActionButton.extended(
-                  heroTag: 'manual-fallback-device',
-                  onPressed: _showManualAddDialog,
-                  icon: const Icon(Icons.add),
-                  label: const Text('Them fallback'),
-                ),
-                const SizedBox(height: 12),
-                FloatingActionButton.extended(
-                  heroTag: 'scan-fallback-device',
-                  onPressed: _scanAndAdd,
-                  icon: const Icon(Icons.qr_code_scanner),
-                  label: Text(_supportsQrScan ? 'Quet QR' : 'Khong co QR'),
-                ),
-              ],
-            )
-          : null,
       body: session.isAuthenticated
           ? _AuthenticatedBody(
               query: _query,
@@ -434,27 +296,33 @@ class _LoginBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 460),
-        child: ListView(
-          padding: const EdgeInsets.all(24),
-          shrinkWrap: true,
-          children: [
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: _LoginFormContent(
-                  phoneCtrl: phoneCtrl,
-                  passwordCtrl: passwordCtrl,
-                  isAuthenticating: isAuthenticating,
-                  errorMessage: errorMessage,
-                  onLogin: onLogin,
-                  onRegister: onRegister,
+    final layout = AppLayout.of(context);
+    final isCompact = layout == AppLayoutSize.compact;
+    final maxWidth = layout == AppLayoutSize.expanded ? 560.0 : 460.0;
+
+    return SafeArea(
+      child: Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: maxWidth),
+          child: ListView(
+            padding: EdgeInsets.all(isCompact ? 16 : 24),
+            shrinkWrap: true,
+            children: [
+              Card(
+                child: Padding(
+                  padding: EdgeInsets.all(isCompact ? 16 : 20),
+                  child: _LoginFormContent(
+                    phoneCtrl: phoneCtrl,
+                    passwordCtrl: passwordCtrl,
+                    isAuthenticating: isAuthenticating,
+                    errorMessage: errorMessage,
+                    onLogin: onLogin,
+                    onRegister: onRegister,
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -486,6 +354,16 @@ class _AuthenticatedBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final layout = AppLayout.of(context);
+    final isCompact = layout == AppLayoutSize.compact;
+    final contentMaxWidth = AppLayout.maxContentWidth(context);
+    final pagePadding = AppLayout.pagePadding(
+      context,
+      compact: 12,
+      medium: 20,
+      expanded: 24,
+      bottom: layout == AppLayoutSize.expanded ? 28 : 24,
+    );
     final devices = deviceProvider.devices
         .where((device) {
           if (query.isEmpty) return true;
@@ -504,14 +382,17 @@ class _AuthenticatedBody extends StatelessWidget {
 
     return RefreshIndicator(
       onRefresh: onRefresh,
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: contentMaxWidth),
+          child: ListView(
+        padding: pagePadding,
         children: [
           _SessionCard(
             name: session.currentUser?.name ?? '',
             phoneNumber: session.currentUser?.phoneNumber ?? '',
             dateOfBirth: session.currentUser?.dateOfBirth,
-            userId: session.authenticatedUserId,
             totalDevices: deviceProvider.devices.length,
             currentDevice: deviceProvider.current,
           ),
@@ -538,7 +419,7 @@ class _AuthenticatedBody extends StatelessWidget {
             decoration: const InputDecoration(
               prefixIcon: Icon(Icons.search),
               hintText:
-                  'Tim theo ten thiet bi, ma thiet bi, tai khoan lien ket...',
+                  'Tìm theo tên thiết bị, mã thiết bị, tài khoản liên kết...',
             ),
           ),
           const SizedBox(height: 16),
@@ -547,13 +428,13 @@ class _AuthenticatedBody extends StatelessWidget {
           else if (devices.isEmpty)
             _EmptyState(
               title: deviceProvider.devices.isEmpty
-                  ? 'Ban chua co thiet bi nao'
-                  : 'Khong co thiet bi phu hop',
+                  ? 'Bạn chưa có thiết bị nào'
+                  : 'Không có thiết bị phù hợp',
               message: deviceProvider.devices.isEmpty
-                  ? 'Ban co the them thiet bi bang ma thiet bi de lien ket thiet bi. Neu ban chi can quyen xem, vui long lien he chu thiet bi de duoc cap quyen nguoi xem.'
-                  : 'Thu doi bo loc tim kiem hoac lam moi danh sach thiet bi.',
+                  ? 'Bạn có thể thêm thiết bị bằng mã thiết bị để liên kết thiết bị. Nếu bạn chỉ cần quyền xem, vui lòng liên hệ chủ thiết bị để được cấp quyền người xem.'
+                  : 'Hãy thử đổi bộ lọc tìm kiếm hoặc làm mới danh sách thiết bị.',
               actionLabel: deviceProvider.devices.isEmpty
-                  ? 'Them thiet bi bang ma thiet bi'
+                  ? 'Thêm thiết bị bằng mã thiết bị'
                   : null,
               onAction: deviceProvider.devices.isEmpty ? onLinkDevice : null,
               secondaryActionLabel: deviceProvider.devices.isEmpty
@@ -584,6 +465,8 @@ class _AuthenticatedBody extends StatelessWidget {
               ),
             ),
         ],
+          ),
+        ),
       ),
     );
   }
@@ -594,7 +477,6 @@ class _SessionCard extends StatelessWidget {
     required this.name,
     required this.phoneNumber,
     required this.dateOfBirth,
-    required this.userId,
     required this.totalDevices,
     required this.currentDevice,
   });
@@ -602,48 +484,43 @@ class _SessionCard extends StatelessWidget {
   final String name;
   final String phoneNumber;
   final String? dateOfBirth;
-  final String userId;
   final int totalDevices;
   final Device? currentDevice;
 
   @override
   Widget build(BuildContext context) {
+    final isCompact = MediaQuery.sizeOf(context).width < 420;
+
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(isCompact ? 14 : 16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Thong tin tai khoan',
+              'Thông tin tài khoản',
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 8),
-            Text('Ten: ${name.trim().isEmpty ? 'Chua cap nhat' : name}'),
+            Text('Tên: ${name.trim().isEmpty ? 'Chưa cập nhật' : name}'),
             Text(
-              'SDT: ${phoneNumber.trim().isEmpty ? 'Chua cap nhat' : phoneNumber}',
+              'SĐT: ${phoneNumber.trim().isEmpty ? 'Chưa cập nhật' : phoneNumber}',
             ),
             Text(
-              'Ngay sinh: ${_formatDateOfBirth(dateOfBirth) ?? 'Chua cap nhat'}',
+              'Ngày sinh: ${_formatDateOfBirth(dateOfBirth) ?? 'Chưa cập nhật'}',
             ),
             Text(
               currentDevice == null
-                  ? 'Quyen tren thiet bi hien tai: Chua chon thiet bi'
-                  : 'Quyen tren thiet bi hien tai: ${deviceAccessRoleLabel(currentDevice!.normalizedLinkRole)}',
+                  ? 'Quyền trên thiết bị hiện tại: Chưa chọn thiết bị'
+                  : 'Quyền trên thiết bị hiện tại: ${deviceAccessRoleLabel(currentDevice!.normalizedLinkRole)}',
             ),
-            Text('So thiet bi da lien ket: $totalDevices'),
+            Text('Số thiết bị đã liên kết: $totalDevices'),
             const SizedBox(height: 8),
             Text(
               currentDevice == null
-                  ? 'Chua chon thiet bi nao.'
-                  : 'Dang theo doi: ${currentDevice!.name} (${currentDevice!.resolvedDeviceId})',
+                  ? 'Chưa chọn thiết bị nào.'
+                  : 'Đang theo dõi: ${currentDevice!.name} (${currentDevice!.resolvedDeviceId})',
             ),
-            const SizedBox(height: 8),
-            if (kDebugMode && userId.isNotEmpty)
-              Text(
-                'Ma user noi bo: $userId',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
           ],
         ),
       ),
@@ -666,6 +543,7 @@ class _DeviceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isCompact = MediaQuery.sizeOf(context).width < 420;
     final theme = Theme.of(context);
     final viewers = device.linkedUsers
         .where((user) => user.isViewerLink)
@@ -674,7 +552,7 @@ class _DeviceCard extends StatelessWidget {
 
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(isCompact ? 14 : 16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -695,38 +573,29 @@ class _DeviceCard extends StatelessWidget {
                     children: [
                       Text(device.name, style: theme.textTheme.titleMedium),
                       const SizedBox(height: 4),
-                      Text('Ma thiet bi: ${device.resolvedDeviceId}'),
+                      Text('Mã thiết bị: ${device.resolvedDeviceId}'),
                       const SizedBox(height: 6),
-                      Chip(label: Text('Quyen tren thiet bi nay: $roleLabel')),
+                      Chip(label: Text('Quyền trên thiết bị này: $roleLabel')),
                     ],
                   ),
                 ),
                 if (isCurrent)
                   Chip(
                     avatar: const Icon(Icons.check, size: 18),
-                    label: const Text('Dang theo doi'),
+                    label: const Text('Đang theo dõi'),
                   ),
               ],
             ),
-            if (kDebugMode && device.isLocalOnly) ...[
-              const SizedBox(height: 12),
-              _InlineBanner(
-                color: theme.colorScheme.primaryContainer,
-                textColor: theme.colorScheme.onPrimaryContainer,
-                message:
-                    'Thiet bi nay dang duoc giu tam cho qua trinh thu nghiem, khong phai thiet bi lien ket chinh tu he thong.',
-              ),
-            ],
             const SizedBox(height: 12),
             if (device.isOwnerLink) ...[
               Text(
-                'Nguoi xem dang duoc chia se',
+                'Người xem đang được chia sẻ',
                 style: theme.textTheme.titleSmall,
               ),
               const SizedBox(height: 8),
               if (viewers.isEmpty)
                 Text(
-                  'Chua co nguoi xem nao duoc them vao thiet bi nay.',
+                  'Chưa có người xem nào được thêm vào thiết bị này.',
                   style: theme.textTheme.bodySmall,
                 )
               else
@@ -740,16 +609,17 @@ class _DeviceCard extends StatelessWidget {
               const SizedBox(height: 12),
             ] else
               Text(
-                'Tai khoan nay chi co quyen xem du lieu va canh bao cua device nay.',
+                'Tài khoản này chỉ có quyền xem dữ liệu và cảnh báo của thiết bị này.',
                 style: theme.textTheme.bodySmall,
               ),
-            Row(
+            Flex(
+              direction: Axis.horizontal,
               children: [
                 Expanded(
                   child: FilledButton.icon(
                     onPressed: onSelect,
                     icon: const Icon(Icons.monitor_heart_outlined),
-                    label: const Text('Theo doi device nay'),
+                    label: const Text('Theo dõi thiết bị này'),
                   ),
                 ),
                 if (device.isOwnerLink) ...[
@@ -760,7 +630,7 @@ class _DeviceCard extends StatelessWidget {
                         onManageViewers();
                       },
                       icon: const Icon(Icons.group_outlined),
-                      label: const Text('Quan ly viewer'),
+                      label: const Text('Quản lý người xem'),
                     ),
                   ),
                 ],
@@ -779,7 +649,7 @@ String _linkedUserLabel(DeviceLinkedUser user) {
   final phoneNumber = user.phoneNumber?.trim() ?? '';
 
   if (linkRole.isNotEmpty) {
-    segments.add('Quyen tren thiet bi nay: ${deviceAccessRoleLabel(linkRole)}');
+    segments.add('Quyền trên thiết bị này: ${deviceAccessRoleLabel(linkRole)}');
   }
   if (phoneNumber.isNotEmpty) {
     segments.add(phoneNumber);
@@ -925,12 +795,12 @@ class _LoginFormContentState extends State<_LoginFormContent> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Dang nhap de tai danh sach thiet bi da lien ket',
+              'Đăng nhập để tải danh sách thiết bị đã liên kết',
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 8),
             Text(
-              'Sau khi dang nhap, app se goi /api/v1/auth/me va /api/v1/me/devices de lay session user va thiet bi.',
+              'Sau khi đăng nhập, hệ thống sẽ tải thông tin tài khoản và danh sách thiết bị đã liên kết của bạn.',
               style: Theme.of(context).textTheme.bodyMedium,
             ),
             const SizedBox(height: 20),
@@ -940,7 +810,7 @@ class _LoginFormContentState extends State<_LoginFormContent> {
               autofocus: true,
               keyboardType: TextInputType.phone,
               autofillHints: const <String>[AutofillHints.telephoneNumber],
-              decoration: const InputDecoration(labelText: 'So dien thoai'),
+              decoration: const InputDecoration(labelText: 'Số điện thoại'),
               validator: AppValidators.validatePhoneNumber,
             ),
             const SizedBox(height: 12),
@@ -950,9 +820,9 @@ class _LoginFormContentState extends State<_LoginFormContent> {
               obscureText: _obscurePassword,
               autofillHints: const <String>[AutofillHints.password],
               decoration: InputDecoration(
-                labelText: 'Mat khau',
+                labelText: 'Mật khẩu',
                 suffixIcon: IconButton(
-                  tooltip: _obscurePassword ? 'Hien mat khau' : 'An mat khau',
+                  tooltip: _obscurePassword ? 'Hiện mật khẩu' : 'Ẩn mật khẩu',
                   onPressed: () {
                     setState(() {
                       _obscurePassword = !_obscurePassword;
@@ -981,7 +851,9 @@ class _LoginFormContentState extends State<_LoginFormContent> {
               ),
             ],
             const SizedBox(height: 20),
-            FilledButton.icon(
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
               onPressed: widget.isAuthenticating ? null : _submit,
               icon: widget.isAuthenticating
                   ? const SizedBox(
@@ -991,7 +863,8 @@ class _LoginFormContentState extends State<_LoginFormContent> {
                     )
                   : const Icon(Icons.login),
               label: Text(
-                widget.isAuthenticating ? 'Dang dang nhap...' : 'Dang nhap',
+                widget.isAuthenticating ? 'Đang đăng nhập...' : 'Đăng nhập',
+              ),
               ),
             ),
             const SizedBox(height: 12),
@@ -999,16 +872,9 @@ class _LoginFormContentState extends State<_LoginFormContent> {
               alignment: Alignment.centerLeft,
               child: TextButton(
                 onPressed: widget.isAuthenticating ? null : widget.onRegister,
-                child: const Text('Chua co tai khoan? Dang ky'),
+                child: const Text('Chưa có tài khoản? Đăng ký'),
               ),
             ),
-            if (kDebugMode) ...[
-              const SizedBox(height: 12),
-              Text(
-                'Che do debug van cho phep them nhanh thiet bi thu nghiem neu tai khoan chua co thiet bi lien ket.',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ],
           ],
         ),
       ),

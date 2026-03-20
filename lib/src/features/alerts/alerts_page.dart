@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'package:eldercare_app/src/core/app_layout.dart';
 import 'package:eldercare_app/src/core/device_access_labels.dart';
 import 'package:eldercare_app/src/domain/models/alert_item.dart';
 import 'package:eldercare_app/src/domain/models/device.dart';
@@ -49,15 +50,25 @@ class _AlertsPageState extends State<AlertsPage> {
     final provider = context.watch<AlertsProvider>();
     final deviceProvider = context.watch<DeviceProvider>();
     final currentDeviceId = deviceProvider.current?.resolvedDeviceId;
+    final layout = AppLayout.of(context);
+    final isCompact = layout == AppLayoutSize.compact;
+    final contentMaxWidth = AppLayout.maxContentWidth(context);
+    final pagePadding = AppLayout.pagePadding(
+      context,
+      compact: 12,
+      medium: 20,
+      expanded: 24,
+      bottom: 20,
+    );
     _syncAlertScope(currentDeviceId, provider);
     final visibleItems = provider.visibleItems;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Canh bao'),
+        title: const Text('Cảnh báo'),
         actions: [
           IconButton(
-            tooltip: 'Lam moi',
+            tooltip: 'Làm mới',
             onPressed: provider.isLoading
                 ? null
                 : () => context.read<AlertsProvider>().loadAlerts(),
@@ -67,25 +78,31 @@ class _AlertsPageState extends State<AlertsPage> {
       ),
       body: RefreshIndicator(
         onRefresh: () => context.read<AlertsProvider>().loadAlerts(),
-        child: ListView(
-          padding: const EdgeInsets.all(16),
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: contentMaxWidth),
+            child: ListView(
+          padding: pagePadding,
           children: [
             _SummaryCard(activeCount: provider.activeCount),
             const SizedBox(height: 12),
-            Row(
+            Flex(
+              direction: Axis.horizontal,
               children: [
                 Expanded(
                   child: DropdownButtonFormField<AlertSeverityFilter>(
+                    isExpanded: true,
                     initialValue: provider.severityFilter,
-                    decoration: const InputDecoration(labelText: 'Severity'),
+                    decoration: const InputDecoration(labelText: 'Mức độ'),
                     items: const [
                       DropdownMenuItem(
                         value: AlertSeverityFilter.all,
-                        child: Text('Tat ca'),
+                        child: Text('Tất cả'),
                       ),
                       DropdownMenuItem(
                         value: AlertSeverityFilter.highOnly,
-                        child: Text('High/Critical'),
+                        child: Text('Cao và khẩn cấp'),
                       ),
                     ],
                     onChanged: (value) {
@@ -98,20 +115,21 @@ class _AlertsPageState extends State<AlertsPage> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: DropdownButtonFormField<AlertAckFilter>(
+                    isExpanded: true,
                     initialValue: provider.ackFilter,
-                    decoration: const InputDecoration(labelText: 'Trang thai'),
+                    decoration: const InputDecoration(labelText: 'Trạng thái'),
                     items: const [
                       DropdownMenuItem(
                         value: AlertAckFilter.activeOnly,
-                        child: Text('Chua ack'),
+                        child: Text('Chưa xử lý'),
                       ),
                       DropdownMenuItem(
                         value: AlertAckFilter.acknowledgedOnly,
-                        child: Text('Da ack'),
+                        child: Text('Đã xử lý'),
                       ),
                       DropdownMenuItem(
                         value: AlertAckFilter.all,
-                        child: Text('Tat ca'),
+                        child: Text('Tất cả'),
                       ),
                     ],
                     onChanged: (value) {
@@ -133,7 +151,7 @@ class _AlertsPageState extends State<AlertsPage> {
             ] else if ((currentDeviceId ?? '').isEmpty) ...[
               const SizedBox(height: 12),
               const _Banner(
-                message: 'Chua co thiet bi dang theo doi de tai canh bao.',
+                message: 'Chưa có thiết bị đang theo dõi để tải cảnh báo.',
                 isError: false,
               ),
             ],
@@ -171,6 +189,8 @@ class _AlertsPageState extends State<AlertsPage> {
                 );
               }),
           ],
+            ),
+          ),
         ),
       ),
     );
@@ -194,8 +214,8 @@ class _SummaryCard extends StatelessWidget {
             Expanded(
               child: Text(
                 activeCount == 0
-                    ? 'Khong co canh bao chua ack'
-                    : '$activeCount canh bao chua ack',
+                    ? 'Không có cảnh báo chưa xử lý'
+                    : '$activeCount cảnh báo chưa xử lý',
                 style: Theme.of(context).textTheme.titleMedium,
               ),
             ),
@@ -225,6 +245,7 @@ class _AlertCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isCompact = MediaQuery.sizeOf(context).width < 420;
     final scheme = Theme.of(context).colorScheme;
     final severity = item.severity.toUpperCase();
     final bannerColor = item.isHighSeverity
@@ -236,23 +257,26 @@ class _AlertCard extends StatelessWidget {
 
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(isCompact ? 14 : 16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 Chip(label: Text(severity)),
-                const SizedBox(width: 8),
                 if (item.acknowledged)
                   const Chip(
                     avatar: Icon(Icons.check, size: 18),
-                    label: Text('Da ack'),
+                    label: Text('Đã xử lý'),
                   ),
                 if (linkedDevice != null) ...[
-                  const SizedBox(width: 8),
                   Chip(
-                    label: Text(deviceAccessRoleLabel(linkedDevice!.normalizedLinkRole)),
+                    label: Text(
+                      deviceAccessRoleLabel(linkedDevice!.normalizedLinkRole),
+                    ),
                   ),
                 ],
               ],
@@ -285,21 +309,22 @@ class _AlertCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 10),
-            Text('Luc tao: ${item.createdAt.toLocal()}'),
-            if (item.deviceId != null) Text('device_id: ${item.deviceId}'),
+            Text('Lúc tạo: ${item.createdAt.toLocal()}'),
+            if (item.deviceId != null) Text('Mã thiết bị: ${item.deviceId}'),
             if (linkedDevice != null) ...[
               const SizedBox(height: 4),
-              Text('Device trong app: ${linkedDevice!.name}'),
+              Text('Thiết bị trong ứng dụng: ${linkedDevice!.name}'),
             ],
             if (linkedDevice == null && item.deviceId != null) ...[
               const SizedBox(height: 4),
               const Text(
-                'Device nay chua co trong danh sach /api/v1/me/devices cua ban.',
+                'Thiết bị này hiện không có trong danh sách thiết bị được cấp quyền.',
               ),
             ],
             const SizedBox(height: 12),
             if (showAcknowledgeAction || onOpenDevice != null)
-              Row(
+              Flex(
+                direction: Axis.horizontal,
                 children: [
                   if (showAcknowledgeAction)
                     Expanded(
@@ -307,7 +332,7 @@ class _AlertCard extends StatelessWidget {
                         onPressed: onAcknowledge,
                         icon: const Icon(Icons.done_all),
                         label: Text(
-                          item.acknowledged ? 'Da acknowledge' : 'Acknowledge',
+                          item.acknowledged ? 'Đã xử lý' : 'Đánh dấu đã xử lý',
                         ),
                       ),
                     ),
@@ -318,7 +343,7 @@ class _AlertCard extends StatelessWidget {
                       child: OutlinedButton.icon(
                         onPressed: onOpenDevice,
                         icon: const Icon(Icons.monitor_heart_outlined),
-                        label: const Text('Mo device'),
+                        label: const Text('Mở thiết bị'),
                       ),
                     ),
                 ],
@@ -328,7 +353,7 @@ class _AlertCard extends StatelessWidget {
                 linkedDevice!.isViewerLink) ...[
               const SizedBox(height: 8),
               Text(
-                'Ban dang o che do read-only tren thiet bi nay. Chi chu thiet bi moi co the acknowledge canh bao.',
+                'Bạn đang ở chế độ chỉ xem trên thiết bị này. Chỉ chủ thiết bị mới có thể đánh dấu đã xử lý cảnh báo.',
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ],
@@ -339,7 +364,7 @@ class _AlertCard extends StatelessWidget {
                 child: TextButton.icon(
                   onPressed: onManageDevice,
                   icon: const Icon(Icons.group_outlined),
-                  label: const Text('Quan ly viewer'),
+                  label: const Text('Quản lý người xem'),
                 ),
               ),
             ],
@@ -393,7 +418,7 @@ class _EmptyAlertsState extends StatelessWidget {
             const Icon(Icons.notifications_off_outlined, size: 48),
             const SizedBox(height: 12),
             Text(
-              'Khong co canh bao phu hop bo loc hien tai.',
+              'Không có cảnh báo phù hợp với bộ lọc hiện tại.',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyMedium,
             ),

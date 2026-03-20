@@ -1,16 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+
 import 'package:eldercare_app/src/domain/models/vital_point.dart';
 
 class HealthCard extends StatelessWidget {
-  const HealthCard({
-    super.key,
-    this.point, // giờ cho phép null hoàn toàn
-  });
+  const HealthCard({super.key, this.point});
 
   final VitalPoint? point;
 
-  Color _a(Color c, double alpha) => c.withValues(alpha: alpha);
+  Color _alpha(Color color, double alpha) => color.withValues(alpha: alpha);
 
   Widget _prettyItem({
     required BuildContext context,
@@ -21,8 +19,7 @@ class HealthCard extends StatelessWidget {
     required Color accent,
   }) {
     final scheme = Theme.of(context).colorScheme;
-    final t = Theme.of(context).textTheme;
-
+    final textTheme = Theme.of(context).textTheme;
     final isEmpty = value.trim().isEmpty || value.trim() == '--';
 
     return Expanded(
@@ -34,7 +31,7 @@ class HealthCard extends StatelessWidget {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [_a(accent, 0.14), _a(accent, 0.06)],
+            colors: [_alpha(accent, 0.14), _alpha(accent, 0.06)],
           ),
         ),
         child: Row(
@@ -43,7 +40,7 @@ class HealthCard extends StatelessWidget {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: _a(accent, 0.22),
+                color: _alpha(accent, 0.22),
                 borderRadius: BorderRadius.circular(14),
               ),
               child: Icon(icon, color: accent),
@@ -56,7 +53,7 @@ class HealthCard extends StatelessWidget {
                 children: [
                   Text(
                     label,
-                    style: t.labelLarge?.copyWith(
+                    style: textTheme.labelLarge?.copyWith(
                       fontWeight: FontWeight.w700,
                       color: scheme.onSurface,
                     ),
@@ -67,7 +64,7 @@ class HealthCard extends StatelessWidget {
                     children: [
                       Text(
                         isEmpty ? '--' : value,
-                        style: t.headlineSmall?.copyWith(
+                        style: textTheme.headlineSmall?.copyWith(
                           fontWeight: FontWeight.w800,
                           letterSpacing: -0.5,
                         ),
@@ -77,7 +74,7 @@ class HealthCard extends StatelessWidget {
                         padding: const EdgeInsets.only(bottom: 3),
                         child: Text(
                           unit,
-                          style: t.labelMedium?.copyWith(
+                          style: textTheme.labelMedium?.copyWith(
                             color: scheme.onSurfaceVariant,
                             fontWeight: FontWeight.w600,
                           ),
@@ -96,15 +93,15 @@ class HealthCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final p = point;
-    final time = p?.time;
+    final current = point;
+    final time = current?.time;
     final scheme = Theme.of(context).colorScheme;
-    final t = Theme.of(context).textTheme;
+    final textTheme = Theme.of(context).textTheme;
 
-    final hr = p?.hr?.toString() ?? '--';
-    final spo2 = p?.spo2?.toString() ?? '--';
-    final temp = p?.temp == null ? '--' : p!.temp!.toStringAsFixed(1);
-    final rr = p?.rr?.toString() ?? '--';
+    final hr = current?.hr?.toString() ?? '--';
+    final spo2 = current?.spo2?.toString() ?? '--';
+    final temp = current?.temp == null ? '--' : current!.temp!.toStringAsFixed(1);
+    final rr = current?.rr?.toString() ?? '--';
 
     return Card(
       child: Padding(
@@ -129,14 +126,15 @@ class HealthCard extends StatelessWidget {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    'Thông số sức khoẻ',
-                    style: t.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+                    'Thông số sức khỏe',
+                    style: textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 14),
-
             Row(
               children: [
                 _prettyItem(
@@ -150,7 +148,7 @@ class HealthCard extends StatelessWidget {
                 const SizedBox(width: 12),
                 _prettyItem(
                   context: context,
-                  label: 'SpO₂',
+                  label: 'SpO2',
                   value: spo2,
                   unit: '%',
                   icon: Icons.bloodtype_rounded,
@@ -163,9 +161,9 @@ class HealthCard extends StatelessWidget {
               children: [
                 _prettyItem(
                   context: context,
-                  label: 'Temp',
+                  label: 'Nhiệt độ',
                   value: temp,
-                  unit: '°C',
+                  unit: 'do C',
                   icon: Icons.thermostat_rounded,
                   accent: const Color(0xFFFFA726),
                 ),
@@ -180,9 +178,7 @@ class HealthCard extends StatelessWidget {
                 ),
               ],
             ),
-
             const SizedBox(height: 14),
-
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
@@ -194,7 +190,7 @@ class HealthCard extends StatelessWidget {
                 time == null
                     ? 'Chưa có dữ liệu'
                     : 'Cập nhật: ${DateFormat('HH:mm:ss dd/MM').format(time.toLocal())}',
-                style: t.labelMedium?.copyWith(
+                style: textTheme.labelMedium?.copyWith(
                   fontWeight: FontWeight.w600,
                   color: scheme.onSurfaceVariant,
                 ),
@@ -206,4 +202,3 @@ class HealthCard extends StatelessWidget {
     );
   }
 }
-

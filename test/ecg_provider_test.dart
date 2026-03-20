@@ -23,7 +23,10 @@ void main() {
     final result = await provider.requestEcg();
 
     expect(provider.status, AsyncStatus.success);
-    expect(provider.message, 'Da nhan duoc ket qua ECG moi cho device hien tai.');
+    expect(
+      provider.message,
+      'Đã nhận được kết quả ECG mới cho thiết bị hiện tại.',
+    );
     expect(result['ecg_result'], isNotNull);
   });
 
@@ -44,7 +47,7 @@ void main() {
     expect(provider.status, AsyncStatus.empty);
     expect(
       provider.message,
-      'Da gui lenh ECG nhung chua co ket qua moi trong thoi gian cho.',
+      'Đã gửi lệnh ECG nhưng chưa có kết quả mới trong thời gian chờ.',
     );
     expect(result['request_id'], 'req-1');
     expect(result.containsKey('ecg_result'), isFalse);

@@ -3,32 +3,21 @@ import 'package:flutter/foundation.dart';
 import 'package:eldercare_app/src/core/constants.dart';
 import 'package:eldercare_app/src/data/api/api_client.dart';
 import 'package:eldercare_app/src/data/api/health_api_service.dart';
-import 'package:eldercare_app/src/data/local/vitals_cache_storage.dart';
 import 'package:eldercare_app/src/domain/models/metric.dart';
 import 'package:eldercare_app/src/domain/models/vital_point.dart';
 import 'package:eldercare_app/src/state/async_status.dart';
 
 class RealtimeProvider extends ChangeNotifier {
-  factory RealtimeProvider({
-    ApiClient? client,
-    HealthApiService? api,
-    VitalsCacheStorage? cacheStorage,
-  }) {
+  factory RealtimeProvider({ApiClient? client, HealthApiService? api}) {
     final resolvedClient = client ?? ApiClient.fromEnv();
     return RealtimeProvider._(
       api: api ?? HealthApiService(client: resolvedClient),
-      cacheStorage: cacheStorage ?? VitalsCacheStorage(),
     );
   }
 
-  RealtimeProvider._({
-    required HealthApiService api,
-    required VitalsCacheStorage cacheStorage,
-  }) : _api = api,
-       _cacheStorage = cacheStorage;
+  RealtimeProvider._({required HealthApiService api}) : _api = api;
 
   final HealthApiService _api;
-  final VitalsCacheStorage _cacheStorage;
 
   String _sessionIdentity = '';
   bool _isAuthenticated = false;
@@ -40,7 +29,6 @@ class RealtimeProvider extends ChangeNotifier {
   String? error;
   int? lastErrorStatusCode;
   VitalPoint? latest;
-  bool isShowingCachedLatest = false;
 
   final List<VitalPoint> _livePoints = <VitalPoint>[];
   List<VitalPoint> get livePoints => List.unmodifiable(_livePoints);
@@ -61,13 +49,13 @@ class RealtimeProvider extends ChangeNotifier {
 
   String get lastSeenText {
     final t = _lastSeenUtc;
-    if (t == null) return 'Chua co du lieu';
+    if (t == null) return 'Chưa có dữ liệu';
     final diff = DateTime.now().toUtc().difference(t);
 
-    if (diff.inSeconds < 5) return 'Vua xong';
-    if (diff.inSeconds < 60) return '${diff.inSeconds}s truoc';
-    if (diff.inMinutes < 60) return '${diff.inMinutes}p truoc';
-    return '${diff.inHours}h truoc';
+    if (diff.inSeconds < 5) return 'Vừa xong';
+    if (diff.inSeconds < 60) return '${diff.inSeconds} giây trước';
+    if (diff.inMinutes < 60) return '${diff.inMinutes} phút trước';
+    return '${diff.inHours} giờ trước';
   }
 
   bool get hasSessionExpiredError => lastErrorStatusCode == 401;
@@ -114,7 +102,6 @@ class RealtimeProvider extends ChangeNotifier {
         latestStatus = AsyncStatus.empty;
         error = null;
         lastErrorStatusCode = null;
-        isShowingCachedLatest = false;
         _resetSeen();
         notifyListeners();
       }
@@ -128,13 +115,11 @@ class RealtimeProvider extends ChangeNotifier {
       latestStatus = AsyncStatus.empty;
       error = null;
       lastErrorStatusCode = null;
-      isShowingCachedLatest = false;
       _resetSeen();
       notifyListeners();
       return;
     }
 
-    await _restoreCachedLatestIfAvailable();
     await refreshLatest();
   }
 
@@ -148,24 +133,20 @@ class RealtimeProvider extends ChangeNotifier {
       latestStatus = AsyncStatus.empty;
       error = null;
       lastErrorStatusCode = null;
-      isShowingCachedLatest = false;
       _resetSeen();
       notifyListeners();
       return;
     }
 
     deviceId = nextDeviceId;
-
     latest = null;
     _livePoints.clear();
     latestStatus = AsyncStatus.idle;
     error = null;
     lastErrorStatusCode = null;
-    isShowingCachedLatest = false;
     _resetSeen();
     notifyListeners();
 
-    await _restoreCachedLatestIfAvailable();
     await refreshLatest();
   }
 
@@ -175,7 +156,6 @@ class RealtimeProvider extends ChangeNotifier {
       latestStatus = AsyncStatus.empty;
       error = null;
       lastErrorStatusCode = null;
-      isShowingCachedLatest = false;
       _resetSeen();
       notifyListeners();
       return;
@@ -184,9 +164,8 @@ class RealtimeProvider extends ChangeNotifier {
     if (!isAuthenticated) {
       latest = null;
       latestStatus = AsyncStatus.unauthorized;
-      error = 'Phien dang nhap khong hop le hoac da het han';
+      error = 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn';
       lastErrorStatusCode = 401;
-      isShowingCachedLatest = false;
       _resetSeen();
       notifyListeners();
       return;
@@ -197,7 +176,6 @@ class RealtimeProvider extends ChangeNotifier {
         latestStatus = AsyncStatus.loading;
         error = null;
         lastErrorStatusCode = null;
-        isShowingCachedLatest = false;
         notifyListeners();
       }
 
@@ -206,9 +184,7 @@ class RealtimeProvider extends ChangeNotifier {
 
       latest = point;
       latestStatus = AsyncStatus.success;
-      isShowingCachedLatest = false;
       _markSeen(point.time);
-      await _cacheStorage.saveLatest(scopeKey: _scopeKey, point: point);
 
       if (isNew) {
         _appendLivePoint(point);
@@ -217,27 +193,18 @@ class RealtimeProvider extends ChangeNotifier {
       lastErrorStatusCode = e is ApiRequestException ? e.statusCode : null;
       if (lastErrorStatusCode == 401) {
         latestStatus = AsyncStatus.unauthorized;
-        error = 'Phien dang nhap khong hop le hoac da het han';
+        error = 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn';
       } else if (lastErrorStatusCode == 404) {
+        latest = null;
         latestStatus = AsyncStatus.empty;
         error = null;
-        isShowingCachedLatest = false;
+        _resetSeen();
       } else {
-        final cached = await _cacheStorage.loadLatest(scopeKey: _scopeKey);
-        if (cached != null) {
-          latest = cached;
-          latestStatus = AsyncStatus.success;
-          isShowingCachedLatest = true;
-          _markSeen(cached.time);
-          error = _staleMessage(e);
-        } else {
-          latestStatus = AsyncStatus.error;
-          error = _friendlyError(
-            e,
-            fallback: 'Khong tai duoc du lieu moi nhat',
-          );
-          isShowingCachedLatest = false;
-        }
+        latestStatus = AsyncStatus.error;
+        error = _friendlyError(
+          e,
+          fallback: 'Không tải được dữ liệu mới nhất',
+        );
       }
     } finally {
       notifyListeners();
@@ -269,7 +236,6 @@ class RealtimeProvider extends ChangeNotifier {
     error = null;
     lastErrorStatusCode = null;
     latestStatus = AsyncStatus.idle;
-    isShowingCachedLatest = false;
     _livePoints.clear();
     _resetSeen();
   }
@@ -292,42 +258,21 @@ class RealtimeProvider extends ChangeNotifier {
     _lastSeenUtc = null;
   }
 
-  Future<void> _restoreCachedLatestIfAvailable() async {
-    if (!hasDevice) return;
-    final cached = await _cacheStorage.loadLatest(scopeKey: _scopeKey);
-    if (cached == null) return;
-    latest = cached;
-    latestStatus = AsyncStatus.success;
-    isShowingCachedLatest = true;
-    _markSeen(cached.time);
-    notifyListeners();
-  }
-
-  String get _scopeKey =>
-      _cacheStorage.scopeKey(userId: '', deviceId: deviceId);
-
-  String _staleMessage(Object e) {
-    if (e is ApiRequestException && e.isNetworkError) {
-      return 'Dang hien thi du lieu luu tam vi khong ket noi duoc toi server';
-    }
-    return 'Dang hien thi du lieu luu tam gan nhat';
-  }
-
   String _friendlyError(Object e, {required String fallback}) {
     if (e is ApiRequestException) {
       if (e.isNetworkError) {
-        return 'Khong the ket noi den server';
+        return 'Không thể kết nối đến máy chủ';
       }
       if (e.statusCode == 401) {
-        return 'Phien dang nhap khong hop le hoac da het han';
+        return 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn';
       }
       if (e.statusCode == 403) {
-        return 'Tai khoan hien tai khong co quyen truy cap du lieu nay';
+        return 'Tài khoản hiện tại không có quyền xem dữ liệu này';
       }
-      if (e.statusCode == 404) return 'Khong tim thay du lieu tren server';
-      if (e.statusCode == 422) return 'Du lieu gui len chua dung dinh dang';
+      if (e.statusCode == 404) return 'Không tìm thấy dữ liệu trên máy chủ';
+      if (e.statusCode == 422) return 'Dữ liệu gửi lên chưa đúng định dạng';
       if (e.statusCode == 429) {
-        return 'Dang bi gioi han request, vui long thu lai sau';
+        return 'Hệ thống đang giới hạn tần suất, vui lòng thử lại sau';
       }
       return e.message;
     }

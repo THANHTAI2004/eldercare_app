@@ -12,8 +12,6 @@ val newBuildDir: Directory =
 rootProject.layout.buildDirectory.value(newBuildDir)
 
 subprojects {
-    // Keep shared build output for local modules, but avoid redirecting
-    // pub-cache plugins across Windows drive roots (for example C: -> D:).
     val projectDriveRoot = project.projectDir.toPath().root?.toString()
     val rootProjectDriveRoot = rootProject.projectDir.toPath().root?.toString()
     if (projectDriveRoot == rootProjectDriveRoot) {

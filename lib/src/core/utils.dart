@@ -1,49 +1,47 @@
 import 'dart:convert';
 
-double? toDouble(dynamic v) {
-  if (v == null) return null;
-  if (v is num) return v.toDouble();
-  if (v is String) return double.tryParse(v);
+double? toDouble(dynamic value) {
+  if (value == null) return null;
+  if (value is num) return value.toDouble();
+  if (value is String) return double.tryParse(value);
   return null;
 }
 
-int? toInt(dynamic v) {
-  if (v == null) return null;
-  if (v is int) return v;
-  if (v is num) return v.toInt();
-  if (v is String) return int.tryParse(v);
+int? toInt(dynamic value) {
+  if (value == null) return null;
+  if (value is int) return value;
+  if (value is num) return value.toInt();
+  if (value is String) return int.tryParse(value);
   return null;
 }
 
-DateTime? parseTime(dynamic v) {
-  if (v == null) return null;
+DateTime? parseTime(dynamic value) {
+  if (value == null) return null;
 
-  // ISO string
-  if (v is String) {
-    final dt = DateTime.tryParse(v);
-    if (dt != null) return dt.toUtc();
-    // maybe numeric string
-    final n = int.tryParse(v);
-    if (n != null) return DateTime.fromMillisecondsSinceEpoch(n * 1000, isUtc: true);
+  if (value is String) {
+    final parsed = DateTime.tryParse(value);
+    if (parsed != null) return parsed.toUtc();
+
+    final number = int.tryParse(value);
+    if (number != null) {
+      return DateTime.fromMillisecondsSinceEpoch(number * 1000, isUtc: true);
+    }
     return null;
   }
 
-  // epoch seconds or ms
-  if (v is num) {
-    final n = v.toInt();
-    // nếu quá lớn -> ms
-    if (n > 2000000000000) {
-      return DateTime.fromMillisecondsSinceEpoch(n, isUtc: true);
+  if (value is num) {
+    final number = value.toInt();
+    if (number > 2000000000000) {
+      return DateTime.fromMillisecondsSinceEpoch(number, isUtc: true);
     }
-    // seconds
-    return DateTime.fromMillisecondsSinceEpoch(n * 1000, isUtc: true);
+    return DateTime.fromMillisecondsSinceEpoch(number * 1000, isUtc: true);
   }
 
   return null;
 }
 
-Map<String, dynamic> safeJsonMap(String s) {
-  final x = jsonDecode(s);
-  if (x is Map<String, dynamic>) return x;
+Map<String, dynamic> safeJsonMap(String input) {
+  final decoded = jsonDecode(input);
+  if (decoded is Map<String, dynamic>) return decoded;
   return <String, dynamic>{};
 }

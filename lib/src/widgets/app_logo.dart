@@ -36,10 +36,11 @@ class AppLogo extends StatelessWidget {
               size: size * 0.55,
               color: scheme.onPrimary,
             ),
-            // đường ECG nhỏ (nhìn “medical” hơn)
             Positioned.fill(
               child: CustomPaint(
-                painter: _EcgPainter(color: scheme.onPrimary.withValues(alpha: 0.92)),
+                painter: _EcgPainter(
+                  color: scheme.onPrimary.withValues(alpha: 0.92),
+                ),
               ),
             ),
           ],
@@ -51,30 +52,31 @@ class AppLogo extends StatelessWidget {
 
 class _EcgPainter extends CustomPainter {
   _EcgPainter({required this.color});
+
   final Color color;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final p = Paint()
+    final paint = Paint()
       ..color = color
       ..style = PaintingStyle.stroke
       ..strokeWidth = size.width * 0.06
       ..strokeCap = StrokeCap.round;
 
-    final w = size.width;
-    final h = size.height;
-    final y = h * 0.70;
+    final width = size.width;
+    final height = size.height;
+    final baseline = height * 0.70;
 
     final path = Path()
-      ..moveTo(w * 0.18, y)
-      ..lineTo(w * 0.34, y)
-      ..lineTo(w * 0.40, h * 0.56)
-      ..lineTo(w * 0.46, h * 0.84)
-      ..lineTo(w * 0.54, h * 0.48)
-      ..lineTo(w * 0.62, y)
-      ..lineTo(w * 0.82, y);
+      ..moveTo(width * 0.18, baseline)
+      ..lineTo(width * 0.34, baseline)
+      ..lineTo(width * 0.40, height * 0.56)
+      ..lineTo(width * 0.46, height * 0.84)
+      ..lineTo(width * 0.54, height * 0.48)
+      ..lineTo(width * 0.62, baseline)
+      ..lineTo(width * 0.82, baseline);
 
-    canvas.drawPath(path, p);
+    canvas.drawPath(path, paint);
   }
 
   @override

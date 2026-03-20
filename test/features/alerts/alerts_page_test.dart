@@ -82,10 +82,10 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Acknowledge'), findsNothing);
+    expect(find.text('Đánh dấu đã xử lý'), findsNothing);
     expect(
       find.text(
-        'Ban dang o che do read-only tren thiet bi nay. Chi chu thiet bi moi co the acknowledge canh bao.',
+        'Bạn đang ở chế độ chỉ xem trên thiết bị này. Chỉ chủ thiết bị mới có thể đánh dấu đã xử lý cảnh báo.',
       ),
       findsOneWidget,
     );

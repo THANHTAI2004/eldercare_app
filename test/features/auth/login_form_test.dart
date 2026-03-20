@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:eldercare_app/src/data/api/api_client.dart';
+import 'package:eldercare_app/src/data/local/auth_storage.dart';
 import 'package:eldercare_app/src/domain/models/auth_tokens.dart';
 import 'package:eldercare_app/src/features/devices/device_page.dart';
 import 'package:eldercare_app/src/state/device_provider.dart';
@@ -38,8 +40,8 @@ void main() {
     await tester.tap(loginButtonIcon);
     await tester.pumpAndSettle();
 
-    expect(find.text('Nhap so dien thoai'), findsOneWidget);
-    expect(find.text('Nhap mat khau'), findsOneWidget);
+    expect(find.text('Nhập số điện thoại'), findsOneWidget);
+    expect(find.text('Nhập mật khẩu'), findsOneWidget);
   });
 
   testWidgets('login shows invalid phone error for short number', (
@@ -61,11 +63,11 @@ void main() {
     await tester.pump();
 
     await tester.enterText(
-      find.widgetWithText(TextFormField, 'So dien thoai'),
+      find.widgetWithText(TextFormField, 'Số điện thoại'),
       '123',
     );
     await tester.enterText(
-      find.widgetWithText(TextFormField, 'Mat khau'),
+      find.widgetWithText(TextFormField, 'Mật khẩu'),
       'MatKhau123',
     );
     final loginButtonIcon = find.byIcon(Icons.login);
@@ -73,7 +75,7 @@ void main() {
     await tester.tap(loginButtonIcon);
     await tester.pumpAndSettle();
 
-    expect(find.text('So dien thoai khong hop le'), findsOneWidget);
+    expect(find.text('Số điện thoại không hợp lệ'), findsOneWidget);
   });
 
   testWidgets('login with valid credentials authenticates session', (
@@ -106,11 +108,11 @@ void main() {
     await tester.pump();
 
     await tester.enterText(
-      find.widgetWithText(TextFormField, 'So dien thoai'),
+      find.widgetWithText(TextFormField, 'Số điện thoại'),
       '0987654321',
     );
     await tester.enterText(
-      find.widgetWithText(TextFormField, 'Mat khau'),
+      find.widgetWithText(TextFormField, 'Mật khẩu'),
       'MatKhau123',
     );
     final loginButtonIcon = find.byIcon(Icons.login);
@@ -120,5 +122,55 @@ void main() {
 
     expect(session.isAuthenticated, isTrue);
     expect(session.authenticatedUserId, 'user-001');
+  });
+
+  testWidgets('login strips spaces inside phone number before submit', (
+    tester,
+  ) async {
+    final authApi = FakeAuthApiService(
+      client: ApiClient(baseUrl: 'https://example.com', timeoutMs: 1000),
+      storage: AuthStorage(secureStore: MemorySecureStore()),
+      loginTokens: const AuthTokens(
+        accessToken: 'access-123',
+        refreshToken: 'refresh-456',
+      ),
+      meResponse: const <String, dynamic>{
+        'user_id': 'user-001',
+        'name': 'Nguyen Van A',
+        'phone_number': '0987654321',
+        'role': 'member',
+      },
+    );
+    final session = buildSessionProvider(authApi: authApi);
+    final deviceProvider = DeviceProvider(
+      api: FakeDeviceApiService(devices: const []),
+    );
+    await deviceProvider.load();
+
+    await tester.pumpWidget(
+      AuthTestShell(
+        session: session,
+        deviceProvider: deviceProvider,
+        child: const DevicePage(),
+      ),
+    );
+    await tester.pump();
+
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Sá»‘ Ä‘iá»‡n thoáº¡i'),
+      '0987 654 321',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Máº­t kháº©u'),
+      'MatKhau123',
+    );
+    final loginButtonIcon = find.byIcon(Icons.login);
+    await tester.ensureVisible(loginButtonIcon);
+    await tester.tap(loginButtonIcon);
+    await tester.pumpAndSettle();
+
+    expect(session.isAuthenticated, isTrue);
+    expect(authApi.lastLoginPhoneNumber, '0987654321');
+    expect(authApi.lastLoginPassword, 'MatKhau123');
   });
 }

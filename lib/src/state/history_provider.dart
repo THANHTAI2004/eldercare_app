@@ -2,32 +2,21 @@ import 'package:flutter/foundation.dart';
 
 import 'package:eldercare_app/src/data/api/api_client.dart';
 import 'package:eldercare_app/src/data/api/health_api_service.dart';
-import 'package:eldercare_app/src/data/local/vitals_cache_storage.dart';
 import 'package:eldercare_app/src/domain/models/metric.dart';
 import 'package:eldercare_app/src/domain/models/vital_point.dart';
 import 'package:eldercare_app/src/state/async_status.dart';
 
 class HistoryProvider extends ChangeNotifier {
-  factory HistoryProvider({
-    ApiClient? client,
-    HealthApiService? api,
-    VitalsCacheStorage? cacheStorage,
-  }) {
+  factory HistoryProvider({ApiClient? client, HealthApiService? api}) {
     final resolvedClient = client ?? ApiClient.fromEnv();
     return HistoryProvider._(
       api: api ?? HealthApiService(client: resolvedClient),
-      cacheStorage: cacheStorage ?? VitalsCacheStorage(),
     );
   }
 
-  HistoryProvider._({
-    required HealthApiService api,
-    required VitalsCacheStorage cacheStorage,
-  }) : _api = api,
-       _cacheStorage = cacheStorage;
+  HistoryProvider._({required HealthApiService api}) : _api = api;
 
   final HealthApiService _api;
-  final VitalsCacheStorage _cacheStorage;
 
   String _sessionIdentity = '';
   bool _isAuthenticated = false;
@@ -38,7 +27,6 @@ class HistoryProvider extends ChangeNotifier {
   AsyncStatus status = AsyncStatus.idle;
   String? error;
   int? lastErrorStatusCode;
-  bool isShowingCachedHistory = false;
 
   final List<VitalPoint> _points = <VitalPoint>[];
   List<VitalPoint> get points => List.unmodifiable(_points);
@@ -90,8 +78,6 @@ class HistoryProvider extends ChangeNotifier {
       status = AsyncStatus.idle;
       error = null;
       lastErrorStatusCode = null;
-      isShowingCachedHistory = false;
-      await _restoreCachedHistoryIfAvailable();
     }
 
     if (load) {
@@ -107,9 +93,8 @@ class HistoryProvider extends ChangeNotifier {
     if (!_isAuthenticated) {
       _points.clear();
       status = AsyncStatus.unauthorized;
-      error = 'Phien dang nhap khong hop le hoac da het han';
+      error = 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn';
       lastErrorStatusCode = 401;
-      isShowingCachedHistory = false;
       notifyListeners();
       return;
     }
@@ -119,7 +104,6 @@ class HistoryProvider extends ChangeNotifier {
       status = AsyncStatus.empty;
       error = null;
       lastErrorStatusCode = null;
-      isShowingCachedHistory = false;
       notifyListeners();
       return;
     }
@@ -128,7 +112,6 @@ class HistoryProvider extends ChangeNotifier {
       status = AsyncStatus.loading;
       error = null;
       lastErrorStatusCode = null;
-      isShowingCachedHistory = false;
       notifyListeners();
 
       final loaded = await _api.getHistoryByDevice(
@@ -140,7 +123,6 @@ class HistoryProvider extends ChangeNotifier {
       _points
         ..clear()
         ..addAll(loaded);
-      await _cacheStorage.saveHistory(scopeKey: _scopeKey, points: _points);
 
       final selectedPoints = pointsForLocalDay(selectedDayLocal);
       status = selectedPoints.isEmpty ? AsyncStatus.empty : AsyncStatus.success;
@@ -149,27 +131,13 @@ class HistoryProvider extends ChangeNotifier {
       lastErrorStatusCode = e is ApiRequestException ? e.statusCode : null;
       if (lastErrorStatusCode == 401) {
         status = AsyncStatus.unauthorized;
-        error = 'Phien dang nhap khong hop le hoac da het han';
+        error = 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn';
       } else if (lastErrorStatusCode == 404) {
         status = AsyncStatus.empty;
         error = null;
-        isShowingCachedHistory = false;
       } else {
-        final cached = await _cacheStorage.loadHistory(scopeKey: _scopeKey);
-        if (cached.isNotEmpty) {
-          _points
-            ..clear()
-            ..addAll(cached);
-          isShowingCachedHistory = true;
-          status = pointsForLocalDay(selectedDayLocal).isEmpty
-              ? AsyncStatus.empty
-              : AsyncStatus.success;
-          error = _staleMessage(e);
-        } else {
-          status = AsyncStatus.error;
-          error = _friendlyError(e, fallback: 'Khong tai duoc lich su');
-          isShowingCachedHistory = false;
-        }
+        status = AsyncStatus.error;
+        error = _friendlyError(e, fallback: 'Không tải được lịch sử');
       }
     } finally {
       notifyListeners();
@@ -207,49 +175,24 @@ class HistoryProvider extends ChangeNotifier {
     status = AsyncStatus.idle;
     error = null;
     lastErrorStatusCode = null;
-    isShowingCachedHistory = false;
     _points.clear();
     selectedDayLocal = _todayLocal();
-  }
-
-  Future<void> _restoreCachedHistoryIfAvailable() async {
-    if (deviceId.isEmpty) return;
-    final cached = await _cacheStorage.loadHistory(scopeKey: _scopeKey);
-    if (cached.isEmpty) return;
-    _points
-      ..clear()
-      ..addAll(cached);
-    isShowingCachedHistory = true;
-    status = pointsForLocalDay(selectedDayLocal).isEmpty
-        ? AsyncStatus.empty
-        : AsyncStatus.success;
-    notifyListeners();
-  }
-
-  String get _scopeKey =>
-      _cacheStorage.scopeKey(userId: '', deviceId: deviceId);
-
-  String _staleMessage(Object e) {
-    if (e is ApiRequestException && e.isNetworkError) {
-      return 'Dang hien thi lich su luu tam vi khong ket noi duoc toi server';
-    }
-    return 'Dang hien thi lich su luu tam gan nhat';
   }
 
   String _friendlyError(Object e, {required String fallback}) {
     if (e is ApiRequestException) {
       if (e.isNetworkError) {
-        return 'Khong the ket noi den server';
+        return 'Không thể kết nối đến máy chủ';
       }
       if (e.statusCode == 401) {
-        return 'Phien dang nhap khong hop le hoac da het han';
+        return 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn';
       }
       if (e.statusCode == 403) {
-        return 'Tai khoan hien tai khong co quyen truy cap du lieu nay';
+        return 'Tài khoản hiện tại không có quyền xem dữ liệu này';
       }
-      if (e.statusCode == 404) return 'Khong tim thay du lieu tren server';
+      if (e.statusCode == 404) return 'Không tìm thấy dữ liệu trên máy chủ';
       if (e.statusCode == 429) {
-        return 'Dang bi gioi han request, vui long thu lai sau';
+        return 'Hệ thống đang giới hạn tần suất, vui lòng thử lại sau';
       }
       return e.message;
     }

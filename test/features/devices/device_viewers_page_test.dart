@@ -102,12 +102,12 @@ void main() {
 
     expect(api.getLinkedUsersCalls, 0);
     expect(
-      find.text('Chi chu thiet bi moi co the quan ly nguoi xem cua thiet bi nay.'),
+      find.text('Chỉ chủ thiết bị mới có thể quản lý người xem của thiết bị này.'),
       findsOneWidget,
     );
   });
 
-  testWidgets('owner adds and removes viewer by user_id then reloads', (
+  testWidgets('owner adds and removes viewer by account id then reloads', (
     tester,
   ) async {
     final api = _FakeDeviceApiService(initialUsers: const <DeviceLinkedUser>[]);
@@ -123,7 +123,7 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.enterText(
-      find.widgetWithText(TextFormField, 'user_id'),
+      find.widgetWithText(TextFormField, 'Mã tài khoản'),
       'viewer-001',
     );
     await tester.tap(find.byIcon(Icons.person_add_alt_1));
@@ -165,14 +165,14 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.enterText(
-      find.widgetWithText(TextFormField, 'user_id'),
+      find.widgetWithText(TextFormField, 'Mã tài khoản'),
       'viewer-001',
     );
     await tester.tap(find.byIcon(Icons.person_add_alt_1));
     await tester.pumpAndSettle();
 
     expect(
-      find.text('Du lieu gui len khong dung dinh dang server yeu cau.'),
+      find.text('Dữ liệu gửi lên không đúng định dạng máy chủ yêu cầu.'),
       findsOneWidget,
     );
   });

@@ -74,23 +74,23 @@ class _ClaimDevicePageState extends State<ClaimDevicePage> {
   String _friendlyError(Object e) {
     if (e is ApiRequestException) {
       if (e.statusCode == 404) {
-        return 'Khong tim thay thiet bi voi ma da nhap.';
+        return 'Không tìm thấy thiết bị với mã đã nhập.';
       }
       if (e.statusCode == 409) {
-        return 'Thiet bi nay da co nguoi quan ly.';
+        return 'Thiết bị này đã có người quản lý.';
       }
       if (e.statusCode == 403) {
-        return 'Tai khoan hien tai khong the lien ket thiet bi nay.';
+        return 'Tài khoản hiện tại không thể liên kết thiết bị này.';
       }
       return e.message;
     }
-    return 'Lien ket thiet bi that bai. Vui long thu lai.';
+    return 'Liên kết thiết bị thất bại. Vui lòng thử lại.';
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Lien ket thiet bi')),
+      appBar: AppBar(title: const Text('Liên kết thiết bị')),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 520),
@@ -106,12 +106,12 @@ class _ClaimDevicePageState extends State<ClaimDevicePage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Them thiet bi bang ma thiet bi',
+                          'Thêm thiết bị bằng mã thiết bị',
                           style: Theme.of(context).textTheme.titleLarge,
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'Nhap ma thiet bi de lien ket thiet bi vao tai khoan cua ban. Neu thanh cong, app se dong bo lai danh sach /api/v1/me/devices.',
+                          'Nhập mã thiết bị để liên kết thiết bị vào tài khoản của bạn. Sau khi liên kết thành công, danh sách thiết bị sẽ được cập nhật lại.',
                           style: Theme.of(context).textTheme.bodyMedium,
                         ),
                         const SizedBox(height: 20),
@@ -119,11 +119,11 @@ class _ClaimDevicePageState extends State<ClaimDevicePage> {
                           controller: _deviceIdCtrl,
                           enabled: !_isSubmitting,
                           decoration: const InputDecoration(
-                            labelText: 'Ma thiet bi',
+                            labelText: 'Mã thiết bị',
                           ),
                           validator: (value) {
                             if (value == null || value.trim().isEmpty) {
-                              return 'Nhap device_id';
+                              return 'Nhập mã thiết bị';
                             }
                             return null;
                           },
@@ -148,8 +148,8 @@ class _ClaimDevicePageState extends State<ClaimDevicePage> {
                               : const Icon(Icons.add_link),
                           label: Text(
                             _isSubmitting
-                                ? 'Dang lien ket thiet bi...'
-                                : 'Lien ket thiet bi',
+                                ? 'Đang liên kết thiết bị...'
+                                : 'Liên kết thiết bị',
                           ),
                         ),
                       ],

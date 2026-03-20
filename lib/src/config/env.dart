@@ -25,17 +25,6 @@ class Env {
       ? _read('ADMIN_API_KEY', fallback: _read('API_KEY'))
       : '';
 
-  static String get debugLoginPhoneNumber =>
-      kDebugMode ? _read('LOGIN_PHONE_NUMBER') : '';
-  static String get debugLoginPassword =>
-      kDebugMode ? _read('LOGIN_PASSWORD') : '';
-  static bool get hasDebugLoginCredentials =>
-      debugLoginPhoneNumber.isNotEmpty && debugLoginPassword.isNotEmpty;
-
-  static String get debugDefaultUserId => kDebugMode ? _read('USER_ID') : '';
-  static String get debugDefaultDeviceId =>
-      kDebugMode ? _read('DEVICE_ID') : '';
-
   static int get requestTimeoutMs =>
       _readInt('REQUEST_TIMEOUT_MS', fallback: 15000);
   static int get pollIntervalMs => _readInt('POLL_INTERVAL_MS', fallback: 2000);

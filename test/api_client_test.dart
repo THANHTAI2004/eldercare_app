@@ -96,7 +96,7 @@ void main() {
     } on ApiRequestException catch (e) {
       expect(e.statusCode, isNull);
       expect(e.isNetworkError, isTrue);
-      expect(e.message, 'Khong the ket noi den server');
+      expect(e.message, 'Không thể kết nối đến máy chủ');
     }
   });
 }

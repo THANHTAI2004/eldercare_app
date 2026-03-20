@@ -69,11 +69,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Quan ly viewer'), findsOneWidget);
-    expect(find.text('Nguoi xem dang duoc chia se'), findsOneWidget);
+    expect(find.text('Quản lý người xem'), findsOneWidget);
+    expect(find.text('Người xem đang được chia sẻ'), findsOneWidget);
     expect(
       find.text(
-        'Tai khoan nay chi co quyen xem du lieu va canh bao cua device nay.',
+        'Tài khoản này chỉ có quyền xem dữ liệu và cảnh báo của thiết bị này.',
       ),
       findsNothing,
     );
@@ -133,13 +133,13 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Quan ly viewer'), findsNothing);
+    expect(find.text('Quản lý người xem'), findsNothing);
     expect(
       find.text(
-        'Tai khoan nay chi co quyen xem du lieu va canh bao cua device nay.',
+        'Tài khoản này chỉ có quyền xem dữ liệu và cảnh báo của thiết bị này.',
       ),
       findsOneWidget,
     );
-    expect(find.text('Theo doi device nay'), findsOneWidget);
+    expect(find.text('Theo dõi thiết bị này'), findsOneWidget);
   });
 }

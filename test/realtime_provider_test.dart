@@ -2,7 +2,6 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:eldercare_app/src/data/api/api_client.dart';
 import 'package:eldercare_app/src/data/api/health_api_service.dart';
-import 'package:eldercare_app/src/data/local/vitals_cache_storage.dart';
 import 'package:eldercare_app/src/domain/models/vital_point.dart';
 import 'package:eldercare_app/src/state/async_status.dart';
 import 'package:eldercare_app/src/state/realtime_provider.dart';
@@ -26,7 +25,6 @@ void main() {
           ),
         },
       ),
-      cacheStorage: VitalsCacheStorage(),
     );
 
     provider.handleSessionState(
@@ -39,7 +37,6 @@ void main() {
     expect(provider.latestStatus, AsyncStatus.success);
     expect(provider.latest?.deviceId, 'dev-1');
     expect(provider.latest?.hr, 72);
-    expect(provider.isShowingCachedLatest, isFalse);
   });
 
   test('changeDevice reloads latest when selected device changes', () async {
@@ -59,7 +56,6 @@ void main() {
           ),
         },
       ),
-      cacheStorage: VitalsCacheStorage(),
     );
 
     provider.handleSessionState(
@@ -80,13 +76,12 @@ void main() {
     final provider = RealtimeProvider(
       client: ApiClient(baseUrl: 'https://example.com', timeoutMs: 1000),
       api: _FakeHealthApiService(pointsByDeviceId: const <String, VitalPoint>{}),
-      cacheStorage: VitalsCacheStorage(),
     );
 
     await provider.init(deviceId: 'dev-1');
 
     expect(provider.latestStatus, AsyncStatus.unauthorized);
-    expect(provider.error, 'Phien dang nhap khong hop le hoac da het han');
+    expect(provider.error, 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn');
   });
 }
 

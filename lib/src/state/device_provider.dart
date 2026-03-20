@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:eldercare_app/src/config/env.dart';
 import 'package:eldercare_app/src/data/api/api_client.dart';
 import 'package:eldercare_app/src/data/api/device_api_service.dart';
 import 'package:eldercare_app/src/domain/models/device.dart';
@@ -90,30 +89,12 @@ class DeviceProvider extends ChangeNotifier {
     } catch (e) {
       error = e is ApiRequestException
           ? e.message
-          : 'Khong tai duoc danh sach thiet bi';
+          : 'Không tải được danh sách thiết bị';
       _log('Device sync failed: $error');
-
-      if (_devices.isEmpty) {
-        _applyDevFallbackIfNeeded();
-        await _save();
-      }
     } finally {
       isSyncing = false;
       notifyListeners();
     }
-  }
-
-  Future<void> ensureDevFallback() async {
-    await load();
-    if (_devices.isNotEmpty) return;
-
-    final fallback = _buildDevFallback();
-    if (fallback == null) return;
-
-    _devices.add(fallback);
-    _current = fallback;
-    await _save();
-    notifyListeners();
   }
 
   Future<void> clear() async {
@@ -236,17 +217,13 @@ class DeviceProvider extends ChangeNotifier {
 
     if (!isAuthenticated || authenticatedUserId.trim().isEmpty) {
       _sessionUserId = '';
-      _log('Session cleared, evaluating debug fallback');
-      if (_devices.isEmpty || _devices.every((device) => device.isLocalOnly)) {
-        await ensureDevFallback();
-      }
+      _log('Session cleared');
       return;
     }
 
     final normalizedUserId = authenticatedUserId.trim();
     if (_sessionUserId == normalizedUserId &&
-        _devices.isNotEmpty &&
-        _devices.any((device) => !device.isLocalOnly)) {
+        _devices.isNotEmpty) {
       return;
     }
 
@@ -269,49 +246,6 @@ class DeviceProvider extends ChangeNotifier {
       jsonEncode(_devices.map((device) => device.toJson()).toList()),
     );
     await prefs.setString(_currentIdKey, _current?.id ?? _devices.first.id);
-  }
-
-  void _applyDevFallbackIfNeeded() {
-    final fallback = _buildDevFallback();
-    if (fallback == null) return;
-
-    _devices
-      ..clear()
-      ..add(fallback);
-    _current = fallback;
-    _log('Using debug fallback device=${fallback.id}');
-  }
-
-  Device? _buildDevFallback() {
-    if (!kDebugMode) return null;
-
-    final fallbackUserId = Env.debugDefaultUserId.trim();
-    final fallbackDeviceId = Env.debugDefaultDeviceId.trim();
-    final resolvedDeviceId = fallbackDeviceId.isNotEmpty
-        ? fallbackDeviceId
-        : fallbackUserId;
-
-    if (resolvedDeviceId.isEmpty) return null;
-
-    final linkedUsers = fallbackUserId.isEmpty
-        ? const <DeviceLinkedUser>[]
-        : <DeviceLinkedUser>[
-            DeviceLinkedUser(
-              id: fallbackUserId,
-              name: fallbackUserId,
-              role: 'dev',
-              linkRole: 'owner',
-            ),
-          ];
-
-    return Device(
-      id: resolvedDeviceId,
-      name: 'Dev fallback $resolvedDeviceId',
-      legacyUserId: fallbackUserId.isEmpty ? null : fallbackUserId,
-      linkRole: 'owner',
-      linkedUsers: linkedUsers,
-      isLocalOnly: true,
-    );
   }
 
   void _selectCurrent() {
@@ -347,9 +281,7 @@ class DeviceProvider extends ChangeNotifier {
           final remoteName = remote.name.trim();
           final shouldKeepExistingName =
               existingName.isNotEmpty &&
-              (remoteName.isEmpty ||
-                  remoteName == remote.id ||
-                  existing.isLocalOnly);
+              (remoteName.isEmpty || remoteName == remote.id);
 
           return remote.copyWith(
             name: shouldKeepExistingName ? existingName : remote.name,

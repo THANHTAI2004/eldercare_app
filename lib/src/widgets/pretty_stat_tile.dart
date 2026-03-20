@@ -11,18 +11,17 @@ class PrettyStatTile extends StatelessWidget {
   });
 
   final String label;
-  final String valueText; // "--" hoặc "75"
-  final String? unit; // "bpm", "%", "°C"...
+  final String valueText;
+  final String? unit;
   final IconData icon;
   final Color accent;
 
-  Color _a(Color c, double alpha) => c.withValues(alpha: alpha); // nếu lỗi thì đổi -> withOpacity
+  Color _alpha(Color color, double alpha) => color.withValues(alpha: alpha);
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final t = Theme.of(context).textTheme;
-
+    final textTheme = Theme.of(context).textTheme;
     final isEmpty = valueText.trim().isEmpty || valueText.trim() == '--';
 
     return Container(
@@ -33,10 +32,7 @@ class PrettyStatTile extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            _a(accent, 0.14),
-            _a(accent, 0.06),
-          ],
+          colors: [_alpha(accent, 0.14), _alpha(accent, 0.06)],
         ),
       ),
       child: Row(
@@ -45,7 +41,7 @@ class PrettyStatTile extends StatelessWidget {
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: _a(accent, 0.22),
+              color: _alpha(accent, 0.22),
               borderRadius: BorderRadius.circular(14),
             ),
             child: Icon(icon, color: accent),
@@ -58,7 +54,7 @@ class PrettyStatTile extends StatelessWidget {
               children: [
                 Text(
                   label,
-                  style: t.labelLarge?.copyWith(
+                  style: textTheme.labelLarge?.copyWith(
                     fontWeight: FontWeight.w700,
                     color: scheme.onSurface,
                   ),
@@ -69,7 +65,7 @@ class PrettyStatTile extends StatelessWidget {
                   children: [
                     Text(
                       isEmpty ? '--' : valueText,
-                      style: t.headlineSmall?.copyWith(
+                      style: textTheme.headlineSmall?.copyWith(
                         fontWeight: FontWeight.w800,
                         letterSpacing: -0.5,
                       ),
@@ -80,7 +76,7 @@ class PrettyStatTile extends StatelessWidget {
                         padding: const EdgeInsets.only(bottom: 3),
                         child: Text(
                           unit!,
-                          style: t.labelMedium?.copyWith(
+                          style: textTheme.labelMedium?.copyWith(
                             color: scheme.onSurfaceVariant,
                             fontWeight: FontWeight.w600,
                           ),

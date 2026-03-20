@@ -7,7 +7,6 @@ import 'package:eldercare_app/src/data/api/auth_api_service.dart';
 import 'package:eldercare_app/src/data/api/device_api_service.dart';
 import 'package:eldercare_app/src/data/api/health_api_service.dart';
 import 'package:eldercare_app/src/data/local/auth_storage.dart';
-import 'package:eldercare_app/src/data/local/vitals_cache_storage.dart';
 import 'package:eldercare_app/src/domain/models/auth_tokens.dart';
 import 'package:eldercare_app/src/domain/models/device.dart';
 import 'package:eldercare_app/src/domain/models/vital_point.dart';
@@ -47,14 +46,14 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('Dang nhap'), findsWidgets);
+    expect(find.text('Đăng nhập'), findsWidgets);
     expect(
-      find.text('Dang nhap de tai danh sach thiet bi da lien ket'),
+      find.text('Đăng nhập để tải danh sách thiết bị đã liên kết'),
       findsOneWidget,
     );
-    expect(find.text('So dien thoai'), findsOneWidget);
-    expect(find.text('Mat khau'), findsOneWidget);
-    expect(find.text('Chua co tai khoan? Dang ky'), findsOneWidget);
+    expect(find.text('Số điện thoại'), findsOneWidget);
+    expect(find.text('Mật khẩu'), findsOneWidget);
+    expect(find.text('Chưa có tài khoản? Đăng ký'), findsOneWidget);
   });
 
   testWidgets('DevicePage validates login fields before submit', (
@@ -80,8 +79,8 @@ void main() {
     await tester.tap(loginButtonIcon);
     await tester.pumpAndSettle();
 
-    expect(find.text('Nhap so dien thoai'), findsOneWidget);
-    expect(find.text('Nhap mat khau'), findsOneWidget);
+    expect(find.text('Nhập số điện thoại'), findsOneWidget);
+    expect(find.text('Nhập mật khẩu'), findsOneWidget);
   });
 
   testWidgets('HomePage shows unauthenticated empty state with no device', (
@@ -103,14 +102,14 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    expect(find.text('Chua dang nhap'), findsOneWidget);
+    expect(find.text('Chưa đăng nhập'), findsOneWidget);
     expect(
       find.text(
-        'Ban can dang nhap truoc, sau do app se tai danh sach device da lien ket tu server.',
+        'Bạn cần đăng nhập trước, sau đó ứng dụng sẽ tải danh sách thiết bị đã liên kết từ máy chủ.',
       ),
       findsOneWidget,
     );
-    expect(find.text('Dang nhap'), findsOneWidget);
+    expect(find.text('Đăng nhập'), findsOneWidget);
   });
 
   testWidgets('HomePage shows no-device state for authenticated user', (
@@ -143,8 +142,8 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    expect(find.text('Ban chua co thiet bi nao'), findsOneWidget);
-    expect(find.text('Mo danh sach thiet bi'), findsOneWidget);
+    expect(find.text('Bạn chưa có thiết bị nào'), findsOneWidget);
+    expect(find.text('Mở danh sách thiết bị'), findsOneWidget);
   });
 
   testWidgets('DevicePage shows no-device state for authenticated user', (
@@ -180,8 +179,8 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    expect(find.text('Ban chua co thiet bi nao'), findsOneWidget);
-    expect(find.text('Them thiet bi bang ma thiet bi'), findsOneWidget);
+    expect(find.text('Bạn chưa có thiết bị nào'), findsOneWidget);
+    expect(find.text('Thêm thiết bị bằng mã thiết bị'), findsOneWidget);
     expect(find.text('Xem huong dan lien ket'), findsOneWidget);
   });
 
@@ -236,7 +235,7 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    expect(find.text('Yeu cau ECG'), findsNothing);
+    expect(find.text('Yêu cầu đo ECG'), findsNothing);
   });
 
   testWidgets('RegisterPage validates required fields inline', (tester) async {
@@ -267,10 +266,10 @@ void main() {
     await tester.tap(registerButtonIcon);
     await tester.pumpAndSettle();
 
-    expect(find.text('Nhap ho va ten'), findsOneWidget);
-    expect(find.text('Nhap so dien thoai'), findsOneWidget);
-    expect(find.text('Nhap mat khau'), findsOneWidget);
-    expect(find.text('Nhap lai mat khau'), findsWidgets);
+    expect(find.text('Nhập họ và tên'), findsOneWidget);
+    expect(find.text('Nhập số điện thoại'), findsOneWidget);
+    expect(find.text('Nhập mật khẩu'), findsOneWidget);
+    expect(find.text('Nhập lại mật khẩu'), findsWidgets);
   });
 }
 
@@ -300,7 +299,6 @@ class _TestShell extends StatelessWidget {
               RealtimeProvider(
                 client: client,
                 api: healthApi,
-                cacheStorage: VitalsCacheStorage(),
               )..handleSessionState(
                 isAuthenticated: session.isAuthenticated,
                 authenticatedUserId: session.authenticatedUserId,
@@ -311,7 +309,6 @@ class _TestShell extends StatelessWidget {
               HistoryProvider(
                 client: client,
                 api: healthApi,
-                cacheStorage: VitalsCacheStorage(),
               )..handleSessionState(
                 isAuthenticated: session.isAuthenticated,
                 authenticatedUserId: session.authenticatedUserId,

@@ -116,7 +116,7 @@ class AlertsProvider extends ChangeNotifier {
         error = _friendlyError(e);
         lastErrorStatusCode = e.statusCode;
       } else {
-        error = 'Khong tai duoc danh sach canh bao';
+        error = 'Không tải được danh sách cảnh báo';
       }
     } finally {
       isLoading = false;
@@ -154,7 +154,7 @@ class AlertsProvider extends ChangeNotifier {
         error = _friendlyError(e);
         lastErrorStatusCode = e.statusCode;
       } else {
-        error = 'Khong the acknowledge canh bao';
+        error = 'Không thể đánh dấu đã xử lý cảnh báo';
       }
     } finally {
       isAcknowledging = false;
@@ -174,16 +174,16 @@ class AlertsProvider extends ChangeNotifier {
 
   String _friendlyError(ApiRequestException e) {
     if (e.statusCode == 401) {
-      return 'Phien dang nhap khong hop le hoac da het han';
+      return 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn';
     }
     if (e.statusCode == 403) {
-      return 'Tai khoan hien tai khong co quyen xem canh bao';
+      return 'Tài khoản hiện tại không có quyền xem cảnh báo';
     }
     if (e.statusCode == 404) {
-      return 'Chua co canh bao nao tren server';
+      return 'Chưa có cảnh báo nào trên máy chủ';
     }
     if (e.statusCode == 429) {
-      return 'Dang bi gioi han request, vui long thu lai sau';
+      return 'Đang bị giới hạn yêu cầu, vui lòng thử lại sau';
     }
     return e.message;
   }

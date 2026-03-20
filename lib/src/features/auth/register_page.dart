@@ -38,7 +38,8 @@ class _RegisterPageState extends State<RegisterPage> {
     final now = DateTime.now();
     final picked = await showDatePicker(
       context: context,
-      initialDate: _selectedDate ?? DateTime(now.year - 60, now.month, now.day),
+      initialDate:
+          _selectedDate ?? DateTime(now.year - 60, now.month, now.day),
       firstDate: DateTime(1900),
       lastDate: now,
     );
@@ -63,26 +64,29 @@ class _RegisterPageState extends State<RegisterPage> {
     }
 
     final session = context.read<SessionProvider>();
+    final normalizedPhoneNumber = AppValidators.normalizePhoneNumber(
+      _phoneCtrl.text,
+    );
     final ok = await session.register(
       name: _nameCtrl.text.trim(),
-      phoneNumber: _phoneCtrl.text.trim(),
+      phoneNumber: normalizedPhoneNumber,
       dateOfBirth: DateFormat('yyyy-MM-dd').format(selectedDate),
       password: _passwordCtrl.text,
     );
     if (!mounted || !ok) return;
 
-    Navigator.pop(context, _phoneCtrl.text.trim());
+    Navigator.pop(context, normalizedPhoneNumber);
   }
 
   @override
   Widget build(BuildContext context) {
     final session = context.watch<SessionProvider>();
     final dateText = _selectedDate == null
-        ? 'Chon ngay sinh'
+        ? 'Chọn ngày sinh'
         : DateFormat('dd/MM/yyyy').format(_selectedDate!);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Dang ky')),
+      appBar: AppBar(title: const Text('Đăng ký')),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 520),
@@ -100,12 +104,12 @@ class _RegisterPageState extends State<RegisterPage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Tao tai khoan moi',
+                            'Tạo tài khoản mới',
                             style: Theme.of(context).textTheme.titleLarge,
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            'Nhap thong tin co ban de tao tai khoan, sau do quay lai dang nhap bang so dien thoai va mat khau vua tao.',
+                            'Nhập thông tin cơ bản để tạo tài khoản, sau đó quay lại đăng nhập bằng số điện thoại và mật khẩu vừa tạo.',
                             style: Theme.of(context).textTheme.bodyMedium,
                           ),
                           const SizedBox(height: 20),
@@ -115,11 +119,11 @@ class _RegisterPageState extends State<RegisterPage> {
                             textInputAction: TextInputAction.next,
                             autofillHints: const <String>[AutofillHints.name],
                             decoration: const InputDecoration(
-                              labelText: 'Ho va ten',
+                              labelText: 'Họ và tên',
                             ),
                             validator: (value) {
                               if (value == null || value.trim().isEmpty) {
-                                return 'Nhap ho va ten';
+                                return 'Nhập họ và tên';
                               }
                               return null;
                             },
@@ -134,14 +138,14 @@ class _RegisterPageState extends State<RegisterPage> {
                               AutofillHints.telephoneNumber,
                             ],
                             decoration: const InputDecoration(
-                              labelText: 'So dien thoai',
+                              labelText: 'Số điện thoại',
                             ),
                             validator: AppValidators.validatePhoneNumber,
                           ),
                           const SizedBox(height: 12),
                           InputDecorator(
                             decoration: InputDecoration(
-                              labelText: 'Ngay sinh',
+                              labelText: 'Ngày sinh',
                               errorText: _dateErrorText,
                             ),
                             child: Row(
@@ -149,7 +153,7 @@ class _RegisterPageState extends State<RegisterPage> {
                                 Expanded(child: Text(dateText)),
                                 TextButton(
                                   onPressed: session.isRegistering ? null : _pickDate,
-                                  child: const Text('Chon ngay'),
+                                  child: const Text('Chọn ngày'),
                                 ),
                               ],
                             ),
@@ -164,11 +168,11 @@ class _RegisterPageState extends State<RegisterPage> {
                               AutofillHints.newPassword,
                             ],
                             decoration: InputDecoration(
-                              labelText: 'Mat khau',
+                              labelText: 'Mật khẩu',
                               suffixIcon: IconButton(
                                 tooltip: _obscurePassword
-                                    ? 'Hien mat khau'
-                                    : 'An mat khau',
+                                    ? 'Hiện mật khẩu'
+                                    : 'Ẩn mật khẩu',
                                 onPressed: () {
                                   setState(() {
                                     _obscurePassword = !_obscurePassword;
@@ -194,11 +198,11 @@ class _RegisterPageState extends State<RegisterPage> {
                               AutofillHints.newPassword,
                             ],
                             decoration: InputDecoration(
-                              labelText: 'Nhap lai mat khau',
+                              labelText: 'Nhập lại mật khẩu',
                               suffixIcon: IconButton(
                                 tooltip: _obscureConfirmPassword
-                                    ? 'Hien mat khau'
-                                    : 'An mat khau',
+                                    ? 'Hiện mật khẩu'
+                                    : 'Ẩn mật khẩu',
                                 onPressed: () {
                                   setState(() {
                                     _obscureConfirmPassword =
@@ -214,10 +218,10 @@ class _RegisterPageState extends State<RegisterPage> {
                             ),
                             validator: (value) {
                               if ((value ?? '').isEmpty) {
-                                return 'Nhap lai mat khau';
+                                return 'Nhập lại mật khẩu';
                               }
                               if (value != _passwordCtrl.text) {
-                                return 'Mat khau nhap lai khong khop';
+                                return 'Mật khẩu nhập lại không khớp';
                               }
                               return null;
                             },
@@ -242,8 +246,8 @@ class _RegisterPageState extends State<RegisterPage> {
                                 : const Icon(Icons.person_add_alt_1),
                             label: Text(
                               session.isRegistering
-                                  ? 'Dang tao tai khoan...'
-                                  : 'Tao tai khoan',
+                                  ? 'Đang tạo tài khoản...'
+                                  : 'Tạo tài khoản',
                             ),
                           ),
                           const SizedBox(height: 12),
@@ -253,7 +257,7 @@ class _RegisterPageState extends State<RegisterPage> {
                               onPressed: session.isRegistering
                                   ? null
                                   : () => Navigator.pop(context),
-                              child: const Text('Da co tai khoan? Dang nhap'),
+                              child: const Text('Đã có tài khoản? Đăng nhập'),
                             ),
                           ),
                         ],

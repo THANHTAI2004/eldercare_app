@@ -47,8 +47,8 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    expect(find.text('Ban chua co thiet bi nao'), findsOneWidget);
-    expect(find.text('Them thiet bi bang ma thiet bi'), findsOneWidget);
+    expect(find.text('Bạn chưa có thiết bị nào'), findsOneWidget);
+    expect(find.text('Thêm thiết bị bằng mã thiết bị'), findsOneWidget);
     expect(find.text('Xem huong dan lien ket'), findsOneWidget);
   });
 
@@ -85,8 +85,8 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    expect(find.text('Ban chua co thiet bi nao'), findsOneWidget);
-    expect(find.text('Them thiet bi bang ma thiet bi'), findsOneWidget);
+    expect(find.text('Bạn chưa có thiết bị nào'), findsOneWidget);
+    expect(find.text('Thêm thiết bị bằng mã thiết bị'), findsOneWidget);
     expect(find.text('Xem huong dan lien ket'), findsOneWidget);
   });
 }

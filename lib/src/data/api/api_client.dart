@@ -285,20 +285,20 @@ class ApiClient {
     final message = body?['message']?.toString().trim();
     if (message != null && message.isNotEmpty) return message;
 
-    if (status == 401) return 'Invalid or expired session';
-    if (status == 403) return 'Forbidden';
-    if (status == 404) return 'No data found';
-    if (status == 422) return 'Invalid request data';
-    if (status == 429) return 'Too many requests';
+    if (status == 401) return 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn';
+    if (status == 403) return 'Bạn không có quyền thực hiện thao tác này';
+    if (status == 404) return 'Không tìm thấy dữ liệu';
+    if (status == 422) return 'Dữ liệu gửi lên không hợp lệ';
+    if (status == 429) return 'Có quá nhiều yêu cầu, vui lòng thử lại sau';
 
     if (status == null) {
-      return 'Khong the ket noi den server';
+      return 'Không thể kết nối đến máy chủ';
     }
 
     if (fallback != null && fallback.trim().isNotEmpty) {
       return fallback.trim();
     }
-    return 'Request failed';
+    return 'Yêu cầu thất bại';
   }
 
   Future<String?> _refreshAccessTokenOnce() {

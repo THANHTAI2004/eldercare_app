@@ -20,14 +20,14 @@ class LineChartCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Lọc data hợp lệ
     final data = <_ChartPoint>[];
-    for (final p in points) {
-      final raw = p.valueOf(metric);
+    for (final point in points) {
+      final raw = point.valueOf(metric);
       if (raw == null) continue;
-      final v = (raw as num).toDouble();
-      if (v.isNaN || v.isInfinite) continue;
-      data.add(_ChartPoint(time: p.time, value: v));
+
+      final value = (raw as num).toDouble();
+      if (value.isNaN || value.isInfinite) continue;
+      data.add(_ChartPoint(time: point.time, value: value));
     }
 
     if (data.isEmpty) {
@@ -43,30 +43,30 @@ class LineChartCard extends StatelessWidget {
 
     data.sort((a, b) => a.time.compareTo(b.time));
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: Theme.of(context).textTheme.titleMedium,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final chartHeight = constraints.maxWidth >= 1000
+            ? 320.0
+            : constraints.maxWidth >= 700
+            ? 260.0
+            : 220.0;
+
+        return Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 12),
+                SizedBox(height: chartHeight, child: _InteractiveChart(data: data)),
+                const SizedBox(height: 8),
+                _TimeAxis(data: data, showHourAxis: showHourAxis),
+              ],
             ),
-            const SizedBox(height: 12),
-            // ❗ Giữ chiều cao cố định ~ như bản cũ
-            SizedBox(
-              height: 220,
-              child: _InteractiveChart(data: data),
-            ),
-            const SizedBox(height: 8),
-            _TimeAxis(
-              data: data,
-              showHourAxis: showHourAxis,
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }
@@ -78,7 +78,6 @@ class _ChartPoint {
   final double value;
 }
 
-/// Chart tương tác: di chuột / chạm để hiện cột dọc + tooltip
 class _InteractiveChart extends StatefulWidget {
   const _InteractiveChart({required this.data});
 
@@ -90,9 +89,9 @@ class _InteractiveChart extends StatefulWidget {
 
 class _InteractiveChartState extends State<_InteractiveChart> {
   _ChartPoint? _selected;
-  double? _selectedX; // tọa độ X trên canvas
+  double? _selectedX;
 
-  void _updateSelected(Offset localPos, Size size) {
+  void _updateSelected(Offset localPosition, Size size) {
     final data = widget.data;
     if (data.isEmpty) {
       setState(() {
@@ -108,16 +107,16 @@ class _InteractiveChartState extends State<_InteractiveChart> {
     final scaleX = dx == 0 ? 0.0 : size.width / dx;
 
     _ChartPoint? nearest;
-    double bestDist = double.infinity;
+    double bestDistance = double.infinity;
     double? bestX;
 
-    for (final p in data) {
-      final t = p.time.millisecondsSinceEpoch.toDouble();
-      final x = dx == 0 ? size.width / 2 : (t - minTime) * scaleX;
-      final d = (x - localPos.dx).abs();
-      if (d < bestDist) {
-        bestDist = d;
-        nearest = p;
+    for (final point in data) {
+      final time = point.time.millisecondsSinceEpoch.toDouble();
+      final x = dx == 0 ? size.width / 2 : (time - minTime) * scaleX;
+      final distance = (x - localPosition.dx).abs();
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        nearest = point;
         bestX = x;
       }
     }
@@ -147,13 +146,11 @@ class _InteractiveChartState extends State<_InteractiveChart> {
           ),
         );
 
-        // Tooltip khi có điểm được chọn
         if (_selected != null && _selectedX != null) {
-          final valText = _selected!.value.toStringAsFixed(1);
-          final timeText =
-          DateFormat('HH:mm').format(_selected!.time.toLocal());
+          final valueText = _selected!.value.toStringAsFixed(1);
+          final timeText = DateFormat('HH:mm').format(_selected!.time.toLocal());
 
-          const tooltipWidth = 90.0;
+          const tooltipWidth = 96.0;
           double left = _selectedX! - tooltipWidth / 2;
           if (left < 0) left = 0;
           if (left > size.width - tooltipWidth) {
@@ -168,19 +165,18 @@ class _InteractiveChartState extends State<_InteractiveChart> {
                 top: 8,
                 child: Container(
                   width: tooltipWidth,
-                  padding:
-                  const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.black87,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
-                    '$valText • $timeText',
+                    '$valueText - $timeText',
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
-                    ),
+                    style: const TextStyle(color: Colors.white, fontSize: 10),
                   ),
                 ),
               ),
@@ -198,10 +194,8 @@ class _InteractiveChartState extends State<_InteractiveChart> {
           },
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
-            onTapDown: (details) =>
-                _updateSelected(details.localPosition, size),
-            onPanDown: (details) =>
-                _updateSelected(details.localPosition, size),
+            onTapDown: (details) => _updateSelected(details.localPosition, size),
+            onPanDown: (details) => _updateSelected(details.localPosition, size),
             onPanUpdate: (details) =>
                 _updateSelected(details.localPosition, size),
             child: chart,
@@ -229,41 +223,39 @@ class _ChartPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final w = size.width;
-    final h = size.height;
-    if (w <= 0 || h <= 0) return;
+    final width = size.width;
+    final height = size.height;
+    if (width <= 0 || height <= 0) return;
 
-    // 1) Vẽ grid
     final gridPaint = Paint()
       ..color = gridColor
       ..strokeWidth = 1;
 
     const rows = 4;
     const cols = 6;
-    for (int i = 1; i < rows; i++) {
-      final y = h * i / rows;
-      canvas.drawLine(Offset(0, y), Offset(w, y), gridPaint);
+    for (int row = 1; row < rows; row++) {
+      final y = height * row / rows;
+      canvas.drawLine(Offset(0, y), Offset(width, y), gridPaint);
     }
-    for (int j = 1; j < cols; j++) {
-      final x = w * j / cols;
-      canvas.drawLine(Offset(x, 0), Offset(x, h), gridPaint);
+    for (int col = 1; col < cols; col++) {
+      final x = width * col / cols;
+      canvas.drawLine(Offset(x, 0), Offset(x, height), gridPaint);
     }
 
     if (data.isEmpty) return;
 
-    // 2) Min/max time & value
     final minTime = data.first.time.millisecondsSinceEpoch.toDouble();
     final maxTime = data.last.time.millisecondsSinceEpoch.toDouble();
 
-    double minVal = data.first.value;
-    double maxVal = data.first.value;
-    for (final p in data.skip(1)) {
-      if (p.value < minVal) minVal = p.value;
-      if (p.value > maxVal) maxVal = p.value;
+    double minValue = data.first.value;
+    double maxValue = data.first.value;
+    for (final point in data.skip(1)) {
+      if (point.value < minValue) minValue = point.value;
+      if (point.value > maxValue) maxValue = point.value;
     }
 
-    double plotMin = minVal;
-    double plotMax = maxVal;
+    double plotMin = minValue;
+    double plotMax = maxValue;
     final dyRaw = (plotMax - plotMin).abs();
     final paddingY = dyRaw == 0 ? 1.0 : dyRaw * 0.1;
     plotMin -= paddingY;
@@ -271,36 +263,30 @@ class _ChartPainter extends CustomPainter {
 
     final dx = (maxTime - minTime).abs();
     final dy = (plotMax - plotMin).abs();
+    final scaleX = dx == 0 ? 0.0 : width / dx;
+    final scaleY = dy == 0 ? 0.0 : height / dy;
 
-    final scaleX = dx == 0 ? 0.0 : w / dx;
-    final scaleY = dy == 0 ? 0.0 : h / dy;
-
-    // 3) Chỉ 1 điểm → vẽ chấm
     if (data.length == 1) {
-      final p = data.first;
-      final t = p.time.millisecondsSinceEpoch.toDouble();
-
-      final x = dx == 0 ? w / 2 : (t - minTime) * scaleX;
-      final y = dy == 0 ? h / 2 : h - (p.value - plotMin) * scaleY;
+      final point = data.first;
+      final time = point.time.millisecondsSinceEpoch.toDouble();
+      final x = dx == 0 ? width / 2 : (time - minTime) * scaleX;
+      final y = dy == 0 ? height / 2 : height - (point.value - plotMin) * scaleY;
 
       final dotPaint = Paint()
         ..color = lineColor
         ..style = PaintingStyle.fill;
-
       canvas.drawCircle(Offset(x, y), 4, dotPaint);
       return;
     }
 
-    // 4) Nhiều điểm → vẽ path
     final path = Path();
-    for (int i = 0; i < data.length; i++) {
-      final p = data[i];
-      final t = p.time.millisecondsSinceEpoch.toDouble();
+    for (int index = 0; index < data.length; index++) {
+      final point = data[index];
+      final time = point.time.millisecondsSinceEpoch.toDouble();
+      final x = dx == 0 ? width / 2 : (time - minTime) * scaleX;
+      final y = dy == 0 ? height / 2 : height - (point.value - plotMin) * scaleY;
 
-      final x = dx == 0 ? w / 2 : (t - minTime) * scaleX;
-      final y = dy == 0 ? h / 2 : h - (p.value - plotMin) * scaleY;
-
-      if (i == 0) {
+      if (index == 0) {
         path.moveTo(x, y);
       } else {
         path.lineTo(x, y);
@@ -313,40 +299,35 @@ class _ChartPainter extends CustomPainter {
       ..strokeWidth = 2.5
       ..strokeJoin = StrokeJoin.round
       ..strokeCap = StrokeCap.round;
-
     canvas.drawPath(path, linePaint);
 
-    // 5) Cột dọc + chấm highlight
     if (highlightX != null && highlightPoint != null) {
       final value = highlightPoint!.value;
-      final hvY = dy == 0
-          ? h / 2
-          : h - (value - plotMin) * scaleY;
+      final highlightY = dy == 0 ? height / 2 : height - (value - plotMin) * scaleY;
 
       final crossPaint = Paint()
         ..color = lineColor.withValues(alpha: 0.7)
         ..strokeWidth = 1.5;
-
       canvas.drawLine(
         Offset(highlightX!, 0),
-        Offset(highlightX!, h),
+        Offset(highlightX!, height),
         crossPaint,
       );
 
       final dotPaint = Paint()
         ..color = lineColor
         ..style = PaintingStyle.fill;
-      canvas.drawCircle(Offset(highlightX!, hvY), 4, dotPaint);
+      canvas.drawCircle(Offset(highlightX!, highlightY), 4, dotPaint);
     }
   }
 
   @override
-  bool shouldRepaint(covariant _ChartPainter old) {
-    return old.data != data ||
-        old.lineColor != lineColor ||
-        old.gridColor != gridColor ||
-        old.highlightX != highlightX ||
-        old.highlightPoint != highlightPoint;
+  bool shouldRepaint(covariant _ChartPainter oldDelegate) {
+    return oldDelegate.data != data ||
+        oldDelegate.lineColor != lineColor ||
+        oldDelegate.gridColor != gridColor ||
+        oldDelegate.highlightX != highlightX ||
+        oldDelegate.highlightPoint != highlightPoint;
   }
 }
 
@@ -365,23 +346,17 @@ class _TimeAxis extends StatelessWidget {
 
     final minTime = data.first.time;
     final maxTime = data.last.time;
-
-    final format =
-    showHourAxis ? DateFormat('HH:mm') : DateFormat('dd/MM');
+    final format = showHourAxis ? DateFormat('HH:mm') : DateFormat('dd/MM');
 
     final labels = <String>[];
-    // 4 mốc: đầu – 1/3 – 2/3 – cuối
-    for (int i = 0; i < 4; i++) {
-      final t = minTime.millisecondsSinceEpoch +
-          ((maxTime.millisecondsSinceEpoch -
-              minTime.millisecondsSinceEpoch) *
-              i /
-              3)
+    for (int index = 0; index < 4; index++) {
+      final time = minTime.millisecondsSinceEpoch +
+          ((maxTime.millisecondsSinceEpoch - minTime.millisecondsSinceEpoch) *
+                  index /
+                  3)
               .round();
       labels.add(
-        format.format(
-          DateTime.fromMillisecondsSinceEpoch(t).toLocal(),
-        ),
+        format.format(DateTime.fromMillisecondsSinceEpoch(time).toLocal()),
       );
     }
 
@@ -389,13 +364,12 @@ class _TimeAxis extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: labels
           .map(
-            (t) => Text(
-          t,
-          style: const TextStyle(fontSize: 10),
-        ),
-      )
-          .toList(),
+            (label) => Text(
+              label,
+              style: const TextStyle(fontSize: 10),
+            ),
+          )
+          .toList(growable: false),
     );
   }
 }
-
