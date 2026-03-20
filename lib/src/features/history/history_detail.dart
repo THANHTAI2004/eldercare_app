@@ -26,8 +26,14 @@ class HistoryDetailPage extends StatelessWidget {
           final p = points[i];
           final v = p.valueOf(metric);
           return ListTile(
-            title: Text(v == null ? '--' : '${v.toStringAsFixed(metric == Metric.temp ? 1 : 0)} ${metric.unit}'),
-            subtitle: Text(DateFormat('HH:mm:ss dd/MM').format(p.time.toLocal())),
+            title: Text(
+              v == null
+                  ? '--'
+                  : '${v.toStringAsFixed(metric == Metric.temp ? 1 : 0)} ${metric.unit}',
+            ),
+            subtitle: Text(
+              DateFormat('HH:mm:ss dd/MM').format(p.time.toLocal()),
+            ),
           );
         },
       ),

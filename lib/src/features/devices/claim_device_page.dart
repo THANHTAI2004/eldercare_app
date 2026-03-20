@@ -9,6 +9,7 @@ import 'package:eldercare_app/src/state/ecg_provider.dart';
 import 'package:eldercare_app/src/state/history_provider.dart';
 import 'package:eldercare_app/src/state/realtime_provider.dart';
 import 'package:eldercare_app/src/state/session_provider.dart';
+import 'package:eldercare_app/src/widgets/app_logo.dart';
 
 class ClaimDevicePage extends StatefulWidget {
   const ClaimDevicePage({super.key, DeviceApiService? api}) : _api = api;
@@ -175,6 +176,14 @@ class _ClaimDevicePageState extends State<ClaimDevicePage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        const Center(
+                          child: AppBrandLockup(
+                            logoSize: 72,
+                            subtitle:
+                                'Xác thực thiết bị bằng mã ghép nối để hoàn tất quyền truy cập an toàn.',
+                          ),
+                        ),
+                        const SizedBox(height: 24),
                         Text(
                           'Liên kết thiết bị bằng mã ghép nối',
                           style: Theme.of(context).textTheme.titleLarge,

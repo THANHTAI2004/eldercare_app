@@ -267,7 +267,9 @@ class _DeviceViewersPageState extends State<DeviceViewersPage> {
                               )
                             : const Icon(Icons.person_add_alt_1),
                         label: Text(
-                          _isSubmitting ? 'Đang cập nhật...' : 'Thêm người xem',
+                          _isSubmitting
+                              ? 'Đang cập nhật...'
+                              : 'Thêm người xem',
                         ),
                       ),
                     ],

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:eldercare_app/src/features/admin/admin_device_registration_page.dart';
 import 'package:eldercare_app/src/features/alerts/alerts_page.dart';
 import 'package:eldercare_app/src/features/auth/register_page.dart';
 import 'package:eldercare_app/src/features/devices/device_page.dart';
@@ -12,12 +13,14 @@ class AppRoutes {
   static const register = '/register';
   static const history = '/history';
   static const alerts = '/alerts';
+  static const adminDeviceRegister = '/admin/devices/register';
 
   static final routes = <String, WidgetBuilder>{
     devices: (_) => const DevicePage(),
     register: (_) => const RegisterPage(),
     history: (_) => const HistoryPage(),
     alerts: (_) => const AlertsPage(),
+    adminDeviceRegister: (_) => const AdminDeviceRegistrationPage(),
   };
 
   static Route<dynamic> unknownRoute(RouteSettings settings) {
@@ -25,7 +28,9 @@ class AppRoutes {
       settings: settings,
       builder: (_) => Scaffold(
         appBar: AppBar(title: const Text('Không tìm thấy trang')),
-        body: Center(child: Text('Đường dẫn không tồn tại: ${settings.name}')),
+        body: Center(
+          child: Text('Đường dẫn không tồn tại: ${settings.name}'),
+        ),
       ),
     );
   }

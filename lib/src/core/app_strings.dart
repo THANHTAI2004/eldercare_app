@@ -14,12 +14,14 @@ class AppStrings {
   static const loginUnauthorized = 'Sai số điện thoại hoặc mật khẩu';
   static const loginInvalid = 'Số điện thoại hoặc mật khẩu không hợp lệ';
   static const serverError = 'Máy chủ đang gặp lỗi, vui lòng thử lại sau';
-  static const rateLimited = 'Đang bị giới hạn yêu cầu, vui lòng thử lại sau';
+  static const rateLimited =
+      'Đang bị giới hạn yêu cầu, vui lòng thử lại sau';
   static const registerFailed = 'Tạo tài khoản thất bại';
   static const registerPhoneTaken = 'Số điện thoại đã được dùng';
   static const registerInvalidData = 'Dữ liệu đăng ký chưa hợp lệ';
   static const invalidBirthDate = 'Ngày sinh không hợp lệ';
-  static const permissionDenied = 'Tài khoản hiện tại không có quyền truy cập';
+  static const permissionDenied =
+      'Tài khoản hiện tại không có quyền truy cập';
   static const noLinkedDeviceTitle = 'Chưa có thiết bị liên kết';
   static const noLinkedDeviceGuide = 'Xem hướng dẫn liên kết';
   static const registerPickBirthDate = 'Vui lòng chọn ngày sinh';

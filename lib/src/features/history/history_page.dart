@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import 'package:eldercare_app/src/domain/models/metric.dart';
 import 'package:eldercare_app/src/core/app_layout.dart';
+import 'package:eldercare_app/src/domain/models/metric.dart';
 import 'package:eldercare_app/src/state/async_status.dart';
 import 'package:eldercare_app/src/state/device_provider.dart';
 import 'package:eldercare_app/src/state/history_provider.dart';
@@ -91,61 +91,70 @@ class _HistoryPageState extends State<HistoryPage> {
         child: ConstrainedBox(
           constraints: BoxConstraints(maxWidth: contentMaxWidth),
           child: Padding(
-        padding: pagePadding,
-        child: Column(
-          children: [
-            if (isCompact)
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  DatePickerButton(value: _dayLocal, onChanged: _onPickDay),
+            padding: pagePadding,
+            child: Column(
+              children: [
+                if (isCompact)
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      DatePickerButton(
+                        value: _dayLocal,
+                        onChanged: _onPickDay,
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: MetricDropdown(
+                          value: _metric,
+                          onChanged: (metric) => setState(() => _metric = metric),
+                        ),
+                      ),
+                    ],
+                  )
+                else
+                  Row(
+                    children: [
+                      DatePickerButton(
+                        value: _dayLocal,
+                        onChanged: _onPickDay,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: MetricDropdown(
+                          value: _metric,
+                          onChanged: (metric) => setState(() => _metric = metric),
+                        ),
+                      ),
+                    ],
+                  ),
+                if (history.error != null &&
+                    history.error!.trim().isNotEmpty) ...[
                   const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: MetricDropdown(
-                      value: _metric,
-                      onChanged: (metric) => setState(() => _metric = metric),
-                    ),
+                  _HistoryBanner(
+                    message: history.error!,
+                    isError: !history.hasNoDataError,
+                  ),
+                ] else if (!session.isAuthenticated) ...[
+                  const SizedBox(height: 12),
+                  const _HistoryBanner(
+                    message:
+                        'Bạn chưa đăng nhập. Vào mục Thiết bị để đăng nhập.',
+                    isError: false,
+                  ),
+                ] else if (currentDevice == null) ...[
+                  const SizedBox(height: 12),
+                  const _HistoryBanner(
+                    message:
+                        'Chưa có thiết bị đang theo dõi. Hãy chọn thiết bị trước.',
+                    isError: false,
                   ),
                 ],
-              )
-            else
-              Row(
-                children: [
-                  DatePickerButton(value: _dayLocal, onChanged: _onPickDay),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: MetricDropdown(
-                      value: _metric,
-                      onChanged: (metric) => setState(() => _metric = metric),
-                    ),
-                  ),
-                ],
-              ),
-            if (history.error != null && history.error!.trim().isNotEmpty) ...[
-              const SizedBox(height: 12),
-              _HistoryBanner(
-                message: history.error!,
-                isError: !history.hasNoDataError,
-              ),
-            ] else if (!session.isAuthenticated) ...[
-              const SizedBox(height: 12),
-              const _HistoryBanner(
-                message: 'Bạn chưa đăng nhập. Vào mục Thiết bị để đăng nhập.',
-                isError: false,
-              ),
-            ] else if (currentDevice == null) ...[
-              const SizedBox(height: 12),
-              const _HistoryBanner(
-                message: 'Chưa có thiết bị đang theo dõi. Hãy chọn thiết bị trước.',
-                isError: false,
-              ),
-            ],
-            const SizedBox(height: 16),
-            Expanded(
-              child: history.status.isLoading && dayPoints.isEmpty
-                  ? const Center(child: CircularProgressIndicator())
-                  : dayPoints.isEmpty
+                const SizedBox(height: 16),
+                Expanded(
+                  child: history.status.isLoading && dayPoints.isEmpty
+                      ? const Center(child: CircularProgressIndicator())
+                      : dayPoints.isEmpty
                       ? const _HistoryEmptyState()
                       : LineChartCard(
                           title: 'Theo giờ trong ngày',
@@ -153,9 +162,9 @@ class _HistoryPageState extends State<HistoryPage> {
                           points: dayPoints,
                           showHourAxis: true,
                         ),
+                ),
+              ],
             ),
-          ],
-        ),
           ),
         ),
       ),

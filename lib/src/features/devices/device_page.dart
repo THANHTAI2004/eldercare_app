@@ -14,6 +14,7 @@ import 'package:eldercare_app/src/features/home/home_page.dart';
 import 'package:eldercare_app/src/state/device_provider.dart';
 import 'package:eldercare_app/src/state/realtime_provider.dart';
 import 'package:eldercare_app/src/state/session_provider.dart';
+import 'package:eldercare_app/src/widgets/app_logo.dart';
 
 class DevicePage extends StatefulWidget {
   const DevicePage({super.key});
@@ -195,6 +196,27 @@ class _DevicePageState extends State<DevicePage> {
     await _openClaimDevice();
   }
 
+  Future<void> _renameDevice(Device device) async {
+    final renamed = await _showRenameDeviceDialog(
+      context,
+      initialName: device.name,
+    );
+    if (!mounted || renamed == null) return;
+
+    final nextName = renamed.trim();
+    if (nextName.isEmpty || nextName == device.name.trim()) return;
+
+    await context.read<DeviceProvider>().rename(device.id, nextName);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Đã đổi tên thiết bị thành "$nextName".')),
+    );
+  }
+
+  Future<void> _openAdminDeviceRegistration() async {
+    await Navigator.pushNamed(context, AppRoutes.adminDeviceRegister);
+  }
+
   Future<void> _showLinkGuideDialog() async {
     const content =
         'Nếu bạn là chủ thiết bị, hãy dùng chức năng thêm thiết bị bằng mã thiết bị để liên kết thiết bị.\n\n'
@@ -220,6 +242,7 @@ class _DevicePageState extends State<DevicePage> {
     final session = context.watch<SessionProvider>();
     final deviceProvider = context.watch<DeviceProvider>();
     final realtime = context.watch<RealtimeProvider>();
+    final isAdmin = session.authenticatedRole == 'admin';
     _handleSessionFeedback(session);
 
     return Scaffold(
@@ -233,6 +256,12 @@ class _DevicePageState extends State<DevicePage> {
               tooltip: 'Liên kết thiết bị',
               onPressed: _openClaimDevice,
               icon: const Icon(Icons.add_link),
+            ),
+          if (session.isAuthenticated && isAdmin)
+            IconButton(
+              tooltip: 'Đăng ký thiết bị',
+              onPressed: _openAdminDeviceRegistration,
+              icon: const Icon(Icons.admin_panel_settings_outlined),
             ),
           IconButton(
             tooltip: 'Làm mới',
@@ -262,6 +291,9 @@ class _DevicePageState extends State<DevicePage> {
               onShowLinkGuide: () {
                 _showLinkGuideDialog();
               },
+              onRenameDevice: _renameDevice,
+              isAdmin: isAdmin,
+              onOpenAdminRegistration: _openAdminDeviceRegistration,
             )
           : _LoginBody(
               phoneCtrl: _loginPhoneCtrl,
@@ -342,6 +374,9 @@ class _AuthenticatedBody extends StatelessWidget {
     required this.onSelectDevice,
     required this.onLinkDevice,
     required this.onShowLinkGuide,
+    required this.onRenameDevice,
+    required this.isAdmin,
+    required this.onOpenAdminRegistration,
   });
 
   final String query;
@@ -353,6 +388,9 @@ class _AuthenticatedBody extends StatelessWidget {
   final Future<void> Function(Device device) onSelectDevice;
   final VoidCallback onLinkDevice;
   final VoidCallback onShowLinkGuide;
+  final Future<void> Function(Device device) onRenameDevice;
+  final bool isAdmin;
+  final VoidCallback onOpenAdminRegistration;
 
   @override
   Widget build(BuildContext context) {
@@ -398,6 +436,12 @@ class _AuthenticatedBody extends StatelessWidget {
             totalDevices: deviceProvider.devices.length,
             currentDevice: deviceProvider.current,
           ),
+          if (isAdmin) ...[
+            const SizedBox(height: 12),
+            _AdminDeviceRegistrationCard(
+              onOpen: onOpenAdminRegistration,
+            ),
+          ],
           if (realtime.error != null && realtime.error!.trim().isNotEmpty) ...[
             const SizedBox(height: 12),
             _InlineBanner(
@@ -462,6 +506,7 @@ class _AuthenticatedBody extends StatelessWidget {
                     );
                     await onRefresh();
                   },
+                  onRename: () => onRenameDevice(device),
                   onSelect: () => onSelectDevice(device),
                 ),
               ),
@@ -530,17 +575,74 @@ class _SessionCard extends StatelessWidget {
   }
 }
 
+class _AdminDeviceRegistrationCard extends StatelessWidget {
+  const _AdminDeviceRegistrationCard({required this.onOpen});
+
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final isCompact = MediaQuery.sizeOf(context).width < 560;
+    final info = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Công cụ quản trị thiết bị',
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        const SizedBox(height: 4),
+        const Text(
+          'Tạo mới thiết bị hoặc cấp lại mã ghép nối để chuyển cho chủ thiết bị liên kết trên ứng dụng.',
+        ),
+      ],
+    );
+    final button = FilledButton.icon(
+      onPressed: onOpen,
+      icon: const Icon(Icons.add_circle_outline),
+      label: const Text('Đăng ký thiết bị'),
+    );
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: isCompact
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.admin_panel_settings_outlined),
+                  const SizedBox(height: 12),
+                  info,
+                  const SizedBox(height: 12),
+                  button,
+                ],
+              )
+            : Row(
+                children: [
+                  const Icon(Icons.admin_panel_settings_outlined),
+                  const SizedBox(width: 12),
+                  Expanded(child: info),
+                  const SizedBox(width: 12),
+                  button,
+                ],
+              ),
+      ),
+    );
+  }
+}
+
 class _DeviceCard extends StatelessWidget {
   const _DeviceCard({
     required this.device,
     required this.isCurrent,
     required this.onManageViewers,
+    required this.onRename,
     required this.onSelect,
   });
 
   final Device device;
   final bool isCurrent;
   final Future<void> Function() onManageViewers;
+  final Future<void> Function() onRename;
   final VoidCallback onSelect;
 
   @override
@@ -580,6 +682,13 @@ class _DeviceCard extends StatelessWidget {
                       Chip(label: Text('Quyền trên thiết bị này: $roleLabel')),
                     ],
                   ),
+                ),
+                IconButton(
+                  tooltip: 'Đổi tên trên ứng dụng',
+                  onPressed: () {
+                    onRename();
+                  },
+                  icon: const Icon(Icons.edit_outlined),
                 ),
                 if (isCurrent)
                   Chip(
@@ -658,6 +767,69 @@ String _linkedUserLabel(DeviceLinkedUser user) {
   }
 
   return segments.join(' | ');
+}
+
+Future<String?> _showRenameDeviceDialog(
+  BuildContext context, {
+  required String initialName,
+}) async {
+  final controller = TextEditingController(text: initialName.trim());
+  String? errorText;
+
+  final result = await showDialog<String>(
+    context: context,
+    builder: (dialogContext) {
+      return StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            title: const Text('Đổi tên thiết bị'),
+            content: TextField(
+              controller: controller,
+              autofocus: true,
+              textInputAction: TextInputAction.done,
+              decoration: InputDecoration(
+                labelText: 'Tên hiển thị trên ứng dụng',
+                hintText: 'Ví dụ: Máy đo phòng ngủ',
+                errorText: errorText,
+              ),
+              onSubmitted: (_) {
+                final value = controller.text.trim();
+                if (value.isEmpty) {
+                  setState(() {
+                    errorText = 'Nhập tên thiết bị';
+                  });
+                  return;
+                }
+                Navigator.of(dialogContext).pop(value);
+              },
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: const Text('Hủy'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  final value = controller.text.trim();
+                  if (value.isEmpty) {
+                    setState(() {
+                      errorText = 'Nhập tên thiết bị';
+                    });
+                    return;
+                  }
+                  Navigator.of(dialogContext).pop(value);
+                },
+                child: const Text('Lưu'),
+              ),
+            ],
+          );
+        },
+      );
+    },
+  );
+
+  controller.dispose();
+  return result;
 }
 
 class _InlineBanner extends StatelessWidget {
@@ -796,6 +968,14 @@ class _LoginFormContentState extends State<_LoginFormContent> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            const Center(
+              child: AppBrandLockup(
+                logoSize: 84,
+                subtitle:
+                    'Kết nối thiết bị, theo dõi chỉ số sức khỏe và quản lý quyền xem trong cùng một nơi.',
+              ),
+            ),
+            const SizedBox(height: 24),
             Text(
               'Đăng nhập để tải danh sách thiết bị đã liên kết',
               style: Theme.of(context).textTheme.titleLarge,

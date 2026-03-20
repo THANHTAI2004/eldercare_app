@@ -59,7 +59,10 @@ class LineChartCard extends StatelessWidget {
               children: [
                 Text(title, style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 12),
-                SizedBox(height: chartHeight, child: _InteractiveChart(data: data)),
+                SizedBox(
+                  height: chartHeight,
+                  child: _InteractiveChart(data: data),
+                ),
                 const SizedBox(height: 8),
                 _TimeAxis(data: data, showHourAxis: showHourAxis),
               ],
@@ -270,7 +273,8 @@ class _ChartPainter extends CustomPainter {
       final point = data.first;
       final time = point.time.millisecondsSinceEpoch.toDouble();
       final x = dx == 0 ? width / 2 : (time - minTime) * scaleX;
-      final y = dy == 0 ? height / 2 : height - (point.value - plotMin) * scaleY;
+      final y =
+          dy == 0 ? height / 2 : height - (point.value - plotMin) * scaleY;
 
       final dotPaint = Paint()
         ..color = lineColor
@@ -284,7 +288,8 @@ class _ChartPainter extends CustomPainter {
       final point = data[index];
       final time = point.time.millisecondsSinceEpoch.toDouble();
       final x = dx == 0 ? width / 2 : (time - minTime) * scaleX;
-      final y = dy == 0 ? height / 2 : height - (point.value - plotMin) * scaleY;
+      final y =
+          dy == 0 ? height / 2 : height - (point.value - plotMin) * scaleY;
 
       if (index == 0) {
         path.moveTo(x, y);
@@ -303,7 +308,8 @@ class _ChartPainter extends CustomPainter {
 
     if (highlightX != null && highlightPoint != null) {
       final value = highlightPoint!.value;
-      final highlightY = dy == 0 ? height / 2 : height - (value - plotMin) * scaleY;
+      final highlightY =
+          dy == 0 ? height / 2 : height - (value - plotMin) * scaleY;
 
       final crossPaint = Paint()
         ..color = lineColor.withValues(alpha: 0.7)

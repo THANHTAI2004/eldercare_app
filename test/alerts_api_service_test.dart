@@ -16,7 +16,7 @@ void main() {
           'items': <Map<String, dynamic>>[
             <String, dynamic>{
               'alert_id': 'alert-001',
-              'title': 'Nhip tim bat thuong',
+              'title': 'Nhịp tim bất thường',
               'severity': 'critical',
               'created_at': '2026-03-13T10:00:00Z',
               'device_id': 'dev-1',

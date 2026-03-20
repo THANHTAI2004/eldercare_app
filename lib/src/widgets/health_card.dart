@@ -163,7 +163,7 @@ class HealthCard extends StatelessWidget {
                   context: context,
                   label: 'Nhiệt độ',
                   value: temp,
-                  unit: 'do C',
+                  unit: '°C',
                   icon: Icons.thermostat_rounded,
                   accent: const Color(0xFFFFA726),
                 ),

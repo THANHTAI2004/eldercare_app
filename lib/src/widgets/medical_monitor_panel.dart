@@ -62,7 +62,7 @@ class MedicalMonitorPanel extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Thong so suc khoe',
+                'Thông số sức khỏe',
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.w800,
                   color: headerText,
@@ -70,7 +70,7 @@ class MedicalMonitorPanel extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                'Moi chi so co mot do thi rieng de theo doi bien dong.',
+                'Mỗi chỉ số có một đồ thị riêng để theo dõi biến động.',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: secondaryText,
                 ),
@@ -79,7 +79,7 @@ class MedicalMonitorPanel extends StatelessWidget {
               _MonitorRow(
                 brightness: brightness,
                 compact: isCompact,
-                label: 'Nhip tim',
+                label: 'Nhịp tim',
                 unit: 'bpm',
                 value: hr,
                 color: const Color(0xFF18B46B),
@@ -101,8 +101,8 @@ class MedicalMonitorPanel extends StatelessWidget {
               _MonitorRow(
                 brightness: brightness,
                 compact: isCompact,
-                label: 'Nhiet do',
-                unit: 'do C',
+                label: 'Nhiệt độ',
+                unit: '°C',
                 value: temp,
                 color: const Color(0xFFF2B705),
                 icon: Icons.thermostat_rounded,
@@ -112,7 +112,7 @@ class MedicalMonitorPanel extends StatelessWidget {
               _MonitorRow(
                 brightness: brightness,
                 compact: isCompact,
-                label: 'Nhip tho',
+                label: 'Nhịp thở',
                 unit: 'rpm',
                 value: rr,
                 color: const Color(0xFF7B61FF),
@@ -155,9 +155,7 @@ class _MonitorRow extends StatelessWidget {
     final chartPoints = _buildChartPoints(wave, hasValue: hasValue);
     final hasHistory = wave != null && wave!.isNotEmpty;
     final valueText = hasValue
-        ? (unit == 'do C'
-              ? value!.toStringAsFixed(1)
-              : value!.round().toString())
+        ? (unit == '°C' ? value!.toStringAsFixed(1) : value!.round().toString())
         : '--';
     final tileBackground = isDark ? const Color(0xFF10141B) : Colors.white;
     final tileBorder = isDark
@@ -199,7 +197,9 @@ class _MonitorRow extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      hasHistory ? 'Do thi rieng cua chi so nay' : 'Chua co du lieu lich su',
+                      hasHistory
+                          ? 'Đồ thị riêng của chỉ số này'
+                          : 'Chưa có dữ liệu lịch sử',
                       style: TextStyle(
                         fontSize: compact ? 12 : 13,
                         fontWeight: FontWeight.w600,
@@ -358,7 +358,11 @@ class _SparklinePainter extends CustomPainter {
       final pointPaint = Paint()
         ..color = baseColor.withValues(alpha: dim ? 0.7 : 0.95)
         ..style = PaintingStyle.fill;
-      canvas.drawCircle(Offset(size.width / 2, size.height / 2), 3.5, pointPaint);
+      canvas.drawCircle(
+        Offset(size.width / 2, size.height / 2),
+        3.5,
+        pointPaint,
+      );
     }
   }
 

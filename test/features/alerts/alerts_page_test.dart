@@ -28,7 +28,7 @@ void main() {
         items: <AlertItem>[
           AlertItem(
             id: 'alert-001',
-            title: 'Nhip tim bat thuong',
+            title: 'Nhịp tim bất thường',
             message: 'HR > 130',
             severity: 'critical',
             createdAt: DateTime.parse('2026-03-13T10:00:00Z'),

@@ -6,7 +6,7 @@ void main() {
   test('AlertItem.fromJson parses severity, ack and ids', () {
     final item = AlertItem.fromJson({
       'alert_id': 'alert-001',
-      'title': 'Nhip tim bat thuong',
+      'title': 'Nhịp tim bất thường',
       'message': 'HR > 130',
       'severity': 'critical',
       'created_at': '2026-03-13T10:00:00Z',

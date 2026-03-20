@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:eldercare_app/src/data/api/api_client.dart';
 import 'package:eldercare_app/src/data/api/device_api_service.dart';
+import 'package:eldercare_app/src/domain/models/device_registration_result.dart';
 
 import 'support/test_helpers.dart';
 
@@ -76,6 +77,41 @@ void main() {
       deviceId: 'dev-esp-001',
       pairingCode: 'PAIR-001',
     );
+  });
+
+  test('registerDevice posts admin payload and parses pairing code', () async {
+    final client = ApiClient(baseUrl: 'https://example.com', timeoutMs: 1000);
+    final service = DeviceApiService(client: client);
+    client.dio.httpClientAdapter = StubHttpClientAdapter(
+      handler: (options, _) async {
+        expect(options.path, '/api/v1/devices/register');
+        expect(options.method, 'POST');
+        expect(options.data, <String, dynamic>{
+          'device_id': 'dev-esp-001',
+          'device_name': 'May do phong ngu',
+          'device_type': 'esp32',
+          'firmware_version': '1.0.0',
+          'pairing_code': 'PAIR-001',
+        });
+        return jsonResponse(<String, dynamic>{
+          'status': 'success',
+          'device_id': 'dev-esp-001',
+          'pairing_code': 'PAIR-001',
+        }, 200);
+      },
+    );
+
+    final result = await service.registerDevice(
+      deviceId: 'dev-esp-001',
+      deviceName: 'May do phong ngu',
+      deviceType: 'esp32',
+      firmwareVersion: '1.0.0',
+      pairingCode: 'PAIR-001',
+    );
+
+    expect(result, isA<DeviceRegistrationResult>());
+    expect(result.deviceId, 'dev-esp-001');
+    expect(result.pairingCode, 'PAIR-001');
   });
 
   test('addViewer and removeViewer call viewer endpoints', () async {

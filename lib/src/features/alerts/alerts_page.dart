@@ -50,8 +50,6 @@ class _AlertsPageState extends State<AlertsPage> {
     final provider = context.watch<AlertsProvider>();
     final deviceProvider = context.watch<DeviceProvider>();
     final currentDeviceId = deviceProvider.current?.resolvedDeviceId;
-    final layout = AppLayout.of(context);
-    final isCompact = layout == AppLayoutSize.compact;
     final contentMaxWidth = AppLayout.maxContentWidth(context);
     final pagePadding = AppLayout.pagePadding(
       context,
@@ -83,112 +81,117 @@ class _AlertsPageState extends State<AlertsPage> {
           child: ConstrainedBox(
             constraints: BoxConstraints(maxWidth: contentMaxWidth),
             child: ListView(
-          padding: pagePadding,
-          children: [
-            _SummaryCard(activeCount: provider.activeCount),
-            const SizedBox(height: 12),
-            Flex(
-              direction: Axis.horizontal,
+              padding: pagePadding,
               children: [
-                Expanded(
-                  child: DropdownButtonFormField<AlertSeverityFilter>(
-                    isExpanded: true,
-                    initialValue: provider.severityFilter,
-                    decoration: const InputDecoration(labelText: 'Mức độ'),
-                    items: const [
-                      DropdownMenuItem(
-                        value: AlertSeverityFilter.all,
-                        child: Text('Tất cả'),
-                      ),
-                      DropdownMenuItem(
-                        value: AlertSeverityFilter.highOnly,
-                        child: Text('Cao và khẩn cấp'),
-                      ),
-                    ],
-                    onChanged: (value) {
-                      if (value != null) {
-                        context.read<AlertsProvider>().setSeverityFilter(value);
-                      }
-                    },
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: DropdownButtonFormField<AlertAckFilter>(
-                    isExpanded: true,
-                    initialValue: provider.ackFilter,
-                    decoration: const InputDecoration(labelText: 'Trạng thái'),
-                    items: const [
-                      DropdownMenuItem(
-                        value: AlertAckFilter.activeOnly,
-                        child: Text('Chưa xử lý'),
-                      ),
-                      DropdownMenuItem(
-                        value: AlertAckFilter.acknowledgedOnly,
-                        child: Text('Đã xử lý'),
-                      ),
-                      DropdownMenuItem(
-                        value: AlertAckFilter.all,
-                        child: Text('Tất cả'),
-                      ),
-                    ],
-                    onChanged: (value) {
-                      if (value != null) {
-                        context.read<AlertsProvider>().setAckFilter(value);
-                      }
-                    },
-                  ),
-                ),
-              ],
-            ),
-            if (provider.error != null &&
-                provider.error!.trim().isNotEmpty) ...[
-              const SizedBox(height: 12),
-              _Banner(
-                message: provider.error!,
-                isError: provider.lastErrorStatusCode != 404,
-              ),
-            ] else if ((currentDeviceId ?? '').isEmpty) ...[
-              const SizedBox(height: 12),
-              const _Banner(
-                message: 'Chưa có thiết bị đang theo dõi để tải cảnh báo.',
-                isError: false,
-              ),
-            ],
-            const SizedBox(height: 16),
-            if (provider.isLoading && provider.items.isEmpty)
-              const Center(child: CircularProgressIndicator())
-            else if (visibleItems.isEmpty)
-              const _EmptyAlertsState()
-            else
-              ...visibleItems.map((item) {
-                final linkedDevice = deviceProvider.findById(item.deviceId);
-                final canAcknowledge = linkedDevice?.isOwnerLink == true;
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: _AlertCard(
-                    item: item,
-                    linkedDevice: linkedDevice,
-                    showAcknowledgeAction: canAcknowledge,
-                    onAcknowledge:
-                        !canAcknowledge ||
-                            item.acknowledged ||
-                            provider.isAcknowledging
-                        ? null
-                        : () => context.read<AlertsProvider>().acknowledge(
-                            item.id,
+                _SummaryCard(activeCount: provider.activeCount),
+                const SizedBox(height: 12),
+                Flex(
+                  direction: Axis.horizontal,
+                  children: [
+                    Expanded(
+                      child: DropdownButtonFormField<AlertSeverityFilter>(
+                        isExpanded: true,
+                        initialValue: provider.severityFilter,
+                        decoration: const InputDecoration(labelText: 'Mức độ'),
+                        items: const [
+                          DropdownMenuItem(
+                            value: AlertSeverityFilter.all,
+                            child: Text('Tất cả'),
                           ),
-                    onOpenDevice: linkedDevice == null
-                        ? null
-                        : () => _openAlertDevice(linkedDevice),
-                    onManageDevice:
-                        linkedDevice != null && linkedDevice.isOwnerLink
-                        ? () => _openOwnerManagement(linkedDevice)
-                        : null,
+                          DropdownMenuItem(
+                            value: AlertSeverityFilter.highOnly,
+                            child: Text('Cao và khẩn cấp'),
+                          ),
+                        ],
+                        onChanged: (value) {
+                          if (value != null) {
+                            context
+                                .read<AlertsProvider>()
+                                .setSeverityFilter(value);
+                          }
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: DropdownButtonFormField<AlertAckFilter>(
+                        isExpanded: true,
+                        initialValue: provider.ackFilter,
+                        decoration: const InputDecoration(
+                          labelText: 'Trạng thái',
+                        ),
+                        items: const [
+                          DropdownMenuItem(
+                            value: AlertAckFilter.activeOnly,
+                            child: Text('Chưa xử lý'),
+                          ),
+                          DropdownMenuItem(
+                            value: AlertAckFilter.acknowledgedOnly,
+                            child: Text('Đã xử lý'),
+                          ),
+                          DropdownMenuItem(
+                            value: AlertAckFilter.all,
+                            child: Text('Tất cả'),
+                          ),
+                        ],
+                        onChanged: (value) {
+                          if (value != null) {
+                            context.read<AlertsProvider>().setAckFilter(value);
+                          }
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                if (provider.error != null &&
+                    provider.error!.trim().isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  _Banner(
+                    message: provider.error!,
+                    isError: provider.lastErrorStatusCode != 404,
                   ),
-                );
-              }),
-          ],
+                ] else if ((currentDeviceId ?? '').isEmpty) ...[
+                  const SizedBox(height: 12),
+                  const _Banner(
+                    message:
+                        'Chưa có thiết bị đang theo dõi để tải cảnh báo.',
+                    isError: false,
+                  ),
+                ],
+                const SizedBox(height: 16),
+                if (provider.isLoading && provider.items.isEmpty)
+                  const Center(child: CircularProgressIndicator())
+                else if (visibleItems.isEmpty)
+                  const _EmptyAlertsState()
+                else
+                  ...visibleItems.map((item) {
+                    final linkedDevice = deviceProvider.findById(item.deviceId);
+                    final canAcknowledge = linkedDevice?.isOwnerLink == true;
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: _AlertCard(
+                        item: item,
+                        linkedDevice: linkedDevice,
+                        showAcknowledgeAction: canAcknowledge,
+                        onAcknowledge:
+                            !canAcknowledge ||
+                                item.acknowledged ||
+                                provider.isAcknowledging
+                            ? null
+                            : () => context
+                                .read<AlertsProvider>()
+                                .acknowledge(item.id),
+                        onOpenDevice: linkedDevice == null
+                            ? null
+                            : () => _openAlertDevice(linkedDevice),
+                        onManageDevice:
+                            linkedDevice != null && linkedDevice.isOwnerLink
+                            ? () => _openOwnerManagement(linkedDevice)
+                            : null,
+                      ),
+                    );
+                  }),
+              ],
             ),
           ),
         ),
@@ -272,13 +275,12 @@ class _AlertCard extends StatelessWidget {
                     avatar: Icon(Icons.check, size: 18),
                     label: Text('Đã xử lý'),
                   ),
-                if (linkedDevice != null) ...[
+                if (linkedDevice != null)
                   Chip(
                     label: Text(
                       deviceAccessRoleLabel(linkedDevice!.normalizedLinkRole),
                     ),
                   ),
-                ],
               ],
             ),
             const SizedBox(height: 8),
@@ -332,7 +334,9 @@ class _AlertCard extends StatelessWidget {
                         onPressed: onAcknowledge,
                         icon: const Icon(Icons.done_all),
                         label: Text(
-                          item.acknowledged ? 'Đã xử lý' : 'Đánh dấu đã xử lý',
+                          item.acknowledged
+                              ? 'Đã xử lý'
+                              : 'Đánh dấu đã xử lý',
                         ),
                       ),
                     ),

@@ -1,5 +1,6 @@
 import 'package:eldercare_app/src/data/api/api_client.dart';
 import 'package:eldercare_app/src/domain/models/device.dart';
+import 'package:eldercare_app/src/domain/models/device_registration_result.dart';
 
 class DeviceApiService {
   DeviceApiService({ApiClient? client})
@@ -25,6 +26,40 @@ class DeviceApiService {
         'pairing_code': pairingCode.trim(),
       },
     );
+  }
+
+  Future<DeviceRegistrationResult> registerDevice({
+    required String deviceId,
+    String? deviceName,
+    String? deviceType,
+    String? firmwareVersion,
+    String? pairingCode,
+  }) async {
+    final payload = <String, dynamic>{'device_id': deviceId.trim()};
+
+    final normalizedName = deviceName?.trim() ?? '';
+    final normalizedType = deviceType?.trim() ?? '';
+    final normalizedFirmwareVersion = firmwareVersion?.trim() ?? '';
+    final normalizedPairingCode = pairingCode?.trim() ?? '';
+
+    if (normalizedName.isNotEmpty) {
+      payload['device_name'] = normalizedName;
+    }
+    if (normalizedType.isNotEmpty) {
+      payload['device_type'] = normalizedType;
+    }
+    if (normalizedFirmwareVersion.isNotEmpty) {
+      payload['firmware_version'] = normalizedFirmwareVersion;
+    }
+    if (normalizedPairingCode.isNotEmpty) {
+      payload['pairing_code'] = normalizedPairingCode;
+    }
+
+    final json = await _client.postJson(
+      '/api/v1/devices/register',
+      data: payload,
+    );
+    return DeviceRegistrationResult.fromJson(json);
   }
 
   Future<List<DeviceLinkedUser>> getLinkedUsers({

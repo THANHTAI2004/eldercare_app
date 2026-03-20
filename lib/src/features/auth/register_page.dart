@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:eldercare_app/src/core/app_strings.dart';
 import 'package:eldercare_app/src/core/validators.dart';
 import 'package:eldercare_app/src/state/session_provider.dart';
+import 'package:eldercare_app/src/widgets/app_logo.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -103,6 +104,14 @@ class _RegisterPageState extends State<RegisterPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          const Center(
+                            child: AppBrandLockup(
+                              logoSize: 76,
+                              subtitle:
+                                  'Tạo tài khoản để bắt đầu liên kết thiết bị và theo dõi sức khỏe từ xa.',
+                            ),
+                          ),
+                          const SizedBox(height: 24),
                           Text(
                             'Tạo tài khoản mới',
                             style: Theme.of(context).textTheme.titleLarge,
@@ -152,7 +161,9 @@ class _RegisterPageState extends State<RegisterPage> {
                               children: [
                                 Expanded(child: Text(dateText)),
                                 TextButton(
-                                  onPressed: session.isRegistering ? null : _pickDate,
+                                  onPressed: session.isRegistering
+                                      ? null
+                                      : _pickDate,
                                   child: const Text('Chọn ngày'),
                                 ),
                               ],
