@@ -150,11 +150,13 @@ class _DevicePageState extends State<DevicePage> {
   }
 
   Future<void> _openClaimDevice() async {
-    final result = await Navigator.push<bool>(
+    final result = await Navigator.push<String?>(
       context,
-      MaterialPageRoute(builder: (_) => const ClaimDevicePage()),
+      MaterialPageRoute<String?>(
+        builder: (_) => const ClaimDevicePage(),
+      ),
     );
-    if (result != true || !mounted) return;
+    if (!mounted || result == null || result.trim().isEmpty) return;
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Liên kết thiết bị thành công.')),
@@ -434,7 +436,7 @@ class _AuthenticatedBody extends StatelessWidget {
                   ? 'Bạn có thể thêm thiết bị bằng mã thiết bị để liên kết thiết bị. Nếu bạn chỉ cần quyền xem, vui lòng liên hệ chủ thiết bị để được cấp quyền người xem.'
                   : 'Hãy thử đổi bộ lọc tìm kiếm hoặc làm mới danh sách thiết bị.',
               actionLabel: deviceProvider.devices.isEmpty
-                  ? 'Thêm thiết bị bằng mã thiết bị'
+                  ? 'Liên kết thiết bị'
                   : null,
               onAction: deviceProvider.devices.isEmpty ? onLinkDevice : null,
               secondaryActionLabel: deviceProvider.devices.isEmpty

@@ -1,12 +1,25 @@
 # Eldercare App
 
-Flutter app theo doi suc khoe, doc du lieu tu backend FastAPI qua HTTPS REST.
+Flutter app theo dõi sức khỏe, đọc dữ liệu từ backend FastAPI qua HTTPS REST.
 
-## Cau hinh moi theo server
+## Contract production
 
-Backend moi dung JWT cho luong app nguoi dung. `X-API-Key` khong con la header mac dinh cho cac request doc du lieu.
+App production dùng JWT của người dùng, không phụ thuộc `USER_ID` hay `DEVICE_ID` trong `.env`.
 
-1. Tao file `.env` o root project:
+Luồng chính:
+
+1. `POST /api/v1/auth/login`
+2. `GET /api/v1/auth/me`
+3. `GET /api/v1/me/devices`
+4. Chọn `currentDeviceId`
+5. Tải toàn bộ dữ liệu chính theo `device_id`
+
+`Authorization: Bearer <access_token>` là cơ chế xác thực mặc định cho flow người dùng.
+`X-API-Key` chỉ là fallback dev-only và không được hardcode vào build release.
+
+## Cấu hình môi trường
+
+Tạo file `.env` ở root project:
 
 ```env
 API_BASE_URL=https://api.eldercare.io.vn
@@ -16,35 +29,16 @@ REQUEST_TIMEOUT_MS=15000
 POLL_INTERVAL_MS=2000
 ```
 
-Ghi chu:
-- `LOGIN_PHONE_NUMBER` va `LOGIN_PASSWORD` duoc app dung de goi `POST /api/v1/auth/login` va lay `access_token`.
-- Sau khi login, app goi `GET /api/v1/auth/me` de lay user hien tai va `GET /api/v1/me/devices` de tai danh sach thiet bi da lien ket.
-- `access_token` va `refresh_token` duoc luu trong secure storage; current user cache duoc luu local de restore session nhanh hon.
-- `USER_ID` va `DEVICE_ID` chi con duoc dung lam fallback debug mode, khong phai luong chinh.
-- App release cho user thong thuong khong can `ADMIN_API_KEY`; bien nay chi la optional dev-only fallback.
-- Release/production can dam bao user van chay duoc khi `.env` khong co `USER_ID` va `DEVICE_ID`.
+Ghi chú:
 
-2. Cai dependencies:
+- `LOGIN_PHONE_NUMBER` và `LOGIN_PASSWORD` chỉ để tiện cho môi trường dev/test.
+- App tự chuẩn hóa số điện thoại trước khi `login/register`, ví dụ `0987654321` sẽ thành `+84987654321`.
+- Release/production phải chạy được dù `.env` không có thông tin user hay device cố định.
+- App sẽ tự restore session từ secure storage nếu đã đăng nhập trước đó.
 
-```bash
-flutter pub get
-```
+## Endpoint chính thức app đang dùng
 
-3. Chay app:
-
-```bash
-flutter run
-```
-
-## Luong ket noi
-
-- Flutter chi doc du lieu qua HTTPS REST, khong truy cap MongoDB truc tiep.
-- App login qua `POST /api/v1/auth/login`.
-- Sau khi login, app gui `Authorization: Bearer <access_token>` cho cac request doc du lieu va tai linked devices cua session user.
-- Realtime/latest/history uu tien query theo `device_id` cua thiet bi dang duoc chon.
-- ECG on-demand: app goi `POST /api/v1/devices/{device_id}/ecg/request`, sau do poll `GET /api/v1/devices/{device_id}/ecg` den khi co ket qua moi.
-
-## Endpoint dang duoc app su dung
+Auth:
 
 - `GET /health`
 - `POST /api/v1/auth/login`
@@ -52,52 +46,113 @@ flutter run
 - `POST /api/v1/auth/refresh`
 - `POST /api/v1/auth/logout`
 - `GET /api/v1/auth/me`
+
+Devices:
+
 - `GET /api/v1/me/devices`
-- `GET /api/v1/users/{user_id}/latest`
-- `GET /api/v1/users/{user_id}/vitals?limit=...`
-- `GET /api/v1/devices/{device_id}/ecg?limit=...`
-- `GET /api/v1/users/{user_id}/summary?period=24h`
-- `POST /api/v1/devices/{device_id}/ecg/request`
+- `POST /api/v1/devices/{device_id}/claim`
+- `GET /api/v1/devices/{device_id}/linked-users`
+- `POST /api/v1/devices/{device_id}/viewers`
+- `DELETE /api/v1/devices/{device_id}/viewers/{user_id}`
+
+Device-based data:
+
 - `GET /api/v1/devices/{device_id}/latest`
 - `GET /api/v1/devices/{device_id}/history?limit=...`
+- `GET /api/v1/devices/{device_id}/summary?period=24h`
+- `GET /api/v1/devices/{device_id}/alerts`
+- `GET /api/v1/devices/{device_id}/ecg?limit=...`
+- `POST /api/v1/devices/{device_id}/ecg/request`
 
-## Cau truc code lien quan
+Alerts action:
 
-- `lib/src/data/api/api_client.dart`: tao Dio client, timeout, gan dong header `Authorization: Bearer ...`.
-- `lib/src/data/api/auth_api_service.dart`: register/login/me/logout/refresh va dong bo token voi storage.
-- `lib/src/data/local/auth_storage.dart`: luu token trong secure storage va current user cache o local storage.
-- `lib/src/state/session_provider.dart`: bootstrap session, login, register, logout, refresh token va thong bao session het han cho UI.
-- `lib/src/data/api/health_api_service.dart`: cac API theo user/device + ECG polling.
-- `lib/src/state/realtime_provider.dart`: tai latest vitals, online/offline state va cap nhat UI realtime.
-- `lib/src/data/api/device_api_service.dart`: goi `GET /api/v1/me/devices`.
-- `lib/src/state/device_provider.dart`: dong bo linked devices, auto-chon current device, fallback debug mode.
-- `lib/src/features/alerts/alerts_page.dart`: danh sach alert, loc severity/trang thai, acknowledge.
+- `POST /api/v1/alerts/{alert_id}/acknowledge`
 
-## Manual Checklist
+## Claim device
+
+Luồng claim chính thức:
+
+- Form nhập `device_id`
+- Form nhập `pairing_code`
+- Submit `POST /api/v1/devices/{device_id}/claim`
+
+Payload:
+
+```json
+{
+  "pairing_code": "PAIR-123456"
+}
+```
+
+Sau khi claim thành công, app phải:
+
+1. Gọi lại `GET /api/v1/me/devices`
+2. Cập nhật `currentDeviceId`
+3. Reload các provider đang bám theo device:
+   - realtime/latest
+   - history
+   - alerts
+   - ECG scope
+
+Nếu user chưa có thiết bị, UI phải hiện empty state rõ ràng và có nút `Liên kết thiết bị`.
+
+## Device-centric rules
+
+- Home / realtime: dùng `device_id`
+- History: dùng `device_id`
+- Alerts: dùng `device_id`
+- ECG: dùng `device_id`
+- Summary: dùng `device_id`
+- `user_id` chỉ còn dùng cho hồ sơ user hoặc viewer/share khi thật sự cần
+
+## Xử lý lỗi mong muốn ở UI
+
+- `401`: refresh token nếu có thể, nếu không thì quay lại login
+- `403`: báo user không có quyền với thiết bị này
+- `404`: thiết bị không tồn tại hoặc chưa có dữ liệu
+- `422`: pairing code sai hoặc payload không đúng schema
+- `429`: báo thử lại sau và giảm polling
+- `500`: báo lỗi máy chủ
+
+## File chính liên quan
+
+- `lib/src/data/api/api_client.dart`: cấu hình Dio, timeout, gắn `Authorization: Bearer ...`
+- `lib/src/data/api/auth_api_service.dart`: login/register/me/logout/refresh
+- `lib/src/data/api/device_api_service.dart`: `/me/devices`, claim device, viewer management
+- `lib/src/data/api/health_api_service.dart`: latest/history/summary/ECG theo `device_id`
+- `lib/src/data/api/alerts_api_service.dart`: alerts theo `device_id`
+- `lib/src/state/session_provider.dart`: bootstrap session, login, logout, refresh token
+- `lib/src/state/device_provider.dart`: đồng bộ danh sách thiết bị và chọn current device
+- `lib/src/state/realtime_provider.dart`: latest reading theo device
+- `lib/src/state/history_provider.dart`: history theo device
+- `lib/src/state/alerts_provider.dart`: alerts theo device
+- `lib/src/state/ecg_provider.dart`: ECG on-demand theo device
+- `lib/src/features/devices/claim_device_page.dart`: form claim với `device_id` + `pairing_code`
+
+## Manual checklist
 
 1. Auth
-- Login bang `LOGIN_PHONE_NUMBER` / `LOGIN_PASSWORD` hoac nhap tay trong app.
-- Dang ky tai khoan moi trong app, xac nhan app quay lai man hinh login va tu dien lai so dien thoai.
-- Kill app va mo lai, xac nhan session duoc restore.
-- Logout, xac nhan app quay lai man hinh login.
 
-2. Device sync
-- Sau login, xac nhan app goi `/api/v1/me/devices` va hien linked devices.
-- Neu user chi co 1 device, xac nhan device duoc auto-select.
-- Neu user co nhieu device, doi device trong selector o `HomePage` va xac nhan latest/history doi theo.
-- Neu user moi dang ky chua co thiet bi, xac nhan app hien empty state huong dan lien ket thay vi man hinh trong.
-- Luu y: production co the chua mo self-link device neu backend chua ho tro, khi do user se thay huong dan lien he caregiver/ky thuat vien.
+- Login bằng số điện thoại và mật khẩu hợp lệ
+- Kill app và mở lại, xác nhận session được restore
+- Logout, xác nhận quay lại màn hình login
 
-3. Data states
-- Kiem tra 4 case UI: chua login, khong co device, device co nhung chua co reading, khong co quyen / server loi.
+2. Devices
 
-4. ECG
-- Gui request ECG cho device dang chon.
-- Xac nhan app poll theo `/api/v1/devices/{device_id}/ecg`.
-- Xac nhan UI hien trang thai dang cho ket qua va nhan ket qua moi dung device.
+- Sau login, app gọi `/api/v1/me/devices`
+- Nếu có thiết bị, app chọn `currentDeviceId`
+- Nếu chưa có thiết bị, app hiện empty state với nút `Liên kết thiết bị`
 
-5. Alerts
-- Mo man hinh Alerts.
-- Loc theo severity va trang thai acknowledge.
-- Acknowledge mot alert va xac nhan trang thai cap nhat.
+3. Claim
 
+- Nhập `device_id`
+- Nhập `pairing_code`
+- Submit claim
+- Xác nhận danh sách thiết bị được reload và thiết bị vừa claim được chọn lại
+
+4. Data
+
+- Realtime/latest tải theo `/api/v1/devices/{device_id}/latest`
+- History tải theo `/api/v1/devices/{device_id}/history`
+- Alerts tải theo `/api/v1/devices/{device_id}/alerts`
+- ECG request/poll theo `/api/v1/devices/{device_id}/ecg...`

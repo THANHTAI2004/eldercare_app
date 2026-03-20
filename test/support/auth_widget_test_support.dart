@@ -163,19 +163,6 @@ class FakeHealthApiService extends HealthApiService {
     : super(client: ApiClient(baseUrl: 'https://example.com', timeoutMs: 1000));
 
   @override
-  Future<VitalPoint> getLatestByUser({
-    required String userId,
-    String? deviceId,
-  }) async {
-    throw ApiRequestException(
-      method: 'GET',
-      path: '/api/v1/users/$userId/latest',
-      message: 'No data found',
-      statusCode: 404,
-    );
-  }
-
-  @override
   Future<VitalPoint> getLatestByDevice({required String deviceId}) async {
     throw ApiRequestException(
       method: 'GET',
@@ -183,15 +170,6 @@ class FakeHealthApiService extends HealthApiService {
       message: 'No data found',
       statusCode: 404,
     );
-  }
-
-  @override
-  Future<List<VitalPoint>> getVitalsByUser({
-    required String userId,
-    String? deviceId,
-    int limit = 100,
-  }) async {
-    return const <VitalPoint>[];
   }
 
   @override

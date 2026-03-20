@@ -20,7 +20,7 @@ void main() {
     setUpSharedPreferences();
   });
 
-  testWidgets('claim device success reloads my devices and returns true', (
+  testWidgets('claim device success reloads my devices and returns selected device id', (
     tester,
   ) async {
     final session = buildSessionProvider(
@@ -69,24 +69,22 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Mo man lien ket'));
+    await tester.tap(find.text('Mở màn liên kết'));
     await tester.pumpAndSettle();
 
-    await tester.enterText(
-      find.widgetWithText(TextFormField, 'Mã thiết bị'),
-      'dev-esp-001',
-    );
+    await tester.enterText(find.byType(TextFormField).at(0), 'dev-esp-001');
+    await tester.enterText(find.byType(TextFormField).at(1), 'PAIR-001');
     await tester.tap(find.byIcon(Icons.add_link));
     await tester.pumpAndSettle();
 
     expect(claimApi.lastClaimedDeviceId, 'dev-esp-001');
+    expect(claimApi.lastPairingCode, 'PAIR-001');
     expect(deviceProviderApi.getMyDevicesCalls, 1);
-    expect(deviceProvider.devices, hasLength(1));
-    expect(deviceProvider.devices.single.resolvedDeviceId, 'dev-esp-001');
-    expect(find.text('result:true'), findsOneWidget);
+    expect(deviceProvider.current?.resolvedDeviceId, 'dev-esp-001');
+    expect(find.text('result:dev-esp-001'), findsOneWidget);
   });
 
-  testWidgets('claim device uses shared ApiClient bearer token by default', (
+  testWidgets('claim device uses shared ApiClient bearer token and sends pairing code', (
     tester,
   ) async {
     final session = buildSessionProvider(
@@ -115,6 +113,9 @@ void main() {
       handler: (options, _) async {
         expect(options.path, '/api/v1/devices/dev-esp-009/claim');
         expect(options.headers['Authorization'], 'Bearer shared-access');
+        expect(options.data, <String, dynamic>{
+          'pairing_code': 'PAIR-009',
+        });
         return jsonResponse(<String, dynamic>{'ok': true}, 200);
       },
     );
@@ -131,17 +132,70 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Mo man lien ket'));
+    await tester.tap(find.text('Mở màn liên kết'));
     await tester.pumpAndSettle();
 
-    await tester.enterText(
-      find.widgetWithText(TextFormField, 'Mã thiết bị'),
-      'dev-esp-009',
-    );
+    await tester.enterText(find.byType(TextFormField).at(0), 'dev-esp-009');
+    await tester.enterText(find.byType(TextFormField).at(1), 'PAIR-009');
     await tester.tap(find.byIcon(Icons.add_link));
     await tester.pumpAndSettle();
 
-    expect(find.text('result:true'), findsOneWidget);
+    expect(find.text('result:dev-esp-009'), findsOneWidget);
+  });
+
+  testWidgets('claim device shows pairing-code specific error for 422 response', (
+    tester,
+  ) async {
+    final session = buildSessionProvider(
+      loginTokens: const AuthTokens(
+        accessToken: 'access-123',
+        refreshToken: 'refresh-456',
+      ),
+      meResponse: const <String, dynamic>{
+        'user_id': 'owner-001',
+        'name': 'Owner A',
+        'role': 'member',
+      },
+    );
+    await session.login(phoneNumber: '0987654321', password: 'MatKhau123');
+
+    final deviceProvider = DeviceProvider(
+      api: _TrackingMyDevicesApiService(devices: const <Device>[]),
+    );
+    await deviceProvider.load();
+
+    final claimApi = _TrackingClaimApiService(
+      claimError: ApiRequestException(
+        method: 'POST',
+        path: '/api/v1/devices/dev-esp-404/claim',
+        message: 'invalid pairing code',
+        statusCode: 422,
+      ),
+    );
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<SessionProvider>.value(value: session),
+          ChangeNotifierProvider<DeviceProvider>.value(value: deviceProvider),
+        ],
+        child: MaterialApp(home: _ClaimFlowHost(api: claimApi)),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Mở màn liên kết'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextFormField).at(0), 'dev-esp-404');
+    await tester.enterText(find.byType(TextFormField).at(1), 'WRONG-CODE');
+    await tester.tap(find.byIcon(Icons.add_link));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Mã ghép nối không đúng hoặc dữ liệu gửi lên chưa hợp lệ.'),
+      findsOneWidget,
+    );
   });
 }
 
@@ -155,7 +209,7 @@ class _ClaimFlowHost extends StatefulWidget {
 }
 
 class _ClaimFlowHostState extends State<_ClaimFlowHost> {
-  bool? _result;
+  String? _result;
 
   @override
   Widget build(BuildContext context) {
@@ -168,8 +222,8 @@ class _ClaimFlowHostState extends State<_ClaimFlowHost> {
             const SizedBox(height: 12),
             FilledButton(
               onPressed: () async {
-                final result = await Navigator.of(context).push<bool>(
-                  MaterialPageRoute(
+                final result = await Navigator.of(context).push<String?>(
+                  MaterialPageRoute<String?>(
                     builder: (_) => ClaimDevicePage(api: widget.api),
                   ),
                 );
@@ -178,7 +232,7 @@ class _ClaimFlowHostState extends State<_ClaimFlowHost> {
                   _result = result;
                 });
               },
-              child: const Text('Mo man lien ket'),
+              child: const Text('Mở màn liên kết'),
             ),
           ],
         ),
@@ -188,14 +242,23 @@ class _ClaimFlowHostState extends State<_ClaimFlowHost> {
 }
 
 class _TrackingClaimApiService extends DeviceApiService {
-  _TrackingClaimApiService()
+  _TrackingClaimApiService({this.claimError})
     : super(client: ApiClient(baseUrl: 'https://example.com', timeoutMs: 1000));
 
+  final Object? claimError;
   String? lastClaimedDeviceId;
+  String? lastPairingCode;
 
   @override
-  Future<void> claimDevice({required String deviceId}) async {
+  Future<void> claimDevice({
+    required String deviceId,
+    required String pairingCode,
+  }) async {
     lastClaimedDeviceId = deviceId;
+    lastPairingCode = pairingCode;
+    if (claimError != null) {
+      throw claimError!;
+    }
   }
 }
 

@@ -99,7 +99,9 @@ class _FakeAlertsApiService extends AlertsApiService {
   final List<AlertItem> items;
 
   @override
-  Future<List<AlertItem>> getMyAlerts({String? deviceId}) async => items;
+  Future<List<AlertItem>> getAlertsByDevice({required String deviceId}) async {
+    return items;
+  }
 }
 
 class _FakeDeviceApiService extends DeviceApiService {

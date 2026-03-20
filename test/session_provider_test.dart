@@ -85,7 +85,7 @@ void main() {
     );
 
     expect(ok, isTrue);
-    expect(authApi.lastLoginPhoneNumber, '0987654321');
+    expect(authApi.lastLoginPhoneNumber, '+84987654321');
     expect(authApi.lastLoginPassword, 'secret');
   });
 
@@ -107,7 +107,51 @@ void main() {
 
     expect(ok, isTrue);
     expect(authApi.lastRegisterRequest, isNotNull);
-    expect(authApi.lastRegisterRequest!.phoneNumber, '0987654321');
+    expect(authApi.lastRegisterRequest!.phoneNumber, '+84987654321');
+  });
+
+  test('login retries local phone format when normalized format gets 401', () async {
+    final client = ApiClient(baseUrl: 'https://example.com', timeoutMs: 1000);
+    final storage = AuthStorage(secureStore: MemorySecureStore());
+    final authApi = _FakeAuthApiService(
+      client: client,
+      storage: storage,
+      meResponse: const <String, dynamic>{
+        'user_id': 'user-001',
+        'role': 'member',
+      },
+      loginHandler: ({required phoneNumber, required password}) async {
+        if (phoneNumber == '+84987654321') {
+          throw ApiRequestException(
+            method: 'POST',
+            path: '/api/v1/auth/login',
+            message: 'unauthorized',
+            statusCode: 401,
+          );
+        }
+
+        expect(phoneNumber, '0987654321');
+        expect(password, 'secret');
+        return const AuthTokens(
+          accessToken: 'access-token',
+          refreshToken: 'refresh-token',
+        );
+      },
+    );
+    final provider = SessionProvider(client: client, authApi: authApi);
+
+    final ok = await provider.login(
+      phoneNumber: '0987 654 321',
+      password: 'secret',
+    );
+
+    expect(ok, isTrue);
+    expect(authApi.loginCalls, 2);
+    expect(
+      authApi.loginPhoneAttempts,
+      <String>['+84987654321', '0987654321'],
+    );
+    expect(provider.isAuthenticated, isTrue);
   });
 
   test(
@@ -331,6 +375,7 @@ class _FakeAuthApiService extends AuthApiService {
     required super.client,
     required super.storage,
     this.loginTokens,
+    this.loginHandler,
     this.restoredTokens,
     this.savedCurrentUser,
     this.meResponse = const <String, dynamic>{},
@@ -338,6 +383,10 @@ class _FakeAuthApiService extends AuthApiService {
   });
 
   final AuthTokens? loginTokens;
+  final Future<AuthTokens> Function({
+    required String phoneNumber,
+    required String password,
+  })? loginHandler;
   final AuthTokens? restoredTokens;
   final Map<String, dynamic>? savedCurrentUser;
   final Map<String, dynamic> meResponse;
@@ -345,6 +394,7 @@ class _FakeAuthApiService extends AuthApiService {
   String? lastLoginPhoneNumber;
   String? lastLoginPassword;
   RegisterRequest? lastRegisterRequest;
+  final List<String> loginPhoneAttempts = <String>[];
 
   int loginCalls = 0;
   int restoreCalls = 0;
@@ -360,6 +410,10 @@ class _FakeAuthApiService extends AuthApiService {
     loginCalls += 1;
     lastLoginPhoneNumber = phoneNumber;
     lastLoginPassword = password;
+    loginPhoneAttempts.add(phoneNumber);
+    if (loginHandler != null) {
+      return loginHandler!(phoneNumber: phoneNumber, password: password);
+    }
     if (loginTokens == null) {
       throw StateError('Missing fake login tokens');
     }

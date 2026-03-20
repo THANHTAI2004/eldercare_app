@@ -9,68 +9,6 @@ class HealthApiService {
 
   Future<Map<String, dynamic>> health() => _client.getJson('/health');
 
-  Future<VitalPoint> getLatestByUser({
-    required String userId,
-    String? deviceId,
-  }) async {
-    final json = await _client.getJson(
-      '/api/v1/users/$userId/latest',
-      query: <String, dynamic>{
-        if (deviceId != null && deviceId.trim().isNotEmpty)
-          'device_id': deviceId,
-      },
-    );
-    return VitalPoint.fromJson(json);
-  }
-
-  Future<List<VitalPoint>> getVitalsByUser({
-    required String userId,
-    String? deviceId,
-    int limit = 100,
-  }) async {
-    final json = await _client.getJson(
-      '/api/v1/users/$userId/vitals',
-      query: <String, dynamic>{
-        'limit': limit,
-        if (deviceId != null && deviceId.trim().isNotEmpty)
-          'device_id': deviceId,
-      },
-    );
-    return _readItems(json).map(VitalPoint.fromJson).toList(growable: false);
-  }
-
-  Future<List<Map<String, dynamic>>> getEcgByUser({
-    required String userId,
-    int limit = 10,
-  }) async {
-    final json = await _client.getJson(
-      '/api/v1/users/$userId/ecg',
-      query: <String, dynamic>{'limit': limit},
-    );
-    return _readItems(json);
-  }
-
-  Future<List<Map<String, dynamic>>> getEcgByDevice({
-    required String deviceId,
-    int limit = 10,
-  }) async {
-    final json = await _client.getJson(
-      '/api/v1/devices/$deviceId/ecg',
-      query: <String, dynamic>{'limit': limit},
-    );
-    return _readItems(json);
-  }
-
-  Future<Map<String, dynamic>> getSummaryByUser({
-    required String userId,
-    String period = '24h',
-  }) {
-    return _client.getJson(
-      '/api/v1/users/$userId/summary',
-      query: <String, dynamic>{'period': period},
-    );
-  }
-
   Future<VitalPoint> getLatestByDevice({required String deviceId}) async {
     final json = await _client.getJson('/api/v1/devices/$deviceId/latest');
     return VitalPoint.fromJson(json);
@@ -85,6 +23,27 @@ class HealthApiService {
       query: <String, dynamic>{'limit': limit},
     );
     return _readItems(json).map(VitalPoint.fromJson).toList(growable: false);
+  }
+
+  Future<Map<String, dynamic>> getSummaryByDevice({
+    required String deviceId,
+    String period = '24h',
+  }) {
+    return _client.getJson(
+      '/api/v1/devices/$deviceId/summary',
+      query: <String, dynamic>{'period': period},
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> getEcgByDevice({
+    required String deviceId,
+    int limit = 10,
+  }) async {
+    final json = await _client.getJson(
+      '/api/v1/devices/$deviceId/ecg',
+      query: <String, dynamic>{'limit': limit},
+    );
+    return _readItems(json);
   }
 
   Future<Map<String, dynamic>> requestEcg({

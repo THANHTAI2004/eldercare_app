@@ -53,13 +53,4 @@ class _FakeHealthApiService extends HealthApiService {
   }) async {
     return history;
   }
-
-  @override
-  Future<List<VitalPoint>> getVitalsByUser({
-    required String userId,
-    String? deviceId,
-    int limit = 100,
-  }) async {
-    return history;
-  }
 }

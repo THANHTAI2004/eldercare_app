@@ -7,13 +7,10 @@ class AlertsApiService {
 
   final ApiClient _client;
 
-  Future<List<AlertItem>> getMyAlerts({String? deviceId}) async {
-    final normalizedDeviceId = deviceId?.trim() ?? '';
+  Future<List<AlertItem>> getAlertsByDevice({required String deviceId}) async {
+    final normalizedDeviceId = deviceId.trim();
     final json = await _client.getJson(
-      '/api/v1/me/alerts',
-      query: <String, dynamic>{
-        if (normalizedDeviceId.isNotEmpty) 'device_id': normalizedDeviceId,
-      },
+      '/api/v1/devices/$normalizedDeviceId/alerts',
     );
     return _extractMany(json)
         .map(AlertItem.fromJson)

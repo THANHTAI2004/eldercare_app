@@ -58,18 +58,24 @@ void main() {
     expect(devices, isEmpty);
   });
 
-  test('claimDevice posts to claim endpoint', () async {
+  test('claimDevice posts to claim endpoint with pairing code payload', () async {
     final client = ApiClient(baseUrl: 'https://example.com', timeoutMs: 1000);
     final service = DeviceApiService(client: client);
     client.dio.httpClientAdapter = StubHttpClientAdapter(
       handler: (options, _) async {
         expect(options.path, '/api/v1/devices/dev-esp-001/claim');
         expect(options.method, 'POST');
+        expect(options.data, <String, dynamic>{
+          'pairing_code': 'PAIR-001',
+        });
         return jsonResponse(<String, dynamic>{'ok': true}, 200);
       },
     );
 
-    await service.claimDevice(deviceId: 'dev-esp-001');
+    await service.claimDevice(
+      deviceId: 'dev-esp-001',
+      pairingCode: 'PAIR-001',
+    );
   });
 
   test('addViewer and removeViewer call viewer endpoints', () async {

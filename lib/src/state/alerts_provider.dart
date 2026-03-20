@@ -28,23 +28,21 @@ class AlertsProvider extends ChangeNotifier {
   List<AlertItem> get items => List.unmodifiable(_items);
 
   List<AlertItem> get visibleItems {
-    return _items
-        .where((item) {
-          if (severityFilter == AlertSeverityFilter.highOnly &&
-              !item.isHighSeverity) {
-            return false;
-          }
+    return _items.where((item) {
+      if (severityFilter == AlertSeverityFilter.highOnly &&
+          !item.isHighSeverity) {
+        return false;
+      }
 
-          switch (ackFilter) {
-            case AlertAckFilter.all:
-              return true;
-            case AlertAckFilter.activeOnly:
-              return !item.acknowledged;
-            case AlertAckFilter.acknowledgedOnly:
-              return item.acknowledged;
-          }
-        })
-        .toList(growable: false);
+      switch (ackFilter) {
+        case AlertAckFilter.all:
+          return true;
+        case AlertAckFilter.activeOnly:
+          return !item.acknowledged;
+        case AlertAckFilter.acknowledgedOnly:
+          return item.acknowledged;
+      }
+    }).toList(growable: false);
   }
 
   int get activeCount => _items.where((item) => !item.acknowledged).length;
@@ -103,7 +101,7 @@ class AlertsProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final alerts = await _api.getMyAlerts(deviceId: _deviceId);
+      final alerts = await _api.getAlertsByDevice(deviceId: _deviceId);
       final scopedAlerts = alerts
           .where((item) => (item.deviceId?.trim() ?? '') == _deviceId)
           .toList(growable: false);
@@ -177,13 +175,19 @@ class AlertsProvider extends ChangeNotifier {
       return 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn';
     }
     if (e.statusCode == 403) {
-      return 'Tài khoản hiện tại không có quyền xem cảnh báo';
+      return 'Tài khoản hiện tại không có quyền xem cảnh báo của thiết bị này';
     }
     if (e.statusCode == 404) {
-      return 'Chưa có cảnh báo nào trên máy chủ';
+      return 'Chưa có cảnh báo nào cho thiết bị này';
+    }
+    if (e.statusCode == 422) {
+      return 'Yêu cầu tải cảnh báo chưa đúng định dạng';
     }
     if (e.statusCode == 429) {
       return 'Đang bị giới hạn yêu cầu, vui lòng thử lại sau';
+    }
+    if (e.statusCode == 500) {
+      return 'Máy chủ đang gặp lỗi, vui lòng thử lại sau';
     }
     return e.message;
   }

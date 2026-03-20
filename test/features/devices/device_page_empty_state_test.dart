@@ -48,8 +48,8 @@ void main() {
     await tester.pump();
 
     expect(find.text('Bạn chưa có thiết bị nào'), findsOneWidget);
-    expect(find.text('Thêm thiết bị bằng mã thiết bị'), findsOneWidget);
-    expect(find.text('Xem huong dan lien ket'), findsOneWidget);
+    expect(find.text('Liên kết thiết bị'), findsOneWidget);
+    expect(find.text('Xem hướng dẫn liên kết'), findsOneWidget);
   });
 
   testWidgets('viewer account with no devices sees shared guidance', (
@@ -86,7 +86,7 @@ void main() {
     await tester.pump();
 
     expect(find.text('Bạn chưa có thiết bị nào'), findsOneWidget);
-    expect(find.text('Thêm thiết bị bằng mã thiết bị'), findsOneWidget);
-    expect(find.text('Xem huong dan lien ket'), findsOneWidget);
+    expect(find.text('Liên kết thiết bị'), findsOneWidget);
+    expect(find.text('Xem hướng dẫn liên kết'), findsOneWidget);
   });
 }

@@ -15,8 +15,16 @@ class DeviceApiService {
         .toList(growable: false);
   }
 
-  Future<void> claimDevice({required String deviceId}) async {
-    await _client.postJson('/api/v1/devices/$deviceId/claim');
+  Future<void> claimDevice({
+    required String deviceId,
+    required String pairingCode,
+  }) async {
+    await _client.postJson(
+      '/api/v1/devices/$deviceId/claim',
+      data: <String, dynamic>{
+        'pairing_code': pairingCode.trim(),
+      },
+    );
   }
 
   Future<List<DeviceLinkedUser>> getLinkedUsers({

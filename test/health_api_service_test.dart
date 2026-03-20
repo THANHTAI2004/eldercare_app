@@ -6,10 +6,10 @@ import 'package:eldercare_app/src/data/api/health_api_service.dart';
 import 'support/test_helpers.dart';
 
 void main() {
-  test('parses latest reading from a direct object response', () async {
+  test('parses latest reading from the device latest endpoint', () async {
     final client = ApiClient(baseUrl: 'https://example.com', timeoutMs: 1000);
     final service = HealthApiService(client: client);
-    final adapter = StubHttpClientAdapter(
+    client.dio.httpClientAdapter = StubHttpClientAdapter(
       handler: (options, _) async {
         expect(options.path, '/api/v1/devices/dev-1/latest');
         return jsonResponse(<String, dynamic>{
@@ -19,7 +19,6 @@ void main() {
         }, 200);
       },
     );
-    client.dio.httpClientAdapter = adapter;
 
     final point = await service.getLatestByDevice(deviceId: 'dev-1');
 
@@ -27,43 +26,50 @@ void main() {
     expect(point.hr, 72);
   });
 
-  test('parses history and vitals from items list', () async {
+  test('parses history from the device history endpoint', () async {
     final client = ApiClient(baseUrl: 'https://example.com', timeoutMs: 1000);
     final service = HealthApiService(client: client);
-    final adapter = StubHttpClientAdapter(
+    client.dio.httpClientAdapter = StubHttpClientAdapter(
       handler: (options, _) async {
-        if (options.path.contains('/history')) {
-          return jsonResponse(<String, dynamic>{
-            'count': 1,
-            'items': <Map<String, dynamic>>[
-              <String, dynamic>{
-                'timestamp': '2026-03-16T08:00:00Z',
-                'device_id': 'dev-1',
-                'heart_rate': 70,
-              },
-            ],
-          }, 200);
-        }
-
+        expect(options.path, '/api/v1/devices/dev-1/history');
+        expect(options.queryParameters, <String, dynamic>{'limit': 100});
         return jsonResponse(<String, dynamic>{
           'count': 1,
           'items': <Map<String, dynamic>>[
             <String, dynamic>{
-              'timestamp': '2026-03-16T09:00:00Z',
+              'timestamp': '2026-03-16T08:00:00Z',
               'device_id': 'dev-1',
-              'heart_rate': 74,
+              'heart_rate': 70,
             },
           ],
         }, 200);
       },
     );
-    client.dio.httpClientAdapter = adapter;
 
     final history = await service.getHistoryByDevice(deviceId: 'dev-1');
-    final vitals = await service.getVitalsByUser(userId: 'user-001');
 
+    expect(history, hasLength(1));
     expect(history.single.hr, 70);
-    expect(vitals.single.hr, 74);
+  });
+
+  test('reads summary from the device summary endpoint', () async {
+    final client = ApiClient(baseUrl: 'https://example.com', timeoutMs: 1000);
+    final service = HealthApiService(client: client);
+    client.dio.httpClientAdapter = StubHttpClientAdapter(
+      handler: (options, _) async {
+        expect(options.path, '/api/v1/devices/dev-1/summary');
+        expect(options.queryParameters, <String, dynamic>{'period': '24h'});
+        return jsonResponse(<String, dynamic>{
+          'device_id': 'dev-1',
+          'avg_hr': 73,
+        }, 200);
+      },
+    );
+
+    final summary = await service.getSummaryByDevice(deviceId: 'dev-1');
+
+    expect(summary['device_id'], 'dev-1');
+    expect(summary['avg_hr'], 73);
   });
 
   test('parses ecg items list and sends request payload correctly', () async {
@@ -84,7 +90,10 @@ void main() {
         return jsonResponse(<String, dynamic>{
           'count': 1,
           'items': <Map<String, dynamic>>[
-            <String, dynamic>{'timestamp': '2026-03-16T10:00:00Z', 'samples': <int>[1, 2, 3]},
+            <String, dynamic>{
+              'timestamp': '2026-03-16T10:00:00Z',
+              'samples': <int>[1, 2, 3],
+            },
           ],
         }, 200);
       },

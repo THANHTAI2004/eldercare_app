@@ -104,12 +104,4 @@ class _FakeHealthApiService extends HealthApiService {
     }
     return point;
   }
-
-  @override
-  Future<VitalPoint> getLatestByUser({
-    required String userId,
-    String? deviceId,
-  }) async {
-    return getLatestByDevice(deviceId: deviceId ?? userId);
-  }
 }

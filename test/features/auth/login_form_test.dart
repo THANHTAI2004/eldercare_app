@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:eldercare_app/src/core/app_strings.dart';
 import 'package:eldercare_app/src/data/api/api_client.dart';
 import 'package:eldercare_app/src/data/local/auth_storage.dart';
 import 'package:eldercare_app/src/domain/models/auth_tokens.dart';
@@ -40,8 +41,8 @@ void main() {
     await tester.tap(loginButtonIcon);
     await tester.pumpAndSettle();
 
-    expect(find.text('Nhập số điện thoại'), findsOneWidget);
-    expect(find.text('Nhập mật khẩu'), findsOneWidget);
+    expect(find.text(AppStrings.loginPhoneRequired), findsOneWidget);
+    expect(find.text(AppStrings.loginPasswordRequired), findsOneWidget);
   });
 
   testWidgets('login shows invalid phone error for short number', (
@@ -75,7 +76,7 @@ void main() {
     await tester.tap(loginButtonIcon);
     await tester.pumpAndSettle();
 
-    expect(find.text('Số điện thoại không hợp lệ'), findsOneWidget);
+    expect(find.text(AppStrings.phoneInvalid), findsOneWidget);
   });
 
   testWidgets('login with valid credentials authenticates session', (
@@ -157,11 +158,11 @@ void main() {
     await tester.pump();
 
     await tester.enterText(
-      find.widgetWithText(TextFormField, 'Sá»‘ Ä‘iá»‡n thoáº¡i'),
+      find.widgetWithText(TextFormField, 'Số điện thoại'),
       '0987 654 321',
     );
     await tester.enterText(
-      find.widgetWithText(TextFormField, 'Máº­t kháº©u'),
+      find.widgetWithText(TextFormField, 'Mật khẩu'),
       'MatKhau123',
     );
     final loginButtonIcon = find.byIcon(Icons.login);
@@ -170,7 +171,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(session.isAuthenticated, isTrue);
-    expect(authApi.lastLoginPhoneNumber, '0987654321');
+    expect(authApi.lastLoginPhoneNumber, '+84987654321');
     expect(authApi.lastLoginPassword, 'MatKhau123');
   });
 }

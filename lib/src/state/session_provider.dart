@@ -104,7 +104,12 @@ class SessionProvider extends ChangeNotifier {
     String? password,
     bool silent = false,
   }) async {
-    final nextPhoneNumber = AppValidators.normalizePhoneNumber(phoneNumber);
+    final loginPhoneCandidates = AppValidators.loginPhoneCandidates(
+      phoneNumber,
+    );
+    final nextPhoneNumber = loginPhoneCandidates.isEmpty
+        ? AppValidators.normalizePhoneNumber(phoneNumber)
+        : loginPhoneCandidates.first;
     final nextPassword = password ?? '';
 
     if (nextPhoneNumber.isEmpty || nextPassword.isEmpty) {
@@ -124,13 +129,30 @@ class SessionProvider extends ChangeNotifier {
     }
 
     try {
-      _tokens = await _authApi.login(
-        phoneNumber: nextPhoneNumber,
-        password: nextPassword,
-      );
+      for (var i = 0; i < loginPhoneCandidates.length; i++) {
+        final candidate = loginPhoneCandidates[i];
+        try {
+          _tokens = await _authApi.login(
+            phoneNumber: candidate,
+            password: nextPassword,
+          );
+          currentUser = CurrentUser.fromJson(await _authApi.me());
+          return true;
+        } catch (e, st) {
+          final isLastCandidate = i == loginPhoneCandidates.length - 1;
+          final canRetryWithAlternatePhone =
+              e is ApiRequestException &&
+              e.statusCode == 401 &&
+              !isLastCandidate;
 
-      currentUser = CurrentUser.fromJson(await _authApi.me());
-      return true;
+          if (canRetryWithAlternatePhone) {
+            continue;
+          }
+          Error.throwWithStackTrace(e, st);
+        }
+      }
+
+      throw StateError('Login flow ended without a result');
     } catch (e) {
       await _clearSession(notify: false);
       if (!silent) {
