@@ -200,6 +200,46 @@ class ApiClient {
     }
   }
 
+  Future<Map<String, dynamic>> putJson(
+    String path, {
+    Object? data,
+    Map<String, dynamic>? query,
+    Map<String, dynamic>? headers,
+    Map<String, dynamic>? extra,
+  }) async {
+    try {
+      final res = await _dio.put<dynamic>(
+        path,
+        data: data,
+        queryParameters: query,
+        options: Options(headers: headers, extra: extra),
+      );
+      return _asMap(res.data);
+    } on DioException catch (e) {
+      throw _toApiException(e, method: 'PUT', path: path);
+    }
+  }
+
+  Future<Map<String, dynamic>> patchJson(
+    String path, {
+    Object? data,
+    Map<String, dynamic>? query,
+    Map<String, dynamic>? headers,
+    Map<String, dynamic>? extra,
+  }) async {
+    try {
+      final res = await _dio.patch<dynamic>(
+        path,
+        data: data,
+        queryParameters: query,
+        options: Options(headers: headers, extra: extra),
+      );
+      return _asMap(res.data);
+    } on DioException catch (e) {
+      throw _toApiException(e, method: 'PATCH', path: path);
+    }
+  }
+
   Future<Map<String, dynamic>> deleteJson(
     String path, {
     Object? data,

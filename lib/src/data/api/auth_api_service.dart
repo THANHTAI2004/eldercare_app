@@ -53,6 +53,32 @@ class AuthApiService {
     return json;
   }
 
+  Future<Map<String, dynamic>> updateProfile({
+    required String name,
+    required String dateOfBirth,
+  }) async {
+    final payload = <String, dynamic>{
+      'name': name.trim(),
+      'date_of_birth': dateOfBirth.trim(),
+    };
+
+    final updated = await _client.patchJson('/api/v1/auth/me', data: payload);
+    await _storage.saveCurrentUser(updated);
+    return updated;
+  }
+
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final payload = <String, dynamic>{
+      'current_password': currentPassword,
+      'new_password': newPassword,
+    };
+
+    await _client.postJson('/api/v1/auth/change-password', data: payload);
+  }
+
   Future<AuthTokens?> restoreSessionTokens() async {
     final accessToken = await _storage.loadAccessToken();
     final refreshToken = await _storage.loadRefreshToken();
@@ -118,9 +144,7 @@ class AuthApiService {
     try {
       await _client.postJson(
         '/api/v1/auth/logout',
-        extra: const <String, dynamic>{
-          ApiClient.skipAuthRefreshKey: true,
-        },
+        extra: const <String, dynamic>{ApiClient.skipAuthRefreshKey: true},
       );
     } catch (_) {}
     await clearPersistedSession();

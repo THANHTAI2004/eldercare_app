@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:eldercare_app/src/app/routes.dart';
+import 'package:eldercare_app/src/config/env.dart';
 import 'package:eldercare_app/src/core/app_date_utils.dart';
 import 'package:eldercare_app/src/core/app_layout.dart';
 import 'package:eldercare_app/src/core/app_strings.dart';
@@ -36,6 +37,8 @@ class _DevicePageState extends State<DevicePage> {
   @override
   void initState() {
     super.initState();
+    _loginPhoneCtrl.text = Env.debugLoginPhoneNumber;
+    _loginPasswordCtrl.text = Env.debugLoginPassword;
     _searchCtrl.addListener(() {
       setState(() => _query = _searchCtrl.text.trim().toLowerCase());
     });
@@ -153,9 +156,7 @@ class _DevicePageState extends State<DevicePage> {
   Future<void> _openClaimDevice() async {
     final result = await Navigator.push<String?>(
       context,
-      MaterialPageRoute<String?>(
-        builder: (_) => const ClaimDevicePage(),
-      ),
+      MaterialPageRoute<String?>(builder: (_) => const ClaimDevicePage()),
     );
     if (!mounted || result == null || result.trim().isEmpty) return;
 
@@ -217,6 +218,10 @@ class _DevicePageState extends State<DevicePage> {
     await Navigator.pushNamed(context, AppRoutes.adminDeviceRegister);
   }
 
+  Future<void> _openAccountPage() async {
+    await Navigator.pushNamed(context, AppRoutes.account);
+  }
+
   Future<void> _showLinkGuideDialog() async {
     const content =
         'Nếu bạn là chủ thiết bị, hãy dùng chức năng thêm thiết bị bằng mã thiết bị để liên kết thiết bị.\n\n'
@@ -263,6 +268,12 @@ class _DevicePageState extends State<DevicePage> {
               onPressed: _openAdminDeviceRegistration,
               icon: const Icon(Icons.admin_panel_settings_outlined),
             ),
+          if (session.isAuthenticated)
+            IconButton(
+              tooltip: 'Tài khoản',
+              onPressed: _openAccountPage,
+              icon: const Icon(Icons.manage_accounts_outlined),
+            ),
           IconButton(
             tooltip: 'Làm mới',
             onPressed: _refreshDevices,
@@ -294,6 +305,7 @@ class _DevicePageState extends State<DevicePage> {
               onRenameDevice: _renameDevice,
               isAdmin: isAdmin,
               onOpenAdminRegistration: _openAdminDeviceRegistration,
+              onOpenAccountPage: _openAccountPage,
             )
           : _LoginBody(
               phoneCtrl: _loginPhoneCtrl,
@@ -377,6 +389,7 @@ class _AuthenticatedBody extends StatelessWidget {
     required this.onRenameDevice,
     required this.isAdmin,
     required this.onOpenAdminRegistration,
+    required this.onOpenAccountPage,
   });
 
   final String query;
@@ -391,11 +404,11 @@ class _AuthenticatedBody extends StatelessWidget {
   final Future<void> Function(Device device) onRenameDevice;
   final bool isAdmin;
   final VoidCallback onOpenAdminRegistration;
+  final VoidCallback onOpenAccountPage;
 
   @override
   Widget build(BuildContext context) {
     final layout = AppLayout.of(context);
-    final isCompact = layout == AppLayoutSize.compact;
     final contentMaxWidth = AppLayout.maxContentWidth(context);
     final pagePadding = AppLayout.pagePadding(
       context,
@@ -427,91 +440,94 @@ class _AuthenticatedBody extends StatelessWidget {
         child: ConstrainedBox(
           constraints: BoxConstraints(maxWidth: contentMaxWidth),
           child: ListView(
-        padding: pagePadding,
-        children: [
-          _SessionCard(
-            name: session.currentUser?.name ?? '',
-            phoneNumber: session.currentUser?.phoneNumber ?? '',
-            dateOfBirth: session.currentUser?.dateOfBirth,
-            totalDevices: deviceProvider.devices.length,
-            currentDevice: deviceProvider.current,
-          ),
-          if (isAdmin) ...[
-            const SizedBox(height: 12),
-            _AdminDeviceRegistrationCard(
-              onOpen: onOpenAdminRegistration,
-            ),
-          ],
-          if (realtime.error != null && realtime.error!.trim().isNotEmpty) ...[
-            const SizedBox(height: 12),
-            _InlineBanner(
-              color: Theme.of(context).colorScheme.errorContainer,
-              textColor: Theme.of(context).colorScheme.onErrorContainer,
-              message: realtime.error!,
-            ),
-          ],
-          if (deviceProvider.error != null &&
-              deviceProvider.error!.trim().isNotEmpty) ...[
-            const SizedBox(height: 12),
-            _InlineBanner(
-              color: Theme.of(context).colorScheme.errorContainer,
-              textColor: Theme.of(context).colorScheme.onErrorContainer,
-              message: deviceProvider.error!,
-            ),
-          ],
-          const SizedBox(height: 12),
-          TextField(
-            controller: searchCtrl,
-            decoration: const InputDecoration(
-              prefixIcon: Icon(Icons.search),
-              hintText:
-                  'Tìm theo tên thiết bị, mã thiết bị, tài khoản liên kết...',
-            ),
-          ),
-          const SizedBox(height: 16),
-          if (deviceProvider.isSyncing && deviceProvider.devices.isEmpty)
-            const Center(child: CircularProgressIndicator())
-          else if (devices.isEmpty)
-            _EmptyState(
-              title: deviceProvider.devices.isEmpty
-                  ? 'Bạn chưa có thiết bị nào'
-                  : 'Không có thiết bị phù hợp',
-              message: deviceProvider.devices.isEmpty
-                  ? 'Bạn có thể thêm thiết bị bằng mã thiết bị để liên kết thiết bị. Nếu bạn chỉ cần quyền xem, vui lòng liên hệ chủ thiết bị để được cấp quyền người xem.'
-                  : 'Hãy thử đổi bộ lọc tìm kiếm hoặc làm mới danh sách thiết bị.',
-              actionLabel: deviceProvider.devices.isEmpty
-                  ? 'Liên kết thiết bị'
-                  : null,
-              onAction: deviceProvider.devices.isEmpty ? onLinkDevice : null,
-              secondaryActionLabel: deviceProvider.devices.isEmpty
-                  ? AppStrings.noLinkedDeviceGuide
-                  : null,
-              onSecondaryAction: deviceProvider.devices.isEmpty
-                  ? onShowLinkGuide
-                  : null,
-            )
-          else
-            ...devices.map(
-              (device) => Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: _DeviceCard(
-                  device: device,
-                  isCurrent: deviceProvider.current?.id == device.id,
-                  onManageViewers: () async {
-                    await Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => DeviceViewersPage(device: device),
-                      ),
-                    );
-                    await onRefresh();
-                  },
-                  onRename: () => onRenameDevice(device),
-                  onSelect: () => onSelectDevice(device),
+            padding: pagePadding,
+            children: [
+              _SessionCard(
+                name: session.currentUser?.name ?? '',
+                userId: session.currentUser?.userId ?? '',
+                phoneNumber: session.currentUser?.phoneNumber ?? '',
+                dateOfBirth: session.currentUser?.dateOfBirth,
+                totalDevices: deviceProvider.devices.length,
+                currentDevice: deviceProvider.current,
+                onOpenAccountPage: onOpenAccountPage,
+              ),
+              if (isAdmin) ...[
+                const SizedBox(height: 12),
+                _AdminDeviceRegistrationCard(onOpen: onOpenAdminRegistration),
+              ],
+              if (realtime.error != null &&
+                  realtime.error!.trim().isNotEmpty) ...[
+                const SizedBox(height: 12),
+                _InlineBanner(
+                  color: Theme.of(context).colorScheme.errorContainer,
+                  textColor: Theme.of(context).colorScheme.onErrorContainer,
+                  message: realtime.error!,
+                ),
+              ],
+              if (deviceProvider.error != null &&
+                  deviceProvider.error!.trim().isNotEmpty) ...[
+                const SizedBox(height: 12),
+                _InlineBanner(
+                  color: Theme.of(context).colorScheme.errorContainer,
+                  textColor: Theme.of(context).colorScheme.onErrorContainer,
+                  message: deviceProvider.error!,
+                ),
+              ],
+              const SizedBox(height: 12),
+              TextField(
+                controller: searchCtrl,
+                decoration: const InputDecoration(
+                  prefixIcon: Icon(Icons.search),
+                  hintText:
+                      'Tìm theo tên thiết bị, mã thiết bị, tài khoản liên kết...',
                 ),
               ),
-            ),
-        ],
+              const SizedBox(height: 16),
+              if (deviceProvider.isSyncing && deviceProvider.devices.isEmpty)
+                const Center(child: CircularProgressIndicator())
+              else if (devices.isEmpty)
+                _EmptyState(
+                  title: deviceProvider.devices.isEmpty
+                      ? 'Bạn chưa có thiết bị nào'
+                      : 'Không có thiết bị phù hợp',
+                  message: deviceProvider.devices.isEmpty
+                      ? 'Bạn có thể thêm thiết bị bằng mã thiết bị để liên kết thiết bị. Nếu bạn chỉ cần quyền xem, vui lòng liên hệ chủ thiết bị để được cấp quyền người xem.'
+                      : 'Hãy thử đổi bộ lọc tìm kiếm hoặc làm mới danh sách thiết bị.',
+                  actionLabel: deviceProvider.devices.isEmpty
+                      ? 'Liên kết thiết bị'
+                      : null,
+                  onAction: deviceProvider.devices.isEmpty
+                      ? onLinkDevice
+                      : null,
+                  secondaryActionLabel: deviceProvider.devices.isEmpty
+                      ? AppStrings.noLinkedDeviceGuide
+                      : null,
+                  onSecondaryAction: deviceProvider.devices.isEmpty
+                      ? onShowLinkGuide
+                      : null,
+                )
+              else
+                ...devices.map(
+                  (device) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _DeviceCard(
+                      device: device,
+                      isCurrent: deviceProvider.current?.id == device.id,
+                      onManageViewers: () async {
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => DeviceViewersPage(device: device),
+                          ),
+                        );
+                        await onRefresh();
+                      },
+                      onRename: () => onRenameDevice(device),
+                      onSelect: () => onSelectDevice(device),
+                    ),
+                  ),
+                ),
+            ],
           ),
         ),
       ),
@@ -522,17 +538,21 @@ class _AuthenticatedBody extends StatelessWidget {
 class _SessionCard extends StatelessWidget {
   const _SessionCard({
     required this.name,
+    required this.userId,
     required this.phoneNumber,
     required this.dateOfBirth,
     required this.totalDevices,
     required this.currentDevice,
+    required this.onOpenAccountPage,
   });
 
   final String name;
+  final String userId;
   final String phoneNumber;
   final String? dateOfBirth;
   final int totalDevices;
   final Device? currentDevice;
+  final VoidCallback onOpenAccountPage;
 
   @override
   Widget build(BuildContext context) {
@@ -551,6 +571,9 @@ class _SessionCard extends StatelessWidget {
             const SizedBox(height: 8),
             Text('Tên: ${name.trim().isEmpty ? 'Chưa cập nhật' : name}'),
             Text(
+              'Mã tài khoản: ${userId.trim().isEmpty ? 'Chưa cập nhật' : userId}',
+            ),
+            Text(
               'SĐT: ${phoneNumber.trim().isEmpty ? 'Chưa cập nhật' : phoneNumber}',
             ),
             Text(
@@ -567,6 +590,12 @@ class _SessionCard extends StatelessWidget {
               currentDevice == null
                   ? 'Chưa chọn thiết bị nào.'
                   : 'Đang theo dõi: ${currentDevice!.name} (${currentDevice!.resolvedDeviceId})',
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: onOpenAccountPage,
+              icon: const Icon(Icons.manage_accounts_outlined),
+              label: const Text('Mở trang tài khoản'),
             ),
           ],
         ),
@@ -773,63 +802,76 @@ Future<String?> _showRenameDeviceDialog(
   BuildContext context, {
   required String initialName,
 }) async {
-  final controller = TextEditingController(text: initialName.trim());
-  String? errorText;
-
-  final result = await showDialog<String>(
+  return showDialog<String>(
     context: context,
-    builder: (dialogContext) {
-      return StatefulBuilder(
-        builder: (context, setState) {
-          return AlertDialog(
-            title: const Text('Đổi tên thiết bị'),
-            content: TextField(
-              controller: controller,
-              autofocus: true,
-              textInputAction: TextInputAction.done,
-              decoration: InputDecoration(
-                labelText: 'Tên hiển thị trên ứng dụng',
-                hintText: 'Ví dụ: Máy đo phòng ngủ',
-                errorText: errorText,
-              ),
-              onSubmitted: (_) {
-                final value = controller.text.trim();
-                if (value.isEmpty) {
-                  setState(() {
-                    errorText = 'Nhập tên thiết bị';
-                  });
-                  return;
-                }
-                Navigator.of(dialogContext).pop(value);
-              },
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(dialogContext).pop(),
-                child: const Text('Hủy'),
-              ),
-              FilledButton(
-                onPressed: () {
-                  final value = controller.text.trim();
-                  if (value.isEmpty) {
-                    setState(() {
-                      errorText = 'Nhập tên thiết bị';
-                    });
-                    return;
-                  }
-                  Navigator.of(dialogContext).pop(value);
-                },
-                child: const Text('Lưu'),
-              ),
-            ],
-          );
-        },
-      );
-    },
+    builder: (_) => _RenameDeviceDialog(initialName: initialName),
   );
+}
 
-  controller.dispose();
-  return result;
+class _RenameDeviceDialog extends StatefulWidget {
+  const _RenameDeviceDialog({required this.initialName});
+
+  final String initialName;
+
+  @override
+  State<_RenameDeviceDialog> createState() => _RenameDeviceDialogState();
+}
+
+class _RenameDeviceDialogState extends State<_RenameDeviceDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _nameController;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.initialName.trim());
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    if (!(_formKey.currentState?.validate() ?? false)) {
+      return;
+    }
+    Navigator.of(context).pop(_nameController.text.trim());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Đổi tên thiết bị'),
+      content: Form(
+        key: _formKey,
+        child: TextFormField(
+          controller: _nameController,
+          autofocus: true,
+          textInputAction: TextInputAction.done,
+          decoration: const InputDecoration(
+            labelText: 'Tên hiển thị trên ứng dụng',
+            hintText: 'Ví dụ: Máy đo phòng ngủ',
+          ),
+          validator: (value) {
+            if ((value ?? '').trim().isEmpty) {
+              return 'Nhập tên thiết bị';
+            }
+            return null;
+          },
+          onFieldSubmitted: (_) => _submit(),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Hủy'),
+        ),
+        FilledButton(onPressed: _submit, child: const Text('Lưu')),
+      ],
+    );
+  }
 }
 
 class _InlineBanner extends StatelessWidget {
@@ -1036,17 +1078,17 @@ class _LoginFormContentState extends State<_LoginFormContent> {
             SizedBox(
               width: double.infinity,
               child: FilledButton.icon(
-              onPressed: widget.isAuthenticating ? null : _submit,
-              icon: widget.isAuthenticating
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.login),
-              label: Text(
-                widget.isAuthenticating ? 'Đang đăng nhập...' : 'Đăng nhập',
-              ),
+                onPressed: widget.isAuthenticating ? null : _submit,
+                icon: widget.isAuthenticating
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.login),
+                label: Text(
+                  widget.isAuthenticating ? 'Đang đăng nhập...' : 'Đăng nhập',
+                ),
               ),
             ),
             const SizedBox(height: 12),

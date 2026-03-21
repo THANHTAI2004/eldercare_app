@@ -25,6 +25,8 @@ class SessionProvider extends ChangeNotifier {
   bool isBootstrapping = false;
   bool isAuthenticating = false;
   bool isRegistering = false;
+  bool isUpdatingProfile = false;
+  bool isChangingPassword = false;
 
   AuthTokens? _tokens;
   CurrentUser? currentUser;
@@ -209,6 +211,63 @@ class SessionProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<bool> updateProfile({
+    required String name,
+    required String dateOfBirth,
+  }) async {
+    isUpdatingProfile = true;
+    error = null;
+    lastErrorStatusCode = null;
+    notifyListeners();
+
+    try {
+      final json = await _authApi.updateProfile(
+        name: name,
+        dateOfBirth: dateOfBirth,
+      );
+      currentUser = CurrentUser.fromJson(json);
+      return true;
+    } catch (e) {
+      error = _friendlyError(
+        e,
+        fallback: 'Không thể cập nhật thông tin tài khoản',
+      );
+      lastErrorStatusCode = e is ApiRequestException ? e.statusCode : null;
+      return false;
+    } finally {
+      isUpdatingProfile = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    isChangingPassword = true;
+    error = null;
+    lastErrorStatusCode = null;
+    notifyListeners();
+
+    try {
+      await _authApi.changePassword(
+        currentPassword: currentPassword,
+        newPassword: newPassword,
+      );
+      return true;
+    } catch (e) {
+      error = _friendlyChangePasswordError(
+        e,
+        fallback: 'Không thể đổi mật khẩu',
+      );
+      lastErrorStatusCode = e is ApiRequestException ? e.statusCode : null;
+      return false;
+    } finally {
+      isChangingPassword = false;
+      notifyListeners();
+    }
+  }
+
   Future<String?> _refreshAccessToken() async {
     final currentRefreshToken = refreshToken?.trim() ?? '';
     if (currentRefreshToken.isEmpty) {
@@ -263,6 +322,9 @@ class SessionProvider extends ChangeNotifier {
       if (e.statusCode == 403) {
         return AppStrings.permissionDenied;
       }
+      if (e.statusCode == 405) {
+        return 'Máy chủ chưa hỗ trợ chức năng này.';
+      }
       if (e.statusCode == 429) {
         return AppStrings.rateLimited;
       }
@@ -308,5 +370,19 @@ class SessionProvider extends ChangeNotifier {
       return e.message;
     }
     return fallback;
+  }
+
+  String _friendlyChangePasswordError(Object e, {required String fallback}) {
+    if (e is ApiRequestException) {
+      final message = e.message.toLowerCase();
+      if (e.statusCode == 401 &&
+          message.contains('current password is incorrect')) {
+        return 'Mật khẩu hiện tại không đúng';
+      }
+      if (e.statusCode == 400 && message.contains('different')) {
+        return 'Mật khẩu mới phải khác mật khẩu hiện tại';
+      }
+    }
+    return _friendlyError(e, fallback: fallback);
   }
 }
