@@ -7,10 +7,14 @@ import 'package:eldercare_app/src/data/api/alerts_api_service.dart';
 import 'package:eldercare_app/src/data/api/api_client.dart';
 import 'package:eldercare_app/src/data/api/auth_api_service.dart';
 import 'package:eldercare_app/src/data/api/device_api_service.dart';
+import 'package:eldercare_app/src/data/api/device_thresholds_api_service.dart';
+import 'package:eldercare_app/src/data/api/push_token_api_service.dart';
 import 'package:eldercare_app/src/data/local/auth_storage.dart';
 import 'package:eldercare_app/src/features/devices/device_page.dart';
+import 'package:eldercare_app/src/services/push_notification_service.dart';
 import 'package:eldercare_app/src/state/alerts_provider.dart';
 import 'package:eldercare_app/src/state/device_provider.dart';
+import 'package:eldercare_app/src/state/device_thresholds_provider.dart';
 import 'package:eldercare_app/src/state/ecg_provider.dart';
 import 'package:eldercare_app/src/state/history_provider.dart';
 import 'package:eldercare_app/src/state/realtime_provider.dart';
@@ -35,11 +39,11 @@ class EldercareApp extends StatelessWidget {
           )..bootstrap(),
         ),
         ChangeNotifierProxyProvider<SessionProvider, RealtimeProvider>(
-          create: (context) => RealtimeProvider(client: context.read<ApiClient>()),
+          create: (context) =>
+              RealtimeProvider(client: context.read<ApiClient>()),
           update: (context, session, realtime) {
             final provider =
-                realtime ??
-                RealtimeProvider(client: context.read<ApiClient>());
+                realtime ?? RealtimeProvider(client: context.read<ApiClient>());
             provider.handleSessionState(
               isAuthenticated: session.isAuthenticated,
               authenticatedUserId: session.authenticatedUserId,
@@ -65,7 +69,8 @@ class EldercareApp extends StatelessWidget {
           },
         ),
         ChangeNotifierProxyProvider<SessionProvider, HistoryProvider>(
-          create: (context) => HistoryProvider(client: context.read<ApiClient>()),
+          create: (context) =>
+              HistoryProvider(client: context.read<ApiClient>()),
           update: (context, session, historyProvider) {
             final provider =
                 historyProvider ??
@@ -106,16 +111,70 @@ class EldercareApp extends StatelessWidget {
             return provider;
           },
         ),
+        ChangeNotifierProxyProvider<SessionProvider, DeviceThresholdsProvider>(
+          create: (context) => DeviceThresholdsProvider(
+            api: DeviceThresholdsApiService(client: context.read<ApiClient>()),
+          ),
+          update: (context, session, thresholdsProvider) {
+            final provider =
+                thresholdsProvider ??
+                DeviceThresholdsProvider(
+                  api: DeviceThresholdsApiService(
+                    client: context.read<ApiClient>(),
+                  ),
+                );
+            provider.handleSessionState(
+              isAuthenticated: session.isAuthenticated,
+              authenticatedUserId: session.authenticatedUserId,
+            );
+            return provider;
+          },
+        ),
+        ChangeNotifierProxyProvider3<
+          ApiClient,
+          SessionProvider,
+          DeviceProvider,
+          PushNotificationService
+        >(
+          create: (context) => PushNotificationService(
+            pushTokensApi: PushTokenApiService(
+              client: context.read<ApiClient>(),
+            ),
+          ),
+          update: (context, client, session, deviceProvider, pushService) {
+            final service =
+                pushService ??
+                PushNotificationService(
+                  pushTokensApi: PushTokenApiService(client: client),
+                );
+            service.initialize();
+            service.bindProviders(
+              deviceProvider: deviceProvider,
+              alertsProvider: context.read<AlertsProvider>(),
+            );
+            service.handleSessionState(
+              isAuthenticated: session.isAuthenticated,
+              authenticatedUserId: session.authenticatedUserId,
+            );
+            return service;
+          },
+        ),
       ],
-      child: MaterialApp(
-        debugShowCheckedModeBanner: false,
-        title: 'Eldercare',
-        theme: AppTheme.light,
-        darkTheme: AppTheme.dark,
-        themeMode: ThemeMode.light,
-        home: const DevicePage(),
-        routes: AppRoutes.routes,
-        onUnknownRoute: AppRoutes.unknownRoute,
+      child: Builder(
+        builder: (context) {
+          final pushService = context.watch<PushNotificationService>();
+          return MaterialApp(
+            debugShowCheckedModeBanner: false,
+            navigatorKey: pushService.navigatorKey,
+            title: 'Eldercare',
+            theme: AppTheme.light,
+            darkTheme: AppTheme.dark,
+            themeMode: ThemeMode.light,
+            home: const DevicePage(),
+            routes: AppRoutes.routes,
+            onUnknownRoute: AppRoutes.unknownRoute,
+          );
+        },
       ),
     );
   }

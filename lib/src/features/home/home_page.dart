@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:eldercare_app/src/app/routes.dart';
@@ -240,10 +240,7 @@ class _HomePageState extends State<HomePage> {
         if (!hasLatest && realtime.isLoadingLatest) const _LoadingPanel(),
         if (!hasLatest && realtime.latestStatus.isEmpty)
           _EmptyPanel(
-            message: _noDataMessage(
-              realtime: realtime,
-              session: session,
-            ),
+            message: _noDataMessage(realtime: realtime, session: session),
           ),
         FeatureButton(
           icon: Icons.history,
@@ -273,8 +270,7 @@ class _HomePageState extends State<HomePage> {
           EcgWaveformCard(reading: ecg.latest!)
         else
           const _EmptyPanel(
-            message:
-                'Chưa có dữ liệu ECG từ server cho thiết bị hiện tại.',
+            message: 'Chưa có dữ liệu ECG từ server cho thiết bị hiện tại.',
           ),
         if (currentDevice.isOwnerLink)
           FeatureButton(
@@ -282,6 +278,14 @@ class _HomePageState extends State<HomePage> {
             title: 'Quản lý người xem',
             subtitle: 'Thêm hoặc xóa tài khoản được xem thiết bị này',
             onTap: () => _openOwnerManagement(currentDevice),
+          ),
+        if (currentDevice.isOwnerLink)
+          FeatureButton(
+            icon: Icons.tune_outlined,
+            title: 'Ngưỡng cảnh báo',
+            subtitle: 'Nhập và lưu ngưỡng cảnh báo cho thiết bị này',
+            onTap: () =>
+                Navigator.pushNamed(context, AppRoutes.deviceThresholds),
           ),
         FeatureButton(
           icon: Icons.devices,
@@ -374,9 +378,7 @@ class _HomePageState extends State<HomePage> {
               isCompact ? 10 : 12,
             ),
             child: Align(
-              alignment: isExpanded
-                  ? Alignment.centerLeft
-                  : Alignment.center,
+              alignment: isExpanded ? Alignment.centerLeft : Alignment.center,
               child: ConstrainedBox(
                 constraints: BoxConstraints(maxWidth: contentMaxWidth),
                 child: Text(
@@ -398,7 +400,9 @@ class _HomePageState extends State<HomePage> {
           alignment: Alignment.topCenter,
           child: ConstrainedBox(
             constraints: BoxConstraints(maxWidth: contentMaxWidth),
-            child: device == null ? buildNoDeviceContent() : buildDeviceContent(),
+            child: device == null
+                ? buildNoDeviceContent()
+                : buildDeviceContent(),
           ),
         ),
       ),
@@ -450,7 +454,8 @@ class _HomePageState extends State<HomePage> {
             SizedBox(
               width: double.infinity,
               child: FilledButton.icon(
-                onPressed: () => Navigator.pushNamed(context, AppRoutes.devices),
+                onPressed: () =>
+                    Navigator.pushNamed(context, AppRoutes.devices),
                 icon: Icon(
                   session.isAuthenticated
                       ? Icons.settings_input_antenna
@@ -471,10 +476,7 @@ class _HomePageState extends State<HomePage> {
 }
 
 class _SectionColumn extends StatelessWidget {
-  const _SectionColumn({
-    required this.children,
-    required this.spacing,
-  });
+  const _SectionColumn({required this.children, required this.spacing});
 
   final List<Widget> children;
   final double spacing;
@@ -555,7 +557,9 @@ class _DeviceSelectorCard extends StatelessWidget {
                   .map(
                     (device) => DropdownMenuItem<String>(
                       value: device.id,
-                      child: Text('${device.name} (${device.resolvedDeviceId})'),
+                      child: Text(
+                        '${device.name} (${device.resolvedDeviceId})',
+                      ),
                     ),
                   )
                   .toList(growable: false),
@@ -625,7 +629,10 @@ class _ErrorBanner extends StatelessWidget {
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(Icons.error_outline, color: scheme.onErrorContainer),
+                        Icon(
+                          Icons.error_outline,
+                          color: scheme.onErrorContainer,
+                        ),
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(
@@ -659,7 +666,10 @@ class _ErrorBanner extends StatelessWidget {
                     ),
                     if (actionLabel != null && onAction != null) ...[
                       const SizedBox(width: 8),
-                      TextButton(onPressed: onAction, child: Text(actionLabel!)),
+                      TextButton(
+                        onPressed: onAction,
+                        child: Text(actionLabel!),
+                      ),
                     ],
                   ],
                 ),
@@ -762,4 +772,3 @@ List<Widget> _withSpacing(List<Widget> children, double spacing) {
 
   return spacedChildren;
 }
-

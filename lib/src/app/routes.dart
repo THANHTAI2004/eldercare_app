@@ -5,6 +5,7 @@ import 'package:eldercare_app/src/features/admin/admin_device_registration_page.
 import 'package:eldercare_app/src/features/alerts/alerts_page.dart';
 import 'package:eldercare_app/src/features/auth/register_page.dart';
 import 'package:eldercare_app/src/features/devices/device_page.dart';
+import 'package:eldercare_app/src/features/devices/device_thresholds_page.dart';
 import 'package:eldercare_app/src/features/history/history_page.dart';
 
 class AppRoutes {
@@ -15,6 +16,7 @@ class AppRoutes {
   static const history = '/history';
   static const alerts = '/alerts';
   static const account = '/account';
+  static const deviceThresholds = '/device-thresholds';
   static const adminDeviceRegister = '/admin/devices/register';
 
   static final routes = <String, WidgetBuilder>{
@@ -23,6 +25,7 @@ class AppRoutes {
     history: (_) => const HistoryPage(),
     alerts: (_) => const AlertsPage(),
     account: (_) => const AccountPage(),
+    deviceThresholds: (_) => const DeviceThresholdsPage(),
     adminDeviceRegister: (_) => const AdminDeviceRegistrationPage(),
   };
 

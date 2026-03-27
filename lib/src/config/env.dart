@@ -27,6 +27,8 @@ class Env {
   static int get requestTimeoutMs =>
       _readInt('REQUEST_TIMEOUT_MS', fallback: 15000);
   static int get pollIntervalMs => _readInt('POLL_INTERVAL_MS', fallback: 2000);
+  static String get pushTokenPath =>
+      _read('PUSH_TOKEN_PATH', fallback: '/api/v1/me/push-tokens');
 
   static String get debugLoginPhoneNumber =>
       kDebugMode ? _read('LOGIN_PHONE_NUMBER') : '';

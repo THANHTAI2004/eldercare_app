@@ -4,10 +4,12 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:path_provider_windows/path_provider_windows.dart';
 import 'package:shared_preferences_windows/shared_preferences_windows.dart';
 import 'package:eldercare_app/src/app/app.dart';
+import 'package:eldercare_app/src/services/push_notification_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   _registerDesktopPlugins();
+  await PushNotificationService.bootstrap();
   await dotenv.load(fileName: '.env');
 
   FlutterError.onError = (details) {
