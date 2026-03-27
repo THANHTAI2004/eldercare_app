@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -34,9 +36,7 @@ class LineChartCard extends StatelessWidget {
       return Card(
         child: Padding(
           padding: const EdgeInsets.all(16),
-          child: Center(
-            child: Text('Không có dữ liệu ${metric.label}'),
-          ),
+          child: Center(child: Text('Không có dữ liệu ${metric.label}')),
         ),
       );
     }
@@ -45,11 +45,14 @@ class LineChartCard extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
+        final availableWidth = constraints.maxWidth;
         final chartHeight = constraints.maxWidth >= 1000
             ? 320.0
             : constraints.maxWidth >= 700
             ? 260.0
             : 220.0;
+        final chartWidth = _preferredChartWidth(availableWidth, data.length);
+        final canScroll = chartWidth > availableWidth + 1;
 
         return Card(
           child: Padding(
@@ -59,12 +62,32 @@ class LineChartCard extends StatelessWidget {
               children: [
                 Text(title, style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 12),
-                SizedBox(
-                  height: chartHeight,
-                  child: _InteractiveChart(data: data),
+                if (canScroll)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Text(
+                      'Vuốt ngang để xem dữ liệu đầy đủ',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  physics: const ClampingScrollPhysics(),
+                  child: SizedBox(
+                    width: chartWidth,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SizedBox(
+                          height: chartHeight,
+                          child: _InteractiveChart(data: data),
+                        ),
+                        const SizedBox(height: 8),
+                        _TimeAxis(data: data, showHourAxis: showHourAxis),
+                      ],
+                    ),
+                  ),
                 ),
-                const SizedBox(height: 8),
-                _TimeAxis(data: data, showHourAxis: showHourAxis),
               ],
             ),
           ),
@@ -79,6 +102,21 @@ class _ChartPoint {
 
   final DateTime time;
   final double value;
+}
+
+double _preferredChartWidth(double availableWidth, int pointCount) {
+  if (pointCount <= 1) return availableWidth;
+
+  final spacing = switch (pointCount) {
+    <= 24 => 24.0,
+    <= 60 => 18.0,
+    <= 120 => 14.0,
+    <= 240 => 10.0,
+    _ => 8.0,
+  };
+
+  final targetWidth = 48 + ((pointCount - 1) * spacing);
+  return math.min(math.max(availableWidth, targetWidth), 4800.0);
 }
 
 class _InteractiveChart extends StatefulWidget {
@@ -151,7 +189,9 @@ class _InteractiveChartState extends State<_InteractiveChart> {
 
         if (_selected != null && _selectedX != null) {
           final valueText = _selected!.value.toStringAsFixed(1);
-          final timeText = DateFormat('HH:mm').format(_selected!.time.toLocal());
+          final timeText = DateFormat(
+            'HH:mm',
+          ).format(_selected!.time.toLocal());
 
           const tooltipWidth = 96.0;
           double left = _selectedX! - tooltipWidth / 2;
@@ -197,8 +237,10 @@ class _InteractiveChartState extends State<_InteractiveChart> {
           },
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
-            onTapDown: (details) => _updateSelected(details.localPosition, size),
-            onPanDown: (details) => _updateSelected(details.localPosition, size),
+            onTapDown: (details) =>
+                _updateSelected(details.localPosition, size),
+            onPanDown: (details) =>
+                _updateSelected(details.localPosition, size),
             onPanUpdate: (details) =>
                 _updateSelected(details.localPosition, size),
             child: chart,
@@ -273,8 +315,9 @@ class _ChartPainter extends CustomPainter {
       final point = data.first;
       final time = point.time.millisecondsSinceEpoch.toDouble();
       final x = dx == 0 ? width / 2 : (time - minTime) * scaleX;
-      final y =
-          dy == 0 ? height / 2 : height - (point.value - plotMin) * scaleY;
+      final y = dy == 0
+          ? height / 2
+          : height - (point.value - plotMin) * scaleY;
 
       final dotPaint = Paint()
         ..color = lineColor
@@ -288,8 +331,9 @@ class _ChartPainter extends CustomPainter {
       final point = data[index];
       final time = point.time.millisecondsSinceEpoch.toDouble();
       final x = dx == 0 ? width / 2 : (time - minTime) * scaleX;
-      final y =
-          dy == 0 ? height / 2 : height - (point.value - plotMin) * scaleY;
+      final y = dy == 0
+          ? height / 2
+          : height - (point.value - plotMin) * scaleY;
 
       if (index == 0) {
         path.moveTo(x, y);
@@ -308,8 +352,9 @@ class _ChartPainter extends CustomPainter {
 
     if (highlightX != null && highlightPoint != null) {
       final value = highlightPoint!.value;
-      final highlightY =
-          dy == 0 ? height / 2 : height - (value - plotMin) * scaleY;
+      final highlightY = dy == 0
+          ? height / 2
+          : height - (value - plotMin) * scaleY;
 
       final crossPaint = Paint()
         ..color = lineColor.withValues(alpha: 0.7)
@@ -338,10 +383,7 @@ class _ChartPainter extends CustomPainter {
 }
 
 class _TimeAxis extends StatelessWidget {
-  const _TimeAxis({
-    required this.data,
-    required this.showHourAxis,
-  });
+  const _TimeAxis({required this.data, required this.showHourAxis});
 
   final List<_ChartPoint> data;
   final bool showHourAxis;
@@ -356,7 +398,8 @@ class _TimeAxis extends StatelessWidget {
 
     final labels = <String>[];
     for (int index = 0; index < 4; index++) {
-      final time = minTime.millisecondsSinceEpoch +
+      final time =
+          minTime.millisecondsSinceEpoch +
           ((maxTime.millisecondsSinceEpoch - minTime.millisecondsSinceEpoch) *
                   index /
                   3)
@@ -369,12 +412,7 @@ class _TimeAxis extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: labels
-          .map(
-            (label) => Text(
-              label,
-              style: const TextStyle(fontSize: 10),
-            ),
-          )
+          .map((label) => Text(label, style: const TextStyle(fontSize: 10)))
           .toList(growable: false),
     );
   }

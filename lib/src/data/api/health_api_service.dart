@@ -1,5 +1,8 @@
 import 'package:eldercare_app/src/data/api/api_client.dart';
+import 'package:eldercare_app/src/domain/models/ecg_reading.dart';
 import 'package:eldercare_app/src/domain/models/vital_point.dart';
+
+const int _maxEcgQueryLimit = 100;
 
 class HealthApiService {
   HealthApiService({ApiClient? client})
@@ -39,47 +42,35 @@ class HealthApiService {
     required String deviceId,
     int limit = 10,
   }) async {
+    final safeLimit = limit.clamp(1, _maxEcgQueryLimit);
     final json = await _client.getJson(
       '/api/v1/devices/$deviceId/ecg',
-      query: <String, dynamic>{'limit': limit},
+      query: <String, dynamic>{'limit': safeLimit},
     );
     return _readItems(json);
   }
 
-  Future<Map<String, dynamic>> requestEcg({
+  Future<EcgReading?> getLatestEcgByDevice({
     required String deviceId,
-    int durationSeconds = 10,
-    int samplingRate = 250,
-  }) {
-    return _client.postJson(
-      '/api/v1/devices/$deviceId/ecg/request',
-      data: <String, dynamic>{
-        'duration_seconds': durationSeconds,
-        'sampling_rate': samplingRate,
-      },
-    );
-  }
-
-  Future<Map<String, dynamic>?> waitForEcgResult({
-    required String deviceId,
-    required int pollIntervalMs,
-    DateTime? notBefore,
-    Duration timeout = const Duration(seconds: 45),
+    int limit = 1,
   }) async {
-    final deadline = DateTime.now().add(timeout);
-    while (DateTime.now().isBefore(deadline)) {
-      final items = await getEcgByDevice(deviceId: deviceId, limit: 5);
-      for (final item in items) {
-        final itemTime = _readItemTime(item);
-        if (notBefore == null ||
-            itemTime == null ||
-            !itemTime.isBefore(notBefore.toUtc())) {
-          return item;
-        }
-      }
-      await Future<void>.delayed(Duration(milliseconds: pollIntervalMs));
+    final items = await getEcgByDevice(deviceId: deviceId, limit: limit);
+    for (final item in items) {
+      final reading = EcgReading.fromJson(item);
+      if (reading != null) return reading;
     }
     return null;
+  }
+
+  Future<List<EcgReading>> getEcgReadingsByDevice({
+    required String deviceId,
+    int limit = 100,
+  }) async {
+    final items = await getEcgByDevice(deviceId: deviceId, limit: limit);
+    return items
+        .map(EcgReading.fromJson)
+        .whereType<EcgReading>()
+        .toList(growable: false);
   }
 
   List<Map<String, dynamic>> _readItems(Map<String, dynamic> json) {
@@ -91,13 +82,5 @@ class HealthApiService {
         .whereType<Map>()
         .map((entry) => Map<String, dynamic>.from(entry))
         .toList(growable: false);
-  }
-
-  DateTime? _readItemTime(Map<String, dynamic> json) {
-    try {
-      return VitalPoint.fromJson(json).time.toUtc();
-    } catch (_) {
-      return null;
-    }
   }
 }

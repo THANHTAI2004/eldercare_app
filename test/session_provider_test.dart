@@ -377,7 +377,6 @@ class _FakeAuthApiService extends AuthApiService {
     this.loginTokens,
     this.loginHandler,
     this.restoredTokens,
-    this.savedCurrentUser,
     this.meResponse = const <String, dynamic>{},
     this.meError,
   });
@@ -388,7 +387,6 @@ class _FakeAuthApiService extends AuthApiService {
     required String password,
   })? loginHandler;
   final AuthTokens? restoredTokens;
-  final Map<String, dynamic>? savedCurrentUser;
   final Map<String, dynamic> meResponse;
   final ApiRequestException? meError;
   String? lastLoginPhoneNumber;
@@ -440,7 +438,7 @@ class _FakeAuthApiService extends AuthApiService {
 
   @override
   Future<Map<String, dynamic>?> loadSavedCurrentUser() async {
-    return savedCurrentUser;
+    return null;
   }
 
   @override

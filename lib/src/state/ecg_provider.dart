@@ -1,16 +1,14 @@
 import 'package:flutter/foundation.dart';
 
-import 'package:eldercare_app/src/config/env.dart';
 import 'package:eldercare_app/src/data/api/api_client.dart';
 import 'package:eldercare_app/src/data/api/health_api_service.dart';
+import 'package:eldercare_app/src/domain/models/ecg_reading.dart';
 import 'package:eldercare_app/src/state/async_status.dart';
 
 class EcgProvider extends ChangeNotifier {
   factory EcgProvider({ApiClient? client, HealthApiService? api}) {
     final resolvedClient = client ?? ApiClient.fromEnv();
-    return EcgProvider._(
-      api: api ?? HealthApiService(client: resolvedClient),
-    );
+    return EcgProvider._(api: api ?? HealthApiService(client: resolvedClient));
   }
 
   EcgProvider._({required HealthApiService api}) : _api = api;
@@ -26,9 +24,20 @@ class EcgProvider extends ChangeNotifier {
   String? message;
   String? error;
   int? lastErrorStatusCode;
-  Map<String, dynamic>? lastResult;
+  EcgReading? latest;
+
+  DateTime selectedHistoryDayLocal = _todayLocal();
+  AsyncStatus historyStatus = AsyncStatus.idle;
+  String? historyError;
+  int? historyLastErrorStatusCode;
+
+  final List<EcgReading> _historyReadings = <EcgReading>[];
+  List<EcgReading> get historyReadings => List.unmodifiable(_historyReadings);
 
   bool get isLoading => status.isLoading;
+  bool get hasData => latest != null;
+  bool get isLoadingHistory => historyStatus.isLoading;
+  bool get hasNoHistoryDataError => historyLastErrorStatusCode == 404;
 
   void handleSessionState({
     required bool isAuthenticated,
@@ -55,88 +64,142 @@ class EcgProvider extends ChangeNotifier {
 
   void bindScope({String? deviceId}) {
     final nextDeviceId = deviceId?.trim();
-    final scopeChanged =
-        nextDeviceId != null && nextDeviceId != this.deviceId;
+    final scopeChanged = nextDeviceId != null && nextDeviceId != this.deviceId;
     if (nextDeviceId != null) {
       this.deviceId = nextDeviceId;
     }
     if (scopeChanged) {
-      status = AsyncStatus.idle;
-      message = null;
-      error = null;
-      lastErrorStatusCode = null;
-      lastResult = null;
+      _resetDeviceScopedState();
     }
     notifyListeners();
   }
 
-  Future<Map<String, dynamic>> requestEcg({
-    int durationSeconds = 10,
-    int samplingRate = 250,
-  }) async {
+  Future<void> refreshLatest({bool silent = false}) async {
     if (!_isAuthenticated) {
       status = AsyncStatus.unauthorized;
       error = 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn';
       lastErrorStatusCode = 401;
+      latest = null;
       notifyListeners();
-      throw StateError(error!);
+      return;
     }
 
     if (deviceId.trim().isEmpty) {
-      status = AsyncStatus.error;
-      error = 'Chưa có mã thiết bị để gửi yêu cầu ECG';
+      status = AsyncStatus.empty;
+      error = null;
       lastErrorStatusCode = null;
+      latest = null;
       notifyListeners();
-      throw StateError(error!);
+      return;
     }
 
-    status = AsyncStatus.loading;
-    error = null;
-    lastErrorStatusCode = null;
-    message = 'Đã gửi lệnh ECG, đang chờ kết quả mới...';
-    notifyListeners();
-
     try {
-      final requestStartedAt = DateTime.now().toUtc();
-      final req = await _api.requestEcg(
-        deviceId: deviceId,
-        durationSeconds: durationSeconds,
-        samplingRate: samplingRate,
-      );
-
-      final ecgResult = await _api.waitForEcgResult(
-        deviceId: deviceId,
-        pollIntervalMs: Env.pollIntervalMs,
-        notBefore: requestStartedAt,
-      );
-
-      lastResult = <String, dynamic>{...req};
-      if (ecgResult != null) {
-        lastResult!['ecg_result'] = ecgResult;
-        status = AsyncStatus.success;
-        message = 'Đã nhận được kết quả ECG mới cho thiết bị hiện tại.';
-      } else {
-        status = AsyncStatus.empty;
-        message =
-            'Đã gửi lệnh ECG nhưng chưa có kết quả mới trong thời gian chờ.';
+      if (!silent) {
+        status = AsyncStatus.loading;
+        error = null;
+        lastErrorStatusCode = null;
+        message = null;
+        notifyListeners();
       }
-      return lastResult!;
+
+      final reading = await _api.getLatestEcgByDevice(deviceId: deviceId);
+      latest = reading;
+      if (reading == null || !reading.hasWaveform) {
+        status = AsyncStatus.empty;
+      } else {
+        status = AsyncStatus.success;
+      }
     } catch (e) {
+      latest = null;
       lastErrorStatusCode = e is ApiRequestException ? e.statusCode : null;
       if (lastErrorStatusCode == 401) {
         status = AsyncStatus.unauthorized;
         error = 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn';
+      } else if (lastErrorStatusCode == 404) {
+        status = AsyncStatus.empty;
+        error = null;
       } else {
         status = AsyncStatus.error;
-        error = _friendlyError(e, fallback: 'Yêu cầu ECG thất bại');
+        error = _friendlyError(e, fallback: 'Không tải được dữ liệu ECG');
       }
-      message = null;
-      notifyListeners();
-      rethrow;
     } finally {
-      if (!status.isError && !status.isUnauthorized) {
-        notifyListeners();
+      notifyListeners();
+    }
+  }
+
+  Future<void> loadHistoryForDay(DateTime dayLocal, {int limit = 100}) async {
+    selectedHistoryDayLocal = DateTime(
+      dayLocal.year,
+      dayLocal.month,
+      dayLocal.day,
+    );
+
+    if (!_isAuthenticated) {
+      _historyReadings.clear();
+      historyStatus = AsyncStatus.unauthorized;
+      historyError = 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn';
+      historyLastErrorStatusCode = 401;
+      notifyListeners();
+      return;
+    }
+
+    if (deviceId.trim().isEmpty) {
+      _historyReadings.clear();
+      historyStatus = AsyncStatus.empty;
+      historyError = null;
+      historyLastErrorStatusCode = null;
+      notifyListeners();
+      return;
+    }
+
+    try {
+      historyStatus = AsyncStatus.loading;
+      historyError = null;
+      historyLastErrorStatusCode = null;
+      notifyListeners();
+
+      final readings = await _api.getEcgReadingsByDevice(
+        deviceId: deviceId,
+        limit: limit,
+      );
+      readings.sort((a, b) => a.recordedAt.compareTo(b.recordedAt));
+
+      final filtered = readings
+          .where((reading) {
+            final localTime = reading.recordedAt.toLocal();
+            return localTime.year == selectedHistoryDayLocal.year &&
+                localTime.month == selectedHistoryDayLocal.month &&
+                localTime.day == selectedHistoryDayLocal.day;
+          })
+          .toList(growable: false);
+
+      _historyReadings
+        ..clear()
+        ..addAll(filtered);
+
+      historyStatus = filtered.isEmpty
+          ? AsyncStatus.empty
+          : AsyncStatus.success;
+    } catch (e) {
+      _historyReadings.clear();
+      historyLastErrorStatusCode = e is ApiRequestException
+          ? e.statusCode
+          : null;
+      if (historyLastErrorStatusCode == 401) {
+        historyStatus = AsyncStatus.unauthorized;
+        historyError = 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn';
+      } else if (historyLastErrorStatusCode == 404) {
+        historyStatus = AsyncStatus.empty;
+        historyError = null;
+      } else {
+        historyStatus = AsyncStatus.error;
+        historyError = _friendlyError(
+          e,
+          fallback: 'Không tải được lịch sử ECG',
+        );
       }
+    } finally {
+      notifyListeners();
     }
   }
 
@@ -148,13 +211,23 @@ class EcgProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void _reset() {
-    deviceId = '';
+  void _resetDeviceScopedState() {
     status = AsyncStatus.idle;
     message = null;
     error = null;
     lastErrorStatusCode = null;
-    lastResult = null;
+    latest = null;
+
+    selectedHistoryDayLocal = _todayLocal();
+    historyStatus = AsyncStatus.idle;
+    historyError = null;
+    historyLastErrorStatusCode = null;
+    _historyReadings.clear();
+  }
+
+  void _reset() {
+    deviceId = '';
+    _resetDeviceScopedState();
   }
 
   String _friendlyError(Object e, {required String fallback}) {
@@ -163,10 +236,7 @@ class EcgProvider extends ChangeNotifier {
         return 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn';
       }
       if (e.statusCode == 403) {
-        return 'Tài khoản hiện tại không có quyền yêu cầu ECG';
-      }
-      if (e.statusCode == 409) {
-        return 'Yêu cầu đang chờ xử lý, vui lòng thử lại sau';
+        return 'Tài khoản hiện tại không có quyền xem ECG';
       }
       if (e.statusCode == 429) {
         return 'Đang bị giới hạn yêu cầu, vui lòng thử lại sau';
@@ -175,4 +245,9 @@ class EcgProvider extends ChangeNotifier {
     }
     return fallback;
   }
+}
+
+DateTime _todayLocal() {
+  final now = DateTime.now();
+  return DateTime(now.year, now.month, now.day);
 }

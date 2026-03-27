@@ -72,80 +72,37 @@ void main() {
     expect(summary['avg_hr'], 73);
   });
 
-  test('parses ecg items list and sends request payload correctly', () async {
+  test('parses the newest ECG reading from the device ECG endpoint', () async {
     final client = ApiClient(baseUrl: 'https://example.com', timeoutMs: 1000);
     final service = HealthApiService(client: client);
-    final adapter = StubHttpClientAdapter(
-      handler: (options, _) async {
-        if (options.path.endsWith('/ecg/request')) {
-          expect(options.data, <String, dynamic>{
-            'duration_seconds': 12,
-            'sampling_rate': 300,
-          });
-          return jsonResponse(<String, dynamic>{'request_id': 'req-1'}, 200);
-        }
-
-        expect(options.path, '/api/v1/devices/dev-1/ecg');
-
-        return jsonResponse(<String, dynamic>{
-          'count': 1,
-          'items': <Map<String, dynamic>>[
-            <String, dynamic>{
-              'timestamp': '2026-03-16T10:00:00Z',
-              'samples': <int>[1, 2, 3],
-            },
-          ],
-        }, 200);
-      },
-    );
-    client.dio.httpClientAdapter = adapter;
-
-    final items = await service.getEcgByDevice(deviceId: 'dev-1');
-    final request = await service.requestEcg(
-      deviceId: 'dev-1',
-      durationSeconds: 12,
-      samplingRate: 300,
-    );
-
-    expect(items, hasLength(1));
-    expect(request['request_id'], 'req-1');
-  });
-
-  test('waitForEcgResult polls the new device ECG endpoint', () async {
-    final client = ApiClient(baseUrl: 'https://example.com', timeoutMs: 1000);
-    final service = HealthApiService(client: client);
-    var ecgCalls = 0;
     client.dio.httpClientAdapter = StubHttpClientAdapter(
       handler: (options, _) async {
         expect(options.path, '/api/v1/devices/dev-1/ecg');
-        ecgCalls += 1;
-        if (ecgCalls == 1) {
-          return jsonResponse(<String, dynamic>{
-            'count': 0,
-            'items': const <Map<String, dynamic>>[],
-          }, 200);
-        }
+
         return jsonResponse(<String, dynamic>{
           'count': 1,
           'items': <Map<String, dynamic>>[
             <String, dynamic>{
-              'timestamp': '2026-03-16T10:00:00Z',
+              'recorded_at': '2026-03-24T10:46:07.177Z',
               'device_id': 'dev-1',
-              'samples': <int>[1, 2, 3],
+              'ecg': <String, dynamic>{
+                'waveform': <double>[0.12, 0.18, 0.05, -0.03, 0.22],
+                'sampling_rate': 250,
+                'quality': 'good',
+                'lead_off': false,
+                'ecg_hr': 72,
+              },
             },
           ],
         }, 200);
       },
     );
 
-    final result = await service.waitForEcgResult(
-      deviceId: 'dev-1',
-      pollIntervalMs: 1,
-      timeout: const Duration(milliseconds: 100),
-    );
+    final reading = await service.getLatestEcgByDevice(deviceId: 'dev-1');
 
-    expect(ecgCalls, 2);
-    expect(result, isNotNull);
-    expect(result?['device_id'], 'dev-1');
+    expect(reading, isNotNull);
+    expect(reading!.samplingRate, 250);
+    expect(reading.ecgHr, 72);
+    expect(reading.waveform, hasLength(5));
   });
 }

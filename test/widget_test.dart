@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
@@ -9,6 +9,7 @@ import 'package:eldercare_app/src/data/api/health_api_service.dart';
 import 'package:eldercare_app/src/data/local/auth_storage.dart';
 import 'package:eldercare_app/src/domain/models/auth_tokens.dart';
 import 'package:eldercare_app/src/domain/models/device.dart';
+import 'package:eldercare_app/src/domain/models/ecg_reading.dart';
 import 'package:eldercare_app/src/domain/models/vital_point.dart';
 import 'package:eldercare_app/src/features/auth/register_page.dart';
 import 'package:eldercare_app/src/features/devices/device_page.dart';
@@ -46,14 +47,14 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('Đăng nhập'), findsWidgets);
+    expect(find.text('ÄÄƒng nháº­p'), findsWidgets);
     expect(
-      find.text('Đăng nhập để tải danh sách thiết bị đã liên kết'),
+      find.text('ÄÄƒng nháº­p Ä‘á»ƒ táº£i danh sÃ¡ch thiáº¿t bá»‹ Ä‘Ã£ liÃªn káº¿t'),
       findsOneWidget,
     );
-    expect(find.text('Số điện thoại'), findsOneWidget);
-    expect(find.text('Mật khẩu'), findsOneWidget);
-    expect(find.text('Chưa có tài khoản? Đăng ký'), findsOneWidget);
+    expect(find.text('Sá»‘ Ä‘iá»‡n thoáº¡i'), findsOneWidget);
+    expect(find.text('Máº­t kháº©u'), findsOneWidget);
+    expect(find.text('ChÆ°a cÃ³ tÃ i khoáº£n? ÄÄƒng kÃ½'), findsOneWidget);
   });
 
   testWidgets('DevicePage validates login fields before submit', (
@@ -79,8 +80,8 @@ void main() {
     await tester.tap(loginButtonIcon);
     await tester.pumpAndSettle();
 
-    expect(find.text('Nhập số điện thoại'), findsOneWidget);
-    expect(find.text('Nhập mật khẩu'), findsOneWidget);
+    expect(find.text('Nháº­p sá»‘ Ä‘iá»‡n thoáº¡i'), findsOneWidget);
+    expect(find.text('Nháº­p máº­t kháº©u'), findsOneWidget);
   });
 
   testWidgets('HomePage shows unauthenticated empty state with no device', (
@@ -102,14 +103,14 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    expect(find.text('Chưa đăng nhập'), findsOneWidget);
+    expect(find.text('ChÆ°a Ä‘Äƒng nháº­p'), findsOneWidget);
     expect(
       find.text(
-        'Bạn cần đăng nhập trước, sau đó ứng dụng sẽ tải danh sách thiết bị đã liên kết từ máy chủ.',
+        'Báº¡n cáº§n Ä‘Äƒng nháº­p trÆ°á»›c, sau Ä‘Ã³ á»©ng dá»¥ng sáº½ táº£i danh sÃ¡ch thiáº¿t bá»‹ Ä‘Ã£ liÃªn káº¿t tá»« mÃ¡y chá»§.',
       ),
       findsOneWidget,
     );
-    expect(find.text('Đăng nhập'), findsOneWidget);
+    expect(find.text('ÄÄƒng nháº­p'), findsOneWidget);
   });
 
   testWidgets('HomePage shows no-device state for authenticated user', (
@@ -142,8 +143,8 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    expect(find.text('Bạn chưa có thiết bị nào'), findsOneWidget);
-    expect(find.text('Mở danh sách thiết bị'), findsOneWidget);
+    expect(find.text('Báº¡n chÆ°a cÃ³ thiáº¿t bá»‹ nÃ o'), findsOneWidget);
+    expect(find.text('Má»Ÿ danh sÃ¡ch thiáº¿t bá»‹'), findsOneWidget);
   });
 
   testWidgets('DevicePage shows no-device state for authenticated user', (
@@ -179,8 +180,8 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    expect(find.text('Bạn chưa có thiết bị nào'), findsOneWidget);
-    expect(find.text('Liên kết thiết bị'), findsOneWidget);
+    expect(find.text('Báº¡n chÆ°a cÃ³ thiáº¿t bá»‹ nÃ o'), findsOneWidget);
+    expect(find.text('LiÃªn káº¿t thiáº¿t bá»‹'), findsOneWidget);
     expect(find.text('Xem huong dan lien ket'), findsOneWidget);
   });
 
@@ -235,7 +236,8 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    expect(find.text('Yêu cầu đo ECG'), findsNothing);
+    expect(find.text('YÃªu cáº§u Ä‘o ECG'), findsNothing);
+    expect(find.text('ECG'), findsOneWidget);
   });
 
   testWidgets('RegisterPage validates required fields inline', (tester) async {
@@ -266,10 +268,10 @@ void main() {
     await tester.tap(registerButtonIcon);
     await tester.pumpAndSettle();
 
-    expect(find.text('Nhập họ và tên'), findsOneWidget);
-    expect(find.text('Nhập số điện thoại'), findsOneWidget);
-    expect(find.text('Nhập mật khẩu'), findsOneWidget);
-    expect(find.text('Nhập lại mật khẩu'), findsWidgets);
+    expect(find.text('Nháº­p há» vÃ  tÃªn'), findsOneWidget);
+    expect(find.text('Nháº­p sá»‘ Ä‘iá»‡n thoáº¡i'), findsOneWidget);
+    expect(find.text('Nháº­p máº­t kháº©u'), findsOneWidget);
+    expect(find.text('Nháº­p láº¡i máº­t kháº©u'), findsWidgets);
   });
 }
 
@@ -409,4 +411,20 @@ class _FakeHealthApiService extends HealthApiService {
   }) async {
     return const <VitalPoint>[];
   }
+
+  @override
+  Future<EcgReading?> getLatestEcgByDevice({
+    required String deviceId,
+    int limit = 1,
+  }) async {
+    return EcgReading(
+      recordedAt: DateTime.parse('2026-03-24T10:46:07.177Z'),
+      waveform: const <double>[0.12, 0.18, 0.05, -0.03, 0.22],
+      samplingRate: 250,
+      quality: 'good',
+      leadOff: false,
+      ecgHr: 72,
+    );
+  }
 }
+

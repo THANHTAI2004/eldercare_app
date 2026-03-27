@@ -43,7 +43,9 @@ dependencies:
   http: ^1.6.0
   mobile_scanner: ^7.2.0
   intl: ^0.20.2
+  path_provider_windows: ^2.3.0
   shared_preferences: ^2.5.4
+  shared_preferences_windows: ^2.4.1
   flutter_secure_storage: ^9.2.2
 
 dev_dependencies:

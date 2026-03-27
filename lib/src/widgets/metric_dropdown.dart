@@ -18,7 +18,12 @@ class MetricDropdown extends StatelessWidget {
       isExpanded: true,
       initialValue: value,
       items: AppConstants.allMetrics
-          .map((m) => DropdownMenuItem(value: m, child: Text(m.label)))
+          .map(
+            (m) => DropdownMenuItem(
+              value: m,
+              child: Text(m == Metric.leadOff ? 'ECG' : m.label),
+            ),
+          )
           .toList(),
       onChanged: (m) {
         if (m != null) onChanged(m);

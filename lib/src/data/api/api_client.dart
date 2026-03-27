@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 
 import 'package:eldercare_app/src/config/env.dart';
 
@@ -18,6 +19,7 @@ class ApiRequestException implements Exception {
   final int? statusCode;
   final int? retryAfterSeconds;
   final Map<String, dynamic>? responseBody;
+
   bool get isNetworkError => statusCode == null;
 
   @override
@@ -34,9 +36,11 @@ class ApiClient {
 
   ApiClient._(
     this._dio, {
+    required String baseUrl,
     required String apiKey,
     required bool sendDefaultApiKey,
-  }) : _apiKey = apiKey.trim(),
+  }) : _baseUri = Uri.parse(_normalizeBaseUrl(baseUrl)),
+       _apiKey = apiKey.trim(),
        _sendDefaultApiKey = sendDefaultApiKey {
     _dio.interceptors.add(
       InterceptorsWrapper(
@@ -119,6 +123,7 @@ class ApiClient {
           sendTimeout: Duration(milliseconds: timeoutMs),
         ),
       ),
+      baseUrl: baseUrl,
       apiKey: apiKey,
       sendDefaultApiKey: sendDefaultApiKey,
     );
@@ -134,15 +139,16 @@ class ApiClient {
   }
 
   final Dio _dio;
+  final Uri _baseUri;
   final String _apiKey;
   final bool _sendDefaultApiKey;
+
   String? _accessToken;
   Future<String?> Function()? _onRefreshAccessToken;
   Future<void> Function()? _onUnauthorized;
   Future<String?>? _refreshFuture;
 
   Dio get dio => _dio;
-
   String? get accessToken => _accessToken;
 
   void setAccessToken(String? token) {
@@ -325,20 +331,49 @@ class ApiClient {
     final message = body?['message']?.toString().trim();
     if (message != null && message.isNotEmpty) return message;
 
-    if (status == 401) return 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn';
-    if (status == 403) return 'Bạn không có quyền thực hiện thao tác này';
-    if (status == 404) return 'Không tìm thấy dữ liệu';
-    if (status == 422) return 'Dữ liệu gửi lên không hợp lệ';
-    if (status == 429) return 'Có quá nhiều yêu cầu, vui lòng thử lại sau';
+    if (status == 401) {
+      return 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn';
+    }
+    if (status == 403) {
+      return 'Bạn không có quyền thực hiện thao tác này';
+    }
+    if (status == 404) {
+      return 'Không tìm thấy dữ liệu';
+    }
+    if (status == 422) {
+      return 'Dữ liệu gửi lên không hợp lệ';
+    }
+    if (status == 429) {
+      return 'Có quá nhiều yêu cầu, vui lòng thử lại sau';
+    }
 
     if (status == null) {
-      return 'Không thể kết nối đến máy chủ';
+      return _readNetworkErrorMessage();
     }
 
     if (fallback != null && fallback.trim().isNotEmpty) {
       return fallback.trim();
     }
     return 'Yêu cầu thất bại';
+  }
+
+  String _readNetworkErrorMessage() {
+    if (_isLikelyCorsIssueOnWeb()) {
+      return 'Trình duyệt đang chặn kết nối tới API do CORS. Hãy cho phép origin ${Uri.base.origin} trên máy chủ.';
+    }
+    return 'Không thể kết nối đến máy chủ';
+  }
+
+  bool _isLikelyCorsIssueOnWeb() {
+    if (!kIsWeb) return false;
+    if (!Uri.base.hasScheme || !_baseUri.hasScheme) return false;
+
+    final webOrigin = Uri.base.origin;
+    final apiOrigin = _baseUri.origin;
+    final isLocalWebHost =
+        Uri.base.host == 'localhost' || Uri.base.host == '127.0.0.1';
+
+    return isLocalWebHost && webOrigin != apiOrigin;
   }
 
   Future<String?> _refreshAccessTokenOnce() {

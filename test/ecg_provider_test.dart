@@ -2,15 +2,23 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:eldercare_app/src/data/api/api_client.dart';
 import 'package:eldercare_app/src/data/api/health_api_service.dart';
+import 'package:eldercare_app/src/domain/models/ecg_reading.dart';
 import 'package:eldercare_app/src/state/async_status.dart';
 import 'package:eldercare_app/src/state/ecg_provider.dart';
 
 void main() {
-  test('requestEcg returns success when result is received', () async {
+  test('refreshLatest returns success when ECG waveform is available', () async {
     final provider = EcgProvider(
       client: ApiClient(baseUrl: 'https://example.com', timeoutMs: 1000),
       api: _FakeHealthApiService(
-        ecgResult: <String, dynamic>{'samples': <int>[1, 2, 3]},
+        reading: EcgReading(
+          recordedAt: DateTime.parse('2026-03-24T10:46:07.177Z'),
+          waveform: const <double>[0.12, 0.18, 0.05, -0.03, 0.22],
+          samplingRate: 250,
+          quality: 'good',
+          leadOff: false,
+          ecgHr: 72,
+        ),
       ),
     );
 
@@ -20,20 +28,18 @@ void main() {
     );
     provider.bindScope(deviceId: 'dev-1');
 
-    final result = await provider.requestEcg();
+    await provider.refreshLatest();
 
     expect(provider.status, AsyncStatus.success);
-    expect(
-      provider.message,
-      'Đã nhận được kết quả ECG mới cho thiết bị hiện tại.',
-    );
-    expect(result['ecg_result'], isNotNull);
+    expect(provider.latest, isNotNull);
+    expect(provider.latest!.waveform, hasLength(5));
+    expect(provider.latest!.samplingRate, 250);
   });
 
-  test('requestEcg returns empty when polling times out', () async {
+  test('refreshLatest returns empty when ECG is missing', () async {
     final provider = EcgProvider(
       client: ApiClient(baseUrl: 'https://example.com', timeoutMs: 1000),
-      api: _FakeHealthApiService(ecgResult: null),
+      api: _FakeHealthApiService(reading: null),
     );
 
     provider.handleSessionState(
@@ -42,55 +48,36 @@ void main() {
     );
     provider.bindScope(deviceId: 'dev-1');
 
-    final result = await provider.requestEcg();
+    await provider.refreshLatest();
 
     expect(provider.status, AsyncStatus.empty);
-    expect(
-      provider.message,
-      'Đã gửi lệnh ECG nhưng chưa có kết quả mới trong thời gian chờ.',
-    );
-    expect(result['request_id'], 'req-1');
-    expect(result.containsKey('ecg_result'), isFalse);
+    expect(provider.latest, isNull);
   });
 
-  test('requestEcg marks unauthorized when session is missing', () async {
+  test('refreshLatest marks unauthorized when session is missing', () async {
     final provider = EcgProvider(
       client: ApiClient(baseUrl: 'https://example.com', timeoutMs: 1000),
-      api: _FakeHealthApiService(
-        ecgResult: <String, dynamic>{'samples': <int>[1, 2, 3]},
-      ),
+      api: _FakeHealthApiService(reading: null),
     );
 
-    expect(
-      () => provider.requestEcg(),
-      throwsA(isA<StateError>()),
-    );
+    await provider.refreshLatest();
+
     expect(provider.status, AsyncStatus.unauthorized);
+    expect(provider.latest, isNull);
   });
 }
 
 class _FakeHealthApiService extends HealthApiService {
-  _FakeHealthApiService({required this.ecgResult})
+  _FakeHealthApiService({required this.reading})
     : super(client: ApiClient(baseUrl: 'https://example.com', timeoutMs: 1000));
 
-  final Map<String, dynamic>? ecgResult;
+  final EcgReading? reading;
 
   @override
-  Future<Map<String, dynamic>> requestEcg({
+  Future<EcgReading?> getLatestEcgByDevice({
     required String deviceId,
-    int durationSeconds = 10,
-    int samplingRate = 250,
+    int limit = 1,
   }) async {
-    return <String, dynamic>{'request_id': 'req-1'};
-  }
-
-  @override
-  Future<Map<String, dynamic>?> waitForEcgResult({
-    required String deviceId,
-    required int pollIntervalMs,
-    DateTime? notBefore,
-    Duration timeout = const Duration(seconds: 45),
-  }) async {
-    return ecgResult;
+    return reading;
   }
 }

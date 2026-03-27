@@ -82,10 +82,15 @@ class _ClaimDevicePageState extends State<ClaimDevicePage> {
   Future<String> _refreshDeviceState(String claimedDeviceId) async {
     final session = context.read<SessionProvider>();
     final deviceProvider = context.read<DeviceProvider>();
+    final realtime = Provider.of<RealtimeProvider?>(context, listen: false);
+    final history = Provider.of<HistoryProvider?>(context, listen: false);
+    final ecg = Provider.of<EcgProvider?>(context, listen: false);
+    final alerts = Provider.of<AlertsProvider?>(context, listen: false);
 
     await deviceProvider.syncFromServer(
       authenticatedUserId: session.authenticatedUserId,
     );
+    if (!mounted) return claimedDeviceId;
 
     final claimedDevice = deviceProvider.findById(claimedDeviceId);
     if (claimedDevice == null) {
@@ -93,12 +98,9 @@ class _ClaimDevicePageState extends State<ClaimDevicePage> {
     }
 
     await deviceProvider.setCurrent(claimedDevice.id);
+    if (!mounted) return claimedDevice.resolvedDeviceId;
 
     final resolvedDeviceId = claimedDevice.resolvedDeviceId;
-    final realtime = Provider.of<RealtimeProvider?>(context, listen: false);
-    final history = Provider.of<HistoryProvider?>(context, listen: false);
-    final ecg = Provider.of<EcgProvider?>(context, listen: false);
-    final alerts = Provider.of<AlertsProvider?>(context, listen: false);
 
     ecg?.bindScope(deviceId: resolvedDeviceId);
     alerts?.bindDevice(resolvedDeviceId);

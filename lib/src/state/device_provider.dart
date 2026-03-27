@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:eldercare_app/src/data/api/api_client.dart';
@@ -103,9 +104,11 @@ class DeviceProvider extends ChangeNotifier {
     error = null;
     _sessionUserId = '';
 
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_devicesKey);
-    await prefs.remove(_currentIdKey);
+    final prefs = await _getPrefs();
+    if (prefs != null) {
+      await prefs.remove(_devicesKey);
+      await prefs.remove(_currentIdKey);
+    }
 
     notifyListeners();
   }
@@ -173,7 +176,13 @@ class DeviceProvider extends ChangeNotifier {
   }
 
   Future<void> _loadFromStorage() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _getPrefs();
+    if (prefs == null) {
+      _devices.clear();
+      _current = null;
+      return;
+    }
+
     final jsonStr = prefs.getString(_devicesKey);
     if (jsonStr != null && jsonStr.isNotEmpty) {
       try {
@@ -222,8 +231,7 @@ class DeviceProvider extends ChangeNotifier {
     }
 
     final normalizedUserId = authenticatedUserId.trim();
-    if (_sessionUserId == normalizedUserId &&
-        _devices.isNotEmpty) {
+    if (_sessionUserId == normalizedUserId && _devices.isNotEmpty) {
       return;
     }
 
@@ -233,7 +241,8 @@ class DeviceProvider extends ChangeNotifier {
   }
 
   Future<void> _save() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _getPrefs();
+    if (prefs == null) return;
 
     if (_devices.isEmpty) {
       await prefs.remove(_devicesKey);
@@ -246,6 +255,18 @@ class DeviceProvider extends ChangeNotifier {
       jsonEncode(_devices.map((device) => device.toJson()).toList()),
     );
     await prefs.setString(_currentIdKey, _current?.id ?? _devices.first.id);
+  }
+
+  Future<SharedPreferences?> _getPrefs() async {
+    try {
+      return await SharedPreferences.getInstance();
+    } on MissingPluginException catch (e) {
+      _log('SharedPreferences unavailable: $e');
+      return null;
+    } catch (e) {
+      _log('SharedPreferences access failed: $e');
+      return null;
+    }
   }
 
   void _selectCurrent() {

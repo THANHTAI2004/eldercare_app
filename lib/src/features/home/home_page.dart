@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:eldercare_app/src/app/routes.dart';
@@ -13,6 +13,7 @@ import 'package:eldercare_app/src/state/history_provider.dart';
 import 'package:eldercare_app/src/state/async_status.dart';
 import 'package:eldercare_app/src/state/realtime_provider.dart';
 import 'package:eldercare_app/src/state/session_provider.dart';
+import 'package:eldercare_app/src/widgets/ecg_waveform_card.dart';
 import 'package:eldercare_app/src/widgets/feature_button.dart';
 import 'package:eldercare_app/src/widgets/medical_monitor_panel.dart';
 import 'package:eldercare_app/src/widgets/responsive_two_pane.dart';
@@ -43,6 +44,25 @@ class _HomePageState extends State<HomePage> {
       final sourceIndex = ((values.length - 1) * index / 39).round();
       return values[sourceIndex];
     }, growable: false);
+  }
+
+  double? _latestMetricValue(
+    RealtimeProvider realtime,
+    HistoryProvider history,
+    Metric metric,
+  ) {
+    final realtimeValue = realtime.latest?.valueOf(metric);
+    if (realtimeValue != null && realtimeValue.isFinite) {
+      return realtimeValue;
+    }
+
+    final points = history.metricPointsForSelectedDay(metric);
+    if (points.isEmpty) return null;
+
+    final latestPoint = points.last;
+    final historyValue = latestPoint.valueOf(metric);
+    if (historyValue == null || !historyValue.isFinite) return null;
+    return historyValue;
   }
 
   String _deviceLabel(Device? device) {
@@ -83,42 +103,8 @@ class _HomePageState extends State<HomePage> {
         load: true,
       );
       ecg.bindScope(deviceId: deviceId);
+      await ecg.refreshLatest(silent: true);
     });
-  }
-
-  Future<void> _requestEcg(Device device) async {
-    if (!device.isOwnerLink) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Chỉ chủ thiết bị mới có thể yêu cầu đo ECG cho thiết bị này.',
-          ),
-        ),
-      );
-      return;
-    }
-
-    final realtime = context.read<RealtimeProvider>();
-    final ecg = context.read<EcgProvider>();
-
-    try {
-      ecg.bindScope(deviceId: device.resolvedDeviceId);
-      final result = await ecg.requestEcg();
-      await realtime.refreshLatest(silent: true);
-      if (!mounted) return;
-      final message =
-          result['message']?.toString() ??
-          ecg.message ??
-          'Đã gửi yêu cầu đo ECG thành công. Đang chờ kết quả mới.';
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(message)));
-    } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(ecg.error ?? '$error')),
-      );
-    }
   }
 
   Future<void> _selectDevice(String? selectedDeviceId) async {
@@ -144,15 +130,18 @@ class _HomePageState extends State<HomePage> {
       load: true,
     );
     ecg.bindScope(deviceId: current.resolvedDeviceId);
+    await ecg.refreshLatest(silent: true);
   }
 
   Future<void> _refreshAll() async {
     final realtime = context.read<RealtimeProvider>();
     final history = context.read<HistoryProvider>();
+    final ecg = context.read<EcgProvider>();
     await realtime.refreshLatest();
     await history.loadForDay(
       DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day),
     );
+    await ecg.refreshLatest();
   }
 
   Future<void> _openAlerts() async {
@@ -214,10 +203,10 @@ class _HomePageState extends State<HomePage> {
       final primaryChildren = <Widget>[
         MedicalMonitorPanel(
           brightness: Brightness.light,
-          hr: latest?.hr?.toDouble(),
-          spo2: latest?.spo2?.toDouble(),
-          temp: latest?.temp,
-          rr: latest?.rr?.toDouble(),
+          hr: _latestMetricValue(realtime, history, Metric.hr),
+          spo2: _latestMetricValue(realtime, history, Metric.spo2),
+          temp: _latestMetricValue(realtime, history, Metric.temp),
+          rr: _latestMetricValue(realtime, history, Metric.rr),
           hrWave: _seriesForMetric(history, Metric.hr),
           spo2Wave: _seriesForMetric(history, Metric.spo2),
           tempWave: _seriesForMetric(history, Metric.temp),
@@ -248,8 +237,6 @@ class _HomePageState extends State<HomePage> {
                 ? () => Navigator.pushNamed(context, AppRoutes.devices)
                 : null,
           ),
-        if (ecg.message != null && ecg.message!.trim().isNotEmpty)
-          _InfoBanner(message: ecg.message!),
         if (!hasLatest && realtime.isLoadingLatest) const _LoadingPanel(),
         if (!hasLatest && realtime.latestStatus.isEmpty)
           _EmptyPanel(
@@ -276,13 +263,18 @@ class _HomePageState extends State<HomePage> {
         if (!currentDevice.isOwnerLink)
           const _InfoBanner(
             message:
-                'Bạn đang ở chế độ chỉ xem trên thiết bị này. Chỉ chủ thiết bị mới có thể quản lý người xem và gửi yêu cầu đo ECG.',
+                'Bạn đang ở chế độ chỉ xem trên thiết bị này. Bạn vẫn có thể xem ECG mà thiết bị đã gửi lên máy chủ.',
           ),
-        if (currentDevice.isOwnerLink)
-          _EcgActionCard(
-            enabled: currentDevice.hasExplicitDeviceId && !ecg.isLoading,
-            isLoading: ecg.isLoading,
-            onTap: () => _requestEcg(currentDevice),
+        if (ecg.error != null && ecg.error!.trim().isNotEmpty)
+          _ErrorBanner(message: ecg.error!),
+        if (ecg.isLoading)
+          const _LoadingPanel()
+        else if (ecg.latest != null && ecg.latest!.hasWaveform)
+          EcgWaveformCard(reading: ecg.latest!)
+        else
+          const _EmptyPanel(
+            message:
+                'Chưa có dữ liệu ECG từ server cho thiết bị hiện tại.',
           ),
         if (currentDevice.isOwnerLink)
           FeatureButton(
@@ -758,62 +750,6 @@ class _EmptyPanel extends StatelessWidget {
   }
 }
 
-class _EcgActionCard extends StatelessWidget {
-  const _EcgActionCard({
-    required this.enabled,
-    required this.isLoading,
-    required this.onTap,
-  });
-
-  final bool enabled;
-  final bool isLoading;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final isCompact = AppLayout.isCompact(context);
-
-    return Card(
-      child: Padding(
-        padding: EdgeInsets.all(isCompact ? 12 : 14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Đo ECG theo yêu cầu',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              enabled
-                  ? 'Gửi lệnh đo ECG cho thiết bị đang theo dõi.'
-                  : 'Không thể gửi lệnh đo ECG cho thiết bị này.',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: enabled ? onTap : null,
-                icon: isLoading
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.favorite_outline),
-                label: Text(
-                  isLoading ? 'Đang gửi yêu cầu...' : 'Yêu cầu đo ECG',
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 List<Widget> _withSpacing(List<Widget> children, double spacing) {
   final spacedChildren = <Widget>[];
 
@@ -826,3 +762,4 @@ List<Widget> _withSpacing(List<Widget> children, double spacing) {
 
   return spacedChildren;
 }
+
