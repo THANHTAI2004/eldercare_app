@@ -22,8 +22,6 @@ void main() {
       hrLowCritical: 45,
       hrHigh: 110,
       hrCritical: 130,
-      rrLow: 10,
-      rrHigh: 24,
     );
 
     final storage = DeviceThresholdsStorage();
@@ -66,8 +64,6 @@ void main() {
       hrLowCritical: 44,
       hrHigh: 111,
       hrCritical: 131,
-      rrLow: 11,
-      rrHigh: 25,
     );
 
     final storage = DeviceThresholdsStorage();

@@ -26,12 +26,15 @@ class PushTokenApiService {
   final String _path;
 
   Future<void> registerPushToken({
-    required String token,
+    required String installationId,
+    required String fcmToken,
     required String platform,
   }) async {
-    final normalizedToken = token.trim();
+    final normalizedInstallationId = installationId.trim();
+    final normalizedToken = fcmToken.trim();
     final normalizedPlatform = platform.trim();
-    if (normalizedToken.isEmpty ||
+    if (normalizedInstallationId.isEmpty ||
+        normalizedToken.isEmpty ||
         normalizedPlatform.isEmpty ||
         _path.isEmpty) {
       return;
@@ -41,7 +44,8 @@ class PushTokenApiService {
       await _client.postJson(
         _path,
         data: <String, dynamic>{
-          'token': normalizedToken,
+          'installation_id': normalizedInstallationId,
+          'fcm_token': normalizedToken,
           'platform': normalizedPlatform,
         },
       );
@@ -56,10 +60,31 @@ class PushTokenApiService {
     }
   }
 
+  Future<void> deletePushToken({required String installationId}) async {
+    final normalizedInstallationId = installationId.trim();
+    if (normalizedInstallationId.isEmpty || _path.isEmpty) return;
+
+    final deletePath = '$_path/${Uri.encodeComponent(normalizedInstallationId)}';
+    try {
+      await _client.deleteJson(deletePath);
+    } on ApiRequestException catch (e) {
+      if (_isUnsupportedStatus(e.statusCode)) {
+        throw PushTokenEndpointUnsupportedException(
+          path: deletePath,
+          statusCode: e.statusCode,
+        );
+      }
+      rethrow;
+    }
+  }
+
   static String _normalizePath(String path) {
     final trimmed = path.trim();
     if (trimmed.isEmpty) return '';
-    return trimmed.startsWith('/') ? trimmed : '/$trimmed';
+    final withLeadingSlash = trimmed.startsWith('/') ? trimmed : '/$trimmed';
+    return withLeadingSlash.endsWith('/')
+        ? withLeadingSlash.substring(0, withLeadingSlash.length - 1)
+        : withLeadingSlash;
   }
 
   static bool _isUnsupportedStatus(int? statusCode) {

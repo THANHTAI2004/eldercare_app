@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 import 'package:eldercare_app/src/data/api/api_client.dart';
 import 'package:eldercare_app/src/domain/models/alert_item.dart';
 
@@ -12,10 +14,33 @@ class AlertsApiService {
     final json = await _client.getJson(
       '/api/v1/devices/$normalizedDeviceId/alerts',
     );
-    return _extractMany(json)
+    var reboundDeviceCount = 0;
+    final items = _extractMany(json)
         .map(AlertItem.fromJson)
         .where((item) => item.id.isNotEmpty)
+        .map((item) {
+          if (normalizedDeviceId.isEmpty) {
+            return item;
+          }
+
+          final currentDeviceId = item.deviceId?.trim() ?? '';
+          if (currentDeviceId == normalizedDeviceId) {
+            return item;
+          }
+
+          reboundDeviceCount += 1;
+          return item.copyWith(deviceId: normalizedDeviceId);
+        })
         .toList(growable: false);
+
+    if (reboundDeviceCount > 0) {
+      debugPrint(
+        '[AlertsApiService] Rebound device_id for '
+        '$reboundDeviceCount alert(s) on $normalizedDeviceId',
+      );
+    }
+
+    return items;
   }
 
   Future<Map<String, dynamic>> acknowledgeAlert({required String alertId}) {

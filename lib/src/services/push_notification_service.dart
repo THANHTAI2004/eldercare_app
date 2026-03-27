@@ -9,6 +9,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import 'package:eldercare_app/src/app/routes.dart';
 import 'package:eldercare_app/src/data/api/push_token_api_service.dart';
+import 'package:eldercare_app/src/data/local/push_installation_storage.dart';
 import 'package:eldercare_app/src/state/alerts_provider.dart';
 import 'package:eldercare_app/src/state/device_provider.dart';
 
@@ -33,8 +34,11 @@ void notificationTapBackground(NotificationResponse response) {
 }
 
 class PushNotificationService extends ChangeNotifier {
-  PushNotificationService({required PushTokenApiService pushTokensApi})
-    : _pushTokensApi = pushTokensApi {
+  PushNotificationService({
+    required PushTokenApiService pushTokensApi,
+    PushInstallationStorage? installationStorage,
+  }) : _pushTokensApi = pushTokensApi,
+       _installationStorage = installationStorage ?? PushInstallationStorage() {
     _instance = this;
   }
 
@@ -45,6 +49,7 @@ class PushNotificationService extends ChangeNotifier {
   static PushNotificationService? get instance => _instance;
 
   final PushTokenApiService _pushTokensApi;
+  final PushInstallationStorage _installationStorage;
   final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
   DeviceProvider? _deviceProvider;
@@ -126,6 +131,23 @@ class PushNotificationService extends ChangeNotifier {
     unawaited(_syncPushToken());
   }
 
+  Future<void> unregisterCurrentInstallation() async {
+    if (!_firebaseReady) return;
+
+    try {
+      final installationId = await _installationStorage.getOrCreateInstallationId(
+        platform: _platformLabel(),
+      );
+      await _pushTokensApi.deletePushToken(installationId: installationId);
+      _lastSyncedTokenKey = null;
+    } on PushTokenEndpointUnsupportedException catch (e) {
+      _pushSyncDisabledByServer = true;
+      debugPrint('[PushNotificationService] Push token unregister skipped: $e');
+    } catch (e) {
+      debugPrint('[PushNotificationService] Push token unregister skipped: $e');
+    }
+  }
+
   static Future<void> showForegroundNotification(RemoteMessage message) async {
     if (kIsWeb || !_supportsPushNotificationsOnCurrentPlatform()) return;
     await _setupLocalNotifications();
@@ -197,10 +219,10 @@ class PushNotificationService extends ChangeNotifier {
 
     final deviceId = _readDeviceId(data);
     if (deviceId.isNotEmpty) {
+      alertsProvider.bindDevice(deviceId);
       final device = deviceProvider.findById(deviceId);
       if (device != null) {
         await deviceProvider.setCurrent(device.id);
-        alertsProvider.bindDevice(device.resolvedDeviceId);
       }
     }
 
@@ -217,17 +239,21 @@ class PushNotificationService extends ChangeNotifier {
     }
 
     try {
+      final installationId = await _installationStorage.getOrCreateInstallationId(
+        platform: _platformLabel(),
+      );
       final token =
           forcedToken?.trim() ??
           (await FirebaseMessaging.instance.getToken())?.trim() ??
           '';
       if (token.isEmpty) return;
 
-      final syncKey = '$_authenticatedUserId::$token';
+      final syncKey = '$_authenticatedUserId::$installationId::$token';
       if (_lastSyncedTokenKey == syncKey) return;
 
       await _pushTokensApi.registerPushToken(
-        token: token,
+        installationId: installationId,
+        fcmToken: token,
         platform: _platformLabel(),
       );
       _lastSyncedTokenKey = syncKey;

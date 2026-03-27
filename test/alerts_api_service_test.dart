@@ -31,4 +31,30 @@ void main() {
     expect(alerts, hasLength(1));
     expect(alerts.single.deviceId, 'dev-1');
   });
+
+  test('getAlertsByDevice backfills device_id when API omits it', () async {
+    final client = ApiClient(baseUrl: 'https://example.com', timeoutMs: 1000);
+    final service = AlertsApiService(client: client);
+    client.dio.httpClientAdapter = StubHttpClientAdapter(
+      handler: (options, _) async {
+        expect(options.path, '/api/v1/devices/dev-1/alerts');
+        return jsonResponse(<String, dynamic>{
+          'items': <Map<String, dynamic>>[
+            <String, dynamic>{
+              'alert_id': 'alert-002',
+              'alert_type': 'fall_detected',
+              'message': 'Fall detected',
+              'severity': 'critical',
+              'created_at': '2026-03-13T10:00:00Z',
+            },
+          ],
+        }, 200);
+      },
+    );
+
+    final alerts = await service.getAlertsByDevice(deviceId: 'dev-1');
+
+    expect(alerts, hasLength(1));
+    expect(alerts.single.deviceId, 'dev-1');
+  });
 }

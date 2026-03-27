@@ -9,6 +9,7 @@ class AlertItem {
     this.acknowledgedAt,
     this.userId,
     this.deviceId,
+    this.alertType,
   });
 
   final String id;
@@ -20,6 +21,33 @@ class AlertItem {
   final DateTime? acknowledgedAt;
   final String? userId;
   final String? deviceId;
+  final String? alertType;
+
+  AlertItem copyWith({
+    String? id,
+    String? title,
+    String? message,
+    String? severity,
+    DateTime? createdAt,
+    bool? acknowledged,
+    DateTime? acknowledgedAt,
+    String? userId,
+    String? deviceId,
+    String? alertType,
+  }) {
+    return AlertItem(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      message: message ?? this.message,
+      severity: severity ?? this.severity,
+      createdAt: createdAt ?? this.createdAt,
+      acknowledged: acknowledged ?? this.acknowledged,
+      acknowledgedAt: acknowledgedAt ?? this.acknowledgedAt,
+      userId: userId ?? this.userId,
+      deviceId: deviceId ?? this.deviceId,
+      alertType: alertType ?? this.alertType,
+    );
+  }
 
   bool get isHighSeverity {
     final normalized = severity.trim().toLowerCase();
@@ -28,15 +56,19 @@ class AlertItem {
 
   factory AlertItem.fromJson(Map<String, dynamic> json) {
     final id =
+        _readString(json['_id']) ??
         _readString(json['alert_id']) ??
         _readString(json['alertId']) ??
         _readString(json['id']) ??
         '';
+    final alertType =
+        _readString(json['alert_type']) ?? _readString(json['alertType']);
     final title =
         _readString(json['title']) ??
         _readString(json['name']) ??
+        _titleFromAlertType(alertType) ??
         _readString(json['type']) ??
-        'Cảnh báo';
+        'Canh bao';
     final message =
         _readString(json['message']) ??
         _readString(json['description']) ??
@@ -70,6 +102,7 @@ class AlertItem {
       acknowledgedAt: acknowledgedAt,
       userId: _readString(json['user_id']) ?? _readString(json['userId']),
       deviceId: _readString(json['device_id']) ?? _readString(json['deviceId']),
+      alertType: alertType,
     );
   }
 }
@@ -83,5 +116,38 @@ String? _readString(dynamic value) {
 DateTime? _readTime(dynamic value) {
   if (value == null) return null;
   if (value is DateTime) return value.toUtc();
+  if (value is num) {
+    final ms = value > 1000000000000
+        ? value.toInt()
+        : (value * 1000).round();
+    return DateTime.fromMillisecondsSinceEpoch(ms, isUtc: true);
+  }
   return DateTime.tryParse(value.toString())?.toUtc();
+}
+
+String? _titleFromAlertType(String? alertType) {
+  switch (alertType?.trim().toLowerCase()) {
+    case 'fall_detected':
+      return 'Canh bao te nga';
+    case 'spo2_low':
+      return 'Canh bao SpO2';
+    case 'spo2_critical':
+      return 'Canh bao SpO2 nguy kich';
+    case 'hr_high':
+      return 'Canh bao nhip tim cao';
+    case 'hr_low':
+      return 'Canh bao nhip tim thap';
+    case 'hr_critical':
+      return 'Canh bao nhip tim nguy kich';
+    case 'hr_low_critical':
+      return 'Canh bao nhip tim thap nguy kich';
+    case 'temp_high':
+      return 'Canh bao nhiet do cao';
+    case 'temp_critical':
+      return 'Canh bao nhiet do nguy kich';
+    case 'temp_low':
+      return 'Canh bao nhiet do thap';
+    default:
+      return null;
+  }
 }

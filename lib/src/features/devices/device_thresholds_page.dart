@@ -25,8 +25,6 @@ class _DeviceThresholdsPageState extends State<DeviceThresholdsPage> {
   final _hrLowCriticalCtrl = TextEditingController();
   final _hrHighCtrl = TextEditingController();
   final _hrCriticalCtrl = TextEditingController();
-  final _rrLowCtrl = TextEditingController();
-  final _rrHighCtrl = TextEditingController();
 
   String? _lastScopeKey;
   String? _lastHydratedFingerprint;
@@ -42,8 +40,6 @@ class _DeviceThresholdsPageState extends State<DeviceThresholdsPage> {
     _hrLowCriticalCtrl.dispose();
     _hrHighCtrl.dispose();
     _hrCriticalCtrl.dispose();
-    _rrLowCtrl.dispose();
-    _rrHighCtrl.dispose();
     super.dispose();
   }
 
@@ -78,8 +74,6 @@ class _DeviceThresholdsPageState extends State<DeviceThresholdsPage> {
     _hrLowCriticalCtrl.text = _formatValue(thresholds?.hrLowCritical);
     _hrHighCtrl.text = _formatValue(thresholds?.hrHigh);
     _hrCriticalCtrl.text = _formatValue(thresholds?.hrCritical);
-    _rrLowCtrl.text = _formatValue(thresholds?.rrLow);
-    _rrHighCtrl.text = _formatValue(thresholds?.rrHigh);
   }
 
   Future<void> _save(DeviceThresholdsProvider provider) async {
@@ -95,8 +89,6 @@ class _DeviceThresholdsPageState extends State<DeviceThresholdsPage> {
       hrLowCritical: _parseRequiredNumber(_hrLowCriticalCtrl.text),
       hrHigh: _parseRequiredNumber(_hrHighCtrl.text),
       hrCritical: _parseRequiredNumber(_hrCriticalCtrl.text),
-      rrLow: _parseRequiredNumber(_rrLowCtrl.text),
-      rrHigh: _parseRequiredNumber(_rrHighCtrl.text),
     );
 
     final ok = await provider.saveThresholds(next);
@@ -108,8 +100,8 @@ class _DeviceThresholdsPageState extends State<DeviceThresholdsPage> {
       SnackBar(
         content: Text(
           ok
-              ? 'Đã lưu ngưỡng cảnh báo cho thiết bị.'
-              : (provider.error ?? 'Không thể lưu ngưỡng cảnh báo'),
+              ? 'Da luu nguong canh bao cho thiet bi.'
+              : (provider.error ?? 'Khong the luu nguong canh bao'),
         ),
       ),
     );
@@ -127,7 +119,7 @@ class _DeviceThresholdsPageState extends State<DeviceThresholdsPage> {
     final canEdit = device?.isOwnerLink == true;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Cài đặt ngưỡng cảnh báo')),
+      appBar: AppBar(title: const Text('Cai dat nguong canh bao')),
       body: SafeArea(
         child: Align(
           alignment: Alignment.topCenter,
@@ -143,21 +135,21 @@ class _DeviceThresholdsPageState extends State<DeviceThresholdsPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          device?.name ?? 'Chưa chọn thiết bị',
+                          device?.name ?? 'Chua chon thiet bi',
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
                         const SizedBox(height: 6),
                         Text(
                           device == null
-                              ? 'Hãy chọn thiết bị trước khi chỉnh ngưỡng cảnh báo.'
-                              : 'Mã thiết bị: ${device.resolvedDeviceId}',
+                              ? 'Hay chon thiet bi truoc khi chinh nguong canh bao.'
+                              : 'Ma thiet bi: ${device.resolvedDeviceId}',
                         ),
                         if (device != null) ...[
                           const SizedBox(height: 6),
                           Text(
                             canEdit
-                                ? 'Bạn đang là chủ thiết bị và có thể chỉnh sửa ngưỡng.'
-                                : 'Thiết bị này đang ở chế độ chỉ xem. Chỉ chủ thiết bị mới được chỉnh ngưỡng.',
+                                ? 'Ban dang la chu thiet bi va co the chinh sua nguong.'
+                                : 'Thiet bi nay dang o che do chi xem. Chi chu thiet bi moi duoc chinh nguong.',
                           ),
                         ],
                       ],
@@ -184,8 +176,8 @@ class _DeviceThresholdsPageState extends State<DeviceThresholdsPage> {
                   const SizedBox(height: 12),
                   _InlineBanner(
                     message: device == null
-                        ? 'Chưa có thiết bị hiện tại để cấu hình ngưỡng cảnh báo.'
-                        : 'Chỉ chủ thiết bị mới có thể mở màn hình này.',
+                        ? 'Chua co thiet bi hien tai de cau hinh nguong canh bao.'
+                        : 'Chi chu thiet bi moi co the mo man hinh nay.',
                     isError: false,
                   ),
                 ] else ...[
@@ -207,7 +199,7 @@ class _DeviceThresholdsPageState extends State<DeviceThresholdsPage> {
                                 const SizedBox(height: 16),
                               ],
                               Text(
-                                'Nhập ngưỡng cảnh báo',
+                                'Nhap nguong canh bao',
                                 style: Theme.of(context).textTheme.titleMedium,
                               ),
                               const SizedBox(height: 16),
@@ -216,13 +208,13 @@ class _DeviceThresholdsPageState extends State<DeviceThresholdsPage> {
                                 children: [
                                   _ThresholdField(
                                     controller: _spo2LowCtrl,
-                                    label: 'SpO2 thấp',
+                                    label: 'SpO2 thap',
                                     suffixText: '%',
                                     allowDecimal: false,
                                   ),
                                   _ThresholdField(
                                     controller: _spo2CriticalCtrl,
-                                    label: 'SpO2 nguy kịch',
+                                    label: 'SpO2 nguy kich',
                                     suffixText: '%',
                                     allowDecimal: false,
                                   ),
@@ -230,23 +222,23 @@ class _DeviceThresholdsPageState extends State<DeviceThresholdsPage> {
                               ),
                               const SizedBox(height: 16),
                               _ThresholdSection(
-                                title: 'Nhiệt độ',
+                                title: 'Nhiet do',
                                 children: [
                                   _ThresholdField(
                                     controller: _tempLowCtrl,
-                                    label: 'Nhiệt độ thấp',
+                                    label: 'Nhiet do thap',
                                     suffixText: '°C',
                                     allowDecimal: true,
                                   ),
                                   _ThresholdField(
                                     controller: _tempHighCtrl,
-                                    label: 'Nhiệt độ cao',
+                                    label: 'Nhiet do cao',
                                     suffixText: '°C',
                                     allowDecimal: true,
                                   ),
                                   _ThresholdField(
                                     controller: _tempCriticalCtrl,
-                                    label: 'Nhiệt độ nguy kịch',
+                                    label: 'Nhiet do nguy kich',
                                     suffixText: '°C',
                                     allowDecimal: true,
                                   ),
@@ -254,48 +246,30 @@ class _DeviceThresholdsPageState extends State<DeviceThresholdsPage> {
                               ),
                               const SizedBox(height: 16),
                               _ThresholdSection(
-                                title: 'Nhịp tim',
+                                title: 'Nhip tim',
                                 children: [
                                   _ThresholdField(
                                     controller: _hrLowCtrl,
-                                    label: 'Nhịp tim thấp',
+                                    label: 'Nhip tim thap',
                                     suffixText: 'bpm',
                                     allowDecimal: false,
                                   ),
                                   _ThresholdField(
                                     controller: _hrLowCriticalCtrl,
-                                    label: 'Nhịp tim thấp nguy kịch',
+                                    label: 'Nhip tim thap nguy kich',
                                     suffixText: 'bpm',
                                     allowDecimal: false,
                                   ),
                                   _ThresholdField(
                                     controller: _hrHighCtrl,
-                                    label: 'Nhịp tim cao',
+                                    label: 'Nhip tim cao',
                                     suffixText: 'bpm',
                                     allowDecimal: false,
                                   ),
                                   _ThresholdField(
                                     controller: _hrCriticalCtrl,
-                                    label: 'Nhịp tim nguy kịch',
+                                    label: 'Nhip tim nguy kich',
                                     suffixText: 'bpm',
-                                    allowDecimal: false,
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 16),
-                              _ThresholdSection(
-                                title: 'Nhịp thở',
-                                children: [
-                                  _ThresholdField(
-                                    controller: _rrLowCtrl,
-                                    label: 'Nhịp thở thấp',
-                                    suffixText: '/phút',
-                                    allowDecimal: false,
-                                  ),
-                                  _ThresholdField(
-                                    controller: _rrHighCtrl,
-                                    label: 'Nhịp thở cao',
-                                    suffixText: '/phút',
                                     allowDecimal: false,
                                   ),
                                 ],
@@ -316,8 +290,8 @@ class _DeviceThresholdsPageState extends State<DeviceThresholdsPage> {
                                     : const Icon(Icons.save_outlined),
                                 label: Text(
                                   thresholdsProvider.isSaving
-                                      ? 'Đang lưu...'
-                                      : 'Lưu ngưỡng',
+                                      ? 'Dang luu...'
+                                      : 'Luu nguong',
                                 ),
                               ),
                             ],
@@ -389,13 +363,13 @@ class _ThresholdField extends StatelessWidget {
       decoration: InputDecoration(labelText: label, suffixText: suffixText),
       validator: (value) {
         final raw = value?.trim() ?? '';
-        if (raw.isEmpty) return 'Nhập giá trị cho $label';
+        if (raw.isEmpty) return 'Nhap gia tri cho $label';
 
         final normalized = raw.replaceAll(',', '.');
         final parsed = double.tryParse(normalized);
-        if (parsed == null) return 'Giá trị của $label phải là số';
+        if (parsed == null) return 'Gia tri cua $label phai la so';
         if (!allowDecimal && parsed != parsed.roundToDouble()) {
-          return '$label phải là số nguyên';
+          return '$label phai la so nguyen';
         }
         return null;
       },

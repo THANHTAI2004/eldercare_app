@@ -12,6 +12,7 @@ import 'package:eldercare_app/src/domain/models/device.dart';
 import 'package:eldercare_app/src/features/devices/claim_device_page.dart';
 import 'package:eldercare_app/src/features/devices/device_viewers_page.dart';
 import 'package:eldercare_app/src/features/home/home_page.dart';
+import 'package:eldercare_app/src/services/push_notification_service.dart';
 import 'package:eldercare_app/src/state/device_provider.dart';
 import 'package:eldercare_app/src/state/realtime_provider.dart';
 import 'package:eldercare_app/src/state/session_provider.dart';
@@ -168,7 +169,9 @@ class _DevicePageState extends State<DevicePage> {
   Future<void> _logout() async {
     final session = context.read<SessionProvider>();
     final deviceProvider = context.read<DeviceProvider>();
+    final pushNotifications = context.read<PushNotificationService?>();
 
+    await pushNotifications?.unregisterCurrentInstallation();
     await session.logout();
     await deviceProvider.clear();
 

@@ -102,13 +102,13 @@ class AlertsProvider extends ChangeNotifier {
 
     try {
       final alerts = await _api.getAlertsByDevice(deviceId: _deviceId);
-      final scopedAlerts = alerts
-          .where((item) => (item.deviceId?.trim() ?? '') == _deviceId)
-          .toList(growable: false);
-      scopedAlerts.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      debugPrint(
+        '[AlertsProvider] Loaded ${alerts.length} alert(s) for $_deviceId',
+      );
+      alerts.sort((a, b) => b.createdAt.compareTo(a.createdAt));
       _items
         ..clear()
-        ..addAll(scopedAlerts);
+        ..addAll(alerts);
     } catch (e) {
       if (e is ApiRequestException) {
         error = _friendlyError(e);

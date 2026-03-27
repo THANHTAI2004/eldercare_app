@@ -9,8 +9,6 @@ class DeviceThresholds {
     this.hrLowCritical,
     this.hrHigh,
     this.hrCritical,
-    this.rrLow,
-    this.rrHigh,
   });
 
   final double? spo2Low;
@@ -22,8 +20,6 @@ class DeviceThresholds {
   final double? hrLowCritical;
   final double? hrHigh;
   final double? hrCritical;
-  final double? rrLow;
-  final double? rrHigh;
 
   factory DeviceThresholds.fromJson(Map<String, dynamic> json) {
     return DeviceThresholds(
@@ -38,8 +34,6 @@ class DeviceThresholds {
       ),
       hrHigh: _readDouble(json['hr_high']),
       hrCritical: _readDouble(json['hr_critical']),
-      rrLow: _readDouble(json['rr_low']),
-      rrHigh: _readDouble(json['rr_high']),
     );
   }
 
@@ -53,8 +47,6 @@ class DeviceThresholds {
     double? hrLowCritical,
     double? hrHigh,
     double? hrCritical,
-    double? rrLow,
-    double? rrHigh,
   }) {
     return DeviceThresholds(
       spo2Low: spo2Low ?? this.spo2Low,
@@ -66,8 +58,6 @@ class DeviceThresholds {
       hrLowCritical: hrLowCritical ?? this.hrLowCritical,
       hrHigh: hrHigh ?? this.hrHigh,
       hrCritical: hrCritical ?? this.hrCritical,
-      rrLow: rrLow ?? this.rrLow,
-      rrHigh: rrHigh ?? this.rrHigh,
     );
   }
 
@@ -85,8 +75,6 @@ class DeviceThresholds {
         'hr_low_critical': _toPayloadNumber(hrLowCritical!),
       if (hrHigh != null) 'hr_high': _toPayloadNumber(hrHigh!),
       if (hrCritical != null) 'hr_critical': _toPayloadNumber(hrCritical!),
-      if (rrLow != null) 'rr_low': _toPayloadNumber(rrLow!),
-      if (rrHigh != null) 'rr_high': _toPayloadNumber(rrHigh!),
     };
   }
 
