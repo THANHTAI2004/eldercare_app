@@ -46,16 +46,24 @@ static const float MAX30102_SAMPLING_FREQUENCY = 100.0f;
 // Tuned for easier SpO2 lock with a finger resting on the sensor.
 static const uint32_t MAX30102_FINGER_THRESHOLD = 4000UL;
 static const uint32_t MAX30102_FINGER_COOLDOWN_MS = 350UL;
-static const float MAX30102_EDGE_THRESHOLD = -320.0f;
+static const float MAX30102_EDGE_THRESHOLD = -180.0f;
 static const float MAX30102_LOW_PASS_CUTOFF = 5.0f;
 static const float MAX30102_HIGH_PASS_CUTOFF = 0.5f;
 static const uint8_t MAX30102_AVERAGING_SAMPLES = 6U;
-static const uint8_t MAX30102_MIN_AVG_SAMPLES = 2U;
+static const uint8_t MAX30102_MIN_AVG_SAMPLES = 1U;
+static const uint8_t MAX30102_STABILITY_WINDOW = 5U;
+static const uint8_t MAX30102_MIN_STABLE_BEATS = 3U;
 static const uint32_t MAX30102_HR_HOLD_MS = 8000UL;
 static const uint32_t MAX30102_VALUE_HOLD_MS = 12000UL;
+static const uint32_t MAX30102_MEASUREMENT_TIMEOUT_MS = 25000UL;
 static const uint32_t MAX30102_REINIT_INTERVAL_MS = 5000UL;
 static const int MAX30102_HR_MIN_BPM = 42;
 static const int MAX30102_HR_MAX_BPM = 210;
+static const int MAX30102_MIN_REPORT_QUALITY = 20;
+static const int MAX30102_MAX_BPM_MEAN_ABS_DEV = 10;
+static const int MAX30102_MAX_BPM_SPAN = 18;
+static const float MAX30102_MAX_SPO2_MEAN_ABS_DEV = 2.5f;
+static const float MAX30102_MAX_SPO2_SPAN = 5.0f;
 static const float MAX30102_RED_RANGE_MIN = 12.0f;
 static const float MAX30102_IR_RANGE_MIN = 12.0f;
 static const float MAX30102_RED_AVG_MIN = 700.0f;
@@ -65,6 +73,8 @@ static const float MAX30102_SPO2_MAX = 100.0f;
 static const float MAX30102_SPO2_A = 1.5958422f;
 static const float MAX30102_SPO2_B = -34.6596622f;
 static const float MAX30102_SPO2_C = 112.6898759f;
+static const uint8_t MAX30102_RED_LED_CURRENT = 110U;
+static const uint8_t MAX30102_IR_LED_CURRENT = 110U;
 
 // ===================== TYPES =====================
 struct WristVitals {
@@ -213,7 +223,9 @@ static NimBLEAddress cachedGatewayAddr;
 static bool cachedGatewayAddrValid = false;
 static uint32_t lastSendMs = 0;
 static uint32_t lastSendAttemptMs = 0;
-static bool sendPending = true;
+static bool sendPending = false;
+static bool measurementActive = false;
+static uint32_t measurementStartedMs = 0;
 static uint32_t lastAliveMs = 0;
 static uint32_t lastVitalsLogMs = 0;
 
@@ -240,6 +252,10 @@ static uint32_t lastPulseOxInitAttemptMs = 0;
 static float lastDiff = NAN;
 static bool fingerDetected = false;
 static bool crossed = false;
+static int pulseOxBpmHistory[MAX30102_STABILITY_WINDOW] = {0};
+static float pulseOxSpo2History[MAX30102_STABILITY_WINDOW] = {0.0f};
+static size_t pulseOxBeatHistoryCount = 0;
+static size_t pulseOxBeatHistoryIndex = 0;
 
 // ===================== HELPERS =====================
 const char* resetReasonText(esp_reset_reason_t reason) {
@@ -277,6 +293,117 @@ int clampQuality(int value) {
   return value;
 }
 
+int medianIntWindow(const int* values, size_t count) {
+  if (count == 0) return 0;
+
+  int scratch[MAX30102_STABILITY_WINDOW] = {0};
+  for (size_t i = 0; i < count; ++i) {
+    scratch[i] = values[i];
+  }
+
+  for (size_t i = 1; i < count; ++i) {
+    int value = scratch[i];
+    size_t j = i;
+    while (j > 0 && scratch[j - 1] > value) {
+      scratch[j] = scratch[j - 1];
+      --j;
+    }
+    scratch[j] = value;
+  }
+
+  if ((count % 2U) == 1U) return scratch[count / 2U];
+  return (scratch[(count / 2U) - 1U] + scratch[count / 2U]) / 2;
+}
+
+float medianFloatWindow(const float* values, size_t count) {
+  if (count == 0) return NAN;
+
+  float scratch[MAX30102_STABILITY_WINDOW] = {0.0f};
+  for (size_t i = 0; i < count; ++i) {
+    scratch[i] = values[i];
+  }
+
+  for (size_t i = 1; i < count; ++i) {
+    float value = scratch[i];
+    size_t j = i;
+    while (j > 0 && scratch[j - 1] > value) {
+      scratch[j] = scratch[j - 1];
+      --j;
+    }
+    scratch[j] = value;
+  }
+
+  if ((count % 2U) == 1U) return scratch[count / 2U];
+  return (scratch[(count / 2U) - 1U] + scratch[count / 2U]) * 0.5f;
+}
+
+int spanIntWindow(const int* values, size_t count) {
+  if (count == 0) return 0;
+
+  int minValue = values[0];
+  int maxValue = values[0];
+  for (size_t i = 1; i < count; ++i) {
+    if (values[i] < minValue) minValue = values[i];
+    if (values[i] > maxValue) maxValue = values[i];
+  }
+  return maxValue - minValue;
+}
+
+float spanFloatWindow(const float* values, size_t count) {
+  if (count == 0) return 0.0f;
+
+  float minValue = values[0];
+  float maxValue = values[0];
+  for (size_t i = 1; i < count; ++i) {
+    if (values[i] < minValue) minValue = values[i];
+    if (values[i] > maxValue) maxValue = values[i];
+  }
+  return maxValue - minValue;
+}
+
+float meanAbsDeviationIntWindow(const int* values, size_t count, int center) {
+  if (count == 0) return 0.0f;
+
+  float total = 0.0f;
+  for (size_t i = 0; i < count; ++i) {
+    total += fabsf((float)values[i] - (float)center);
+  }
+  return total / (float)count;
+}
+
+float meanAbsDeviationFloatWindow(const float* values, size_t count, float center) {
+  if (count == 0) return 0.0f;
+
+  float total = 0.0f;
+  for (size_t i = 0; i < count; ++i) {
+    total += fabsf(values[i] - center);
+  }
+  return total / (float)count;
+}
+
+bool pulseOxWindowStable(int& bpmMedianOut, float& spo2MedianOut) {
+  if (pulseOxBeatHistoryCount < MAX30102_MIN_STABLE_BEATS) {
+    return false;
+  }
+
+  bpmMedianOut = medianIntWindow(pulseOxBpmHistory, pulseOxBeatHistoryCount);
+  spo2MedianOut = medianFloatWindow(pulseOxSpo2History, pulseOxBeatHistoryCount);
+
+  const float bpmMeanAbsDev = meanAbsDeviationIntWindow(pulseOxBpmHistory,
+                                                        pulseOxBeatHistoryCount,
+                                                        bpmMedianOut);
+  const float spo2MeanAbsDev = meanAbsDeviationFloatWindow(pulseOxSpo2History,
+                                                           pulseOxBeatHistoryCount,
+                                                           spo2MedianOut);
+  const int bpmSpan = spanIntWindow(pulseOxBpmHistory, pulseOxBeatHistoryCount);
+  const float spo2Span = spanFloatWindow(pulseOxSpo2History, pulseOxBeatHistoryCount);
+
+  return bpmMeanAbsDev <= (float)MAX30102_MAX_BPM_MEAN_ABS_DEV &&
+         bpmSpan <= MAX30102_MAX_BPM_SPAN &&
+         spo2MeanAbsDev <= MAX30102_MAX_SPO2_MEAN_ABS_DEV &&
+         spo2Span <= MAX30102_MAX_SPO2_SPAN;
+}
+
 void clearPulseOxVitals() {
   latestVitals.hr = 0;
   latestVitals.spo2 = 0;
@@ -297,6 +424,12 @@ void resetPulseOxAlgorithm(bool clearVitals) {
   lastDiff = NAN;
   crossed = false;
   fingerDetected = false;
+  pulseOxBeatHistoryCount = 0;
+  pulseOxBeatHistoryIndex = 0;
+  for (size_t i = 0; i < MAX30102_STABILITY_WINDOW; ++i) {
+    pulseOxBpmHistory[i] = 0;
+    pulseOxSpo2History[i] = 0.0f;
+  }
 
   if (clearVitals) {
     clearPulseOxVitals();
@@ -320,6 +453,12 @@ bool initPulseOxSensor() {
 
   if (!pulseOxSensor.setSampleAveraging(pulseOxSensor.SMP_AVE_4)) {
     Serial.println("[C3][MAX30102] set sample averaging failed");
+    return false;
+  }
+
+  if (!pulseOxSensor.setLedCurrent(MAX30102::LED_RED, MAX30102_RED_LED_CURRENT) ||
+      !pulseOxSensor.setLedCurrent(MAX30102::LED_IR, MAX30102_IR_LED_CURRENT)) {
+    Serial.println("[C3][MAX30102] set LED current failed");
     return false;
   }
 
@@ -434,8 +573,9 @@ void updatePulseOxSensor() {
     pulseOxRedStat.process(red);
     pulseOxIrStat.process(ir);
 
-    float filteredRed = pulseOxHighPass.process(red);
-    float currentDiff = pulseOxDifferentiator.process(filteredRed);
+    // Use IR to detect pulse peaks; it is usually more stable than red on MAX30102.
+    float filteredIr = pulseOxHighPass.process(ir);
+    float currentDiff = pulseOxDifferentiator.process(filteredIr);
 
     if (!isnan(currentDiff) && !isnan(lastDiff)) {
       if (lastDiff > 0.0f && currentDiff < 0.0f) {
@@ -464,16 +604,36 @@ void updatePulseOxSensor() {
             float r = (redRange / redAvg) / (irRange / irAvg);
             float spo2 = (MAX30102_SPO2_A * r * r) + (MAX30102_SPO2_B * r) + MAX30102_SPO2_C;
             if (!isnan(spo2) && spo2 >= MAX30102_SPO2_MIN && spo2 <= MAX30102_SPO2_MAX) {
-              float avgBpm = pulseOxHrAverage.process((float)bpm);
-              float avgSpo2 = pulseOxSpo2Average.process(spo2);
-              if (pulseOxHrAverage.count() >= MAX30102_MIN_AVG_SAMPLES) {
-                latestVitals.hr = (int)roundf(avgBpm);
-                latestVitals.spo2 = (int)roundf(avgSpo2);
+              float perfusionIndex = (irRange / irAvg) * 1000.0f;
+              int baseQuality = clampQuality(35 + (int)(perfusionIndex * 2.5f) + ((int)pulseOxHrAverage.count() * 4));
+
+              pulseOxBpmHistory[pulseOxBeatHistoryIndex] = bpm;
+              pulseOxSpo2History[pulseOxBeatHistoryIndex] = spo2;
+              pulseOxBeatHistoryIndex = (pulseOxBeatHistoryIndex + 1U) % MAX30102_STABILITY_WINDOW;
+              if (pulseOxBeatHistoryCount < MAX30102_STABILITY_WINDOW) {
+                pulseOxBeatHistoryCount++;
               }
 
-              float perfusionIndex = (irRange / irAvg) * 1000.0f;
-              latestVitals.q = clampQuality(35 + (int)(perfusionIndex * 2.5f) + ((int)pulseOxHrAverage.count() * 4));
-              lastValidPulseOxMs = now;
+              int stableBpm = 0;
+              float stableSpo2 = NAN;
+              if (pulseOxWindowStable(stableBpm, stableSpo2)) {
+                float avgBpm = pulseOxHrAverage.process((float)stableBpm);
+                float avgSpo2 = pulseOxSpo2Average.process(stableSpo2);
+                if (pulseOxHrAverage.count() >= MAX30102_MIN_AVG_SAMPLES) {
+                  latestVitals.hr = (int)roundf(avgBpm);
+                  latestVitals.spo2 = (int)roundf(avgSpo2);
+                }
+
+                latestVitals.q = baseQuality;
+                lastValidPulseOxMs = now;
+              } else {
+                latestVitals.q = min(MAX30102_MIN_REPORT_QUALITY - 1,
+                                     clampQuality(baseQuality - 18));
+                if (latestVitals.q < MAX30102_MIN_REPORT_QUALITY) {
+                  latestVitals.hr = 0;
+                  latestVitals.spo2 = 0;
+                }
+              }
             }
           }
           pulseOxRedStat.reset();
@@ -550,7 +710,11 @@ bool readRealVitals(WristVitals& out) {
 WristVitals getCurrentVitals() {
   WristVitals v;
   if (USE_FAKE_SENSOR_DATA) {
-    return generateFakeVitals();
+    v = latestVitals;
+    if (v.hr == 0 && v.spo2 == 0 && v.q == 0 && isnan(v.temp)) {
+      v = generateFakeVitals();
+    }
+    return v;
   }
 
   readRealVitals(v);
@@ -558,11 +722,74 @@ WristVitals getCurrentVitals() {
   if (!pulseOxReady) {
     v.hr = 0;
     v.spo2 = 0;
+  } else if (v.q < MAX30102_MIN_REPORT_QUALITY) {
+    v.hr = 0;
+    v.spo2 = 0;
   }
   if (!ds18b20Ready) {
     v.temp = NAN;
   }
   return v;
+}
+
+void startMeasurementCycle() {
+  measurementActive = true;
+  sendPending = false;
+  measurementStartedMs = millis();
+  lastSendAttemptMs = 0;
+
+  if (USE_FAKE_SENSOR_DATA) {
+    latestVitals = generateFakeVitals();
+    Serial.printf("[C3][FLOW] measurement armed hr=%d spo2=%d q=%d\n",
+                  latestVitals.hr,
+                  latestVitals.spo2,
+                  latestVitals.q);
+    return;
+  }
+
+  latestVitals.hr = 0;
+  latestVitals.spo2 = 0;
+  latestVitals.temp = NAN;
+  latestVitals.q = 0;
+  latestVitals.sim = false;
+
+  resetPulseOxAlgorithm(true);
+
+  if (ds18b20Ready) {
+    tempSensor.requestTemperatures();
+    ds18b20ConversionPending = true;
+    lastTempRequestMs = measurementStartedMs;
+  }
+
+  Serial.println("[C3][FLOW] measurement armed");
+}
+
+bool measurementReadyToSend() {
+  WristVitals v = getCurrentVitals();
+  return v.hr > 0 && v.spo2 > 0 && v.q >= MAX30102_MIN_REPORT_QUALITY;
+}
+
+void lockMeasurementForSend(bool partialPacket = false) {
+  WristVitals v = getCurrentVitals();
+  measurementActive = false;
+  sendPending = true;
+  lastSendAttemptMs = 0;
+  const char* lockReason = partialPacket ? "timeout-partial" : "ready";
+
+  if (isnan(v.temp)) {
+    Serial.printf("[C3][FLOW] measurement locked (%s) hr=%d spo2=%d temp=nan q=%d\n",
+                  lockReason,
+                  v.hr,
+                  v.spo2,
+                  v.q);
+  } else {
+    Serial.printf("[C3][FLOW] measurement locked (%s) hr=%d spo2=%d temp=%.2f q=%d\n",
+                  lockReason,
+                  v.hr,
+                  v.spo2,
+                  v.temp,
+                  v.q);
+  }
 }
 
 void clearFoundAdvDevice() {
@@ -781,16 +1008,27 @@ void setup() {
   NimBLEDevice::init("wrist-central");
   NimBLEDevice::setPower(9);
   NimBLEDevice::setMTU(247);
+
+  startMeasurementCycle();
 }
 
 void loop() {
   uint32_t now = millis();
-  updateRealSensors();
-  logRealVitalsIfNeeded();
+  if (measurementActive) {
+    updateRealSensors();
+    if (measurementReadyToSend()) {
+      lockMeasurementForSend(false);
+    } else if ((now - measurementStartedMs) >= MAX30102_MEASUREMENT_TIMEOUT_MS) {
+      Serial.println("[C3][FLOW] measurement timeout, sending partial packet");
+      lockMeasurementForSend(true);
+    }
+  }
+  if (measurementActive || sendPending) {
+    logRealVitalsIfNeeded();
+  }
 
-  if (!sendPending && (now - lastSendMs >= SEND_INTERVAL_MS)) {
-    sendPending = true;
-    Serial.println("[C3][FLOW] next send cycle started");
+  if (!measurementActive && !sendPending && (now - lastSendMs >= SEND_INTERVAL_MS)) {
+    startMeasurementCycle();
   }
 
   if (sendPending) {
@@ -819,7 +1057,8 @@ void loop() {
 
   if (now - lastAliveMs >= 5000UL) {
     lastAliveMs = now;
-    Serial.printf("[C3][ALIVE] mode=%s\n", sendPending ? "scan-connect-write" : "wait-next-cycle");
+    const char* mode = measurementActive ? "measure-lock" : (sendPending ? "send-locked" : "wait-next-cycle");
+    Serial.printf("[C3][ALIVE] mode=%s\n", mode);
   }
 
   delay(20);

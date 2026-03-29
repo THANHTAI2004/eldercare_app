@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <WiFi.h>
+#include <WiFiManager.h>
 #include <WiFiClient.h>
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
@@ -15,8 +16,10 @@
 #include <Adafruit_MPU6050.h>
 #include <Adafruit_Sensor.h>
 #include <esp_system.h>
+#include <esp_wifi.h>
 #include <math.h>
 #include <algorithm>
+#include <vector>
 
 // =====================================================
 // ESP32-S3 GATEWAY - NimBLE version, no seq
@@ -25,16 +28,50 @@
 // - upload -> tat WiFi -> bat lai advertising cho chu ky moi
 // =====================================================
 
-// ===================== USER CONFIG =====================
-static const char* WIFI_SSID    = "66666666";
-static const char* WIFI_PASS    = "68686868";
+// ===================== WIFI CONFIG PORTAL =====================
+WiFiManager g_wm;
+static const char* WIFI_PORTAL_USER = "admin";
+static const char* WIFI_PORTAL_PASS = "123456";
+static const char* WIFI_PORTAL_AP_NAME = "ChestGateway";
+static const char* WIFI_PORTAL_AP_PASS = "12345678";
+static const uint16_t WIFI_PORTAL_TIMEOUT_SEC = 180U;
+static bool g_portalLoggedIn = false;
+static bool g_wifiCredentialsReady = false;
 
+const char WIFI_LOGIN_PAGE[] PROGMEM = R"rawliteral(
+<!doctype html><html lang="vi"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Chest Gateway Login</title>
+<style>
+body{font-family:system-ui;background:#0b1220;color:#e5e7eb;display:flex;min-height:100vh;align-items:center;justify-content:center;margin:0}
+.card{width:min(380px,92vw);background:#111a2e;border:1px solid rgba(148,163,184,.35);border-radius:18px;padding:18px 16px;box-shadow:0 18px 60px rgba(0,0,0,.5)}
+input{width:100%;padding:10px 11px;border-radius:12px;border:1px solid rgba(148,163,184,.35);background:#0b1220;color:#e5e7eb;font-size:14px;outline:none;margin-bottom:10px}
+button{width:100%;padding:11px;border-radius:999px;border:none;background:linear-gradient(135deg,#3b82f6,#6366f1);color:white;font-weight:700;cursor:pointer}
+.err{min-height:16px;margin-top:10px;color:#fb7185;font-size:12px;text-align:center}
+</style></head><body>
+<div class="card">
+<h2>Secure login</h2>
+<form method="POST" action="/login">
+<input name="user" placeholder="admin" required>
+<input name="pass" type="password" placeholder="password" required>
+<button type="submit">Continue</button>
+</form>
+<div class="err">%ERR%</div>
+</div></body></html>
+)rawliteral";
+
+// ===================== USER CONFIG =====================
 static const char* API_BASE_URL = "https://api.eldercare.io.vn";
 static const char* DEVICE_ID    = "dev-esp-001";
 static const char* DEVICE_TOKEN = "OrdoBN7uZGbL1kzfZOZ5eiY3YA6Pp3ibBr7OA8hcXtk";
 
 static const bool USE_INSECURE_TLS = true;
-static const bool PREFER_ECG_HEART_RATE = true;
+static const bool ENABLE_ECG_HEART_RATE = false;
+static const bool PREFER_ECG_HEART_RATE = false;
+static const int ECG_PRIMARY_HR_MIN_QUALITY = 55;
+// Must stay aligned with the C3-side reporting threshold, otherwise S3 will
+// drop HR/SpO2 even though the BLE packet already contains them.
+static const int C3_MIN_VALID_QUALITY = 20;
 static const char* DEVICE_TYPE = "chest";
 static const char* FIRMWARE_VERSION = "esp32-s3-gateway-nimble-v1";
 
@@ -46,35 +83,46 @@ static const uint32_t HTTP_TIMEOUT_MS         = 15000UL;
 static const uint8_t HTTP_RETRY_COUNT         = 2U;
 static const uint32_t HTTP_RETRY_BACKOFF_MS   = 600UL;
 static const uint32_t NTP_RETRY_MS            = 30000UL;
+static const float BODY_TEMP_UPLOAD_MIN_C     = 30.0f;
+static const float BODY_TEMP_UPLOAD_MAX_C     = 43.5f;
 
 static const uint32_t SENSOR_TASK_PERIOD_MS   = 4UL;   // 250Hz
 static const uint32_t MPU_SAMPLE_INTERVAL_MS  = 20UL;  // 50Hz
 static const size_t ECG_WAVEFORM_SAMPLES      = 250U;  // 1 second at 250Hz
+static const uint8_t ECG_RR_HISTORY_SIZE      = 8U;
+static const bool ECG_USE_LEAD_OFF_PINS       = false;
 static const uint32_t ECG_LEAD_DEBOUNCE_MS    = 120UL;
 static const uint32_t ECG_REFACTORY_MS        = 250UL;
 static const uint32_t ECG_RR_MIN_MS           = 333UL;
 static const uint32_t ECG_RR_MAX_MS           = 1714UL;
 static const uint32_t ECG_HR_HOLD_MS          = 6000UL;
-static const uint32_t ECG_CONNECT_STABLE_MS   = 350UL;
-static const uint32_t ECG_SIGNAL_INVALID_MS   = 2200UL;
-static const uint32_t ECG_SIGNAL_INVALID_HR_GRACE_MS = 4500UL;
-static const uint8_t ECG_OVERSAMPLE_COUNT     = 8U;
+static const uint32_t ECG_CONNECT_STABLE_MS   = 600UL;
+static const uint32_t ECG_SIGNAL_INVALID_MS   = 4000UL;
+static const uint32_t ECG_SIGNAL_INVALID_HR_GRACE_MS = 8000UL;
+static const uint8_t ECG_MIN_STABLE_BEATS     = 3U;
+static const uint8_t ECG_OVERSAMPLE_COUNT     = 12U;
 static const float ECG_DC_ALPHA               = 0.008f;
-static const float ECG_BAND_ALPHA             = 0.18f;
-static const float ECG_ENVELOPE_ALPHA         = 0.03f;
-static const float ECG_THRESHOLD_SCALE        = 1.25f;
-static const float ECG_THRESHOLD_MIN          = 12.0f;
-static const float ECG_RELEASE_RATIO          = 0.45f;
-static const float ECG_MOTION_THRESHOLD_BOOST = 0.20f;
+static const float ECG_BAND_ALPHA             = 0.14f;
+static const float ECG_ENVELOPE_ALPHA         = 0.025f;
+static const float ECG_THRESHOLD_SCALE        = 1.45f;
+static const float ECG_THRESHOLD_MIN          = 16.0f;
+static const float ECG_RELEASE_RATIO          = 0.60f;
+static const float ECG_MOTION_THRESHOLD_BOOST = 0.35f;
 static const int ECG_ADC_VALID_MIN            = 128;
 static const int ECG_ADC_VALID_MAX            = 3968;
 static const float ECG_CONTACT_ENVELOPE_MIN   = 1.6f;
-static const float ECG_CONTACT_ENVELOPE_MAX   = 320.0f;
+static const float ECG_CONTACT_ENVELOPE_MAX   = 420.0f;
+static const float ECG_CONTACT_ENVELOPE_HOLD_MIN = 0.8f;
+static const float ECG_CONTACT_ENVELOPE_HOLD_MAX = 520.0f;
 static const float ECG_DISPLAY_BASELINE_ALPHA = 0.0035f;
-static const float ECG_DISPLAY_SMOOTH_ALPHA   = 0.24f;
-static const float ECG_DISPLAY_ENVELOPE_ALPHA = 0.025f;
+static const float ECG_DISPLAY_SMOOTH_ALPHA   = 0.18f;
+static const float ECG_DISPLAY_ENVELOPE_ALPHA = 0.020f;
 static const float ECG_DISPLAY_GAIN_SCALE     = 1.8f;
 static const float ECG_DISPLAY_GAIN_MIN       = 24.0f;
+static const uint32_t ECG_MAX_RR_MEAN_ABS_DEV_MS = 90UL;
+static const uint32_t ECG_MAX_RR_SPAN_MS      = 180UL;
+static const int ECG_MAX_HR_STEP_BPM          = 18;
+static const float ECG_HR_SMOOTHING_ALPHA     = 0.35f;
 static const float GRAVITY_MPS2               = 9.80665f;
 static const float FALL_FREE_FALL_G           = 0.96f;
 static const float FALL_GYRO_TRIGGER_DPS      = 95.0f;
@@ -281,6 +329,41 @@ uint32_t medianU32(const uint32_t* values, size_t count) {
   return (scratch[(n / 2) - 1] + scratch[n / 2]) / 2U;
 }
 
+uint32_t spanU32(const uint32_t* values, size_t count) {
+  if (count == 0) return 0;
+
+  uint32_t minValue = values[0];
+  uint32_t maxValue = values[0];
+  for (size_t i = 1; i < count; ++i) {
+    if (values[i] < minValue) minValue = values[i];
+    if (values[i] > maxValue) maxValue = values[i];
+  }
+  return maxValue - minValue;
+}
+
+float meanAbsDeviationU32(const uint32_t* values, size_t count, uint32_t center) {
+  if (count == 0) return 0.0f;
+
+  float total = 0.0f;
+  for (size_t i = 0; i < count; ++i) {
+    total += fabsf((float)values[i] - (float)center);
+  }
+  return total / (float)count;
+}
+
+bool rrWindowStable(const uint32_t* values, size_t count, uint32_t& medianOut) {
+  if (count < ECG_MIN_STABLE_BEATS) {
+    return false;
+  }
+
+  medianOut = medianU32(values, count);
+  const float meanAbsDev = meanAbsDeviationU32(values, count, medianOut);
+  const uint32_t span = spanU32(values, count);
+
+  return meanAbsDev <= (float)ECG_MAX_RR_MEAN_ABS_DEV_MS &&
+         span <= ECG_MAX_RR_SPAN_MS;
+}
+
 void changeState(AppState s) {
   g_state = s;
   g_stateStartedMs = millis();
@@ -330,6 +413,31 @@ float clampUnit(float value) {
   if (value > 1.0f) return 1.0f;
   if (value < -1.0f) return -1.0f;
   return value;
+}
+
+bool shouldUploadBodyTemperature(float value) {
+  return !isnan(value) &&
+         value >= BODY_TEMP_UPLOAD_MIN_C &&
+         value <= BODY_TEMP_UPLOAD_MAX_C;
+}
+
+bool i2cDevicePresent(TwoWire& bus, uint8_t address) {
+  bus.beginTransmission(address);
+  return bus.endTransmission() == 0;
+}
+
+void logI2CBusDevices(TwoWire& bus) {
+  bool foundAny = false;
+  Serial.printf("[I2C] scanning SDA=%d SCL=%d\n", MPU_SDA_PIN, MPU_SCL_PIN);
+  for (uint8_t address = 0x08; address <= 0x77; ++address) {
+    if (!i2cDevicePresent(bus, address)) continue;
+    foundAny = true;
+    Serial.printf("[I2C] found device at 0x%02X\n", address);
+  }
+
+  if (!foundAny) {
+    Serial.println("[I2C] no device found");
+  }
 }
 
 float vectorMagnitude(float x, float y, float z) {
@@ -660,7 +768,9 @@ void drawWaveformPanel(const Snapshot& s) {
   int16_t y = 82;
   int16_t w = 152;
   int16_t h = 42;
-  String ecgHrText = valueOrText(s.hrEcg, s.hrEcg > 0, UI_NO_DATA_TEXT);
+  String ecgHrText = ENABLE_ECG_HEART_RATE
+    ? valueOrText(s.hrEcg, s.hrEcg > 0, UI_NO_DATA_TEXT)
+    : String("TAT");
   int16_t graphX = x + 6;
   int16_t graphY = y + 16;
   int16_t graphW = w - 12;
@@ -708,7 +818,9 @@ void drawWaveformPanel(const Snapshot& s) {
   tft.setCursor(x + 6, y + 34);
   tft.print("HR ");
   tft.print(ecgHrText);
-  tft.print(" BPM");
+  if (ENABLE_ECG_HEART_RATE) {
+    tft.print(" BPM");
+  }
   tft.setCursor(x + w - ((int16_t)strlen(leadText) * 6) - 8, y + 34);
   tft.print(leadText);
 }
@@ -731,7 +843,8 @@ void initDisplay() {
 
 void refreshDisplay() {
   Snapshot s = captureSnapshot();
-  bool includeC3 = s.c3Available;
+  bool includeC3Vitals = s.c3Fresh && s.c3Quality >= C3_MIN_VALID_QUALITY;
+  bool includeTemp = s.c3Fresh && shouldUploadBodyTemperature(s.temp);
   uint16_t screenBg = rgb565(6, 11, 20);
   uint16_t cardBg = rgb565(15, 23, 36);
   uint16_t cardBorder = rgb565(34, 52, 72);
@@ -748,8 +861,8 @@ void refreshDisplay() {
   drawStatusTile(82, 4, 74, "WIFI", WiFi.status() == WL_CONNECTED ? "ON" : "OFF", wifiColor, cardBg, cardBorder);
 
   drawMetricCard(4, 26, 74, 24, "HR", valueOrText(s.hr, s.hr > 0, UI_NO_DATA_TEXT), "bpm", rgb565(74, 222, 128), cardBg, cardBorder);
-  drawMetricCard(82, 26, 74, 24, "SpO2", valueOrText(s.spo2, includeC3 && s.spo2 > 0, UI_NO_DATA_TEXT), "%", includeC3 ? rgb565(56, 189, 248) : rgb565(100, 116, 139), cardBg, cardBorder);
-  drawMetricCard(4, 54, 74, 24, "TEMP", floatOrText(includeC3 ? s.temp : NAN, 1, UI_NO_DATA_TEXT), "C", includeC3 ? rgb565(251, 113, 133) : rgb565(100, 116, 139), cardBg, cardBorder);
+  drawMetricCard(82, 26, 74, 24, "SpO2", valueOrText(s.spo2, includeC3Vitals && s.spo2 > 0, UI_NO_DATA_TEXT), "%", includeC3Vitals ? rgb565(56, 189, 248) : rgb565(100, 116, 139), cardBg, cardBorder);
+  drawMetricCard(4, 54, 74, 24, "TEMP", floatOrText(includeTemp ? s.temp : NAN, 1, UI_NO_DATA_TEXT), "C", includeTemp ? rgb565(251, 113, 133) : rgb565(100, 116, 139), cardBg, cardBorder);
   drawMetricCard(82, 54, 74, 24, "FALL", s.fallDetected ? "YES" : "NO", "", s.fallDetected ? rgb565(248, 113, 113) : rgb565(74, 222, 128), cardBg, cardBorder);
 
   drawWaveformPanel(s);
@@ -765,35 +878,69 @@ void initAd8232() {
   pinMode(AD8232_OUT_PIN, INPUT);
 
   analogReadResolution(12);
+  analogSetPinAttenuation(AD8232_OUT_PIN, ADC_11db);
 }
 
 bool isLeadOff() {
+  if (!ECG_USE_LEAD_OFF_PINS) {
+    return false;
+  }
   return digitalRead(AD8232_LO_PLUS_PIN) == HIGH || digitalRead(AD8232_LO_MINUS_PIN) == HIGH;
 }
 
 int readEcgRawSample() {
   uint32_t total = 0;
+  int minSample = 4095;
+  int maxSample = 0;
   for (uint8_t i = 0; i < ECG_OVERSAMPLE_COUNT; ++i) {
-    total += (uint32_t)analogRead(AD8232_OUT_PIN);
+    int sample = analogRead(AD8232_OUT_PIN);
+    total += (uint32_t)sample;
+    if (sample < minSample) minSample = sample;
+    if (sample > maxSample) maxSample = sample;
   }
+
+  if (ECG_OVERSAMPLE_COUNT > 2U) {
+    total -= (uint32_t)minSample;
+    total -= (uint32_t)maxSample;
+    return (int)(total / (uint32_t)(ECG_OVERSAMPLE_COUNT - 2U));
+  }
+
   return (int)(total / ECG_OVERSAMPLE_COUNT);
 }
 
 void initMpu() {
+  pinMode(MPU_SDA_PIN, INPUT_PULLUP);
+  pinMode(MPU_SCL_PIN, INPUT_PULLUP);
+  delay(10);
   Wire.begin(MPU_SDA_PIN, MPU_SCL_PIN);
-  Wire.setClock(400000);
+  Wire.setClock(100000);
+  delay(20);
 
-  if (!mpu.begin(0x68, &Wire)) {
-    Serial.println("[MPU6050] init failed");
-    g_mpuReady = false;
+  const uint8_t candidateAddresses[] = {0x68, 0x69};
+  for (uint8_t i = 0; i < sizeof(candidateAddresses); ++i) {
+    const uint8_t address = candidateAddresses[i];
+    const bool present = i2cDevicePresent(Wire, address);
+    Serial.printf("[MPU6050] probe 0x%02X present=%s\n",
+                  address,
+                  present ? "true" : "false");
+    if (!present) continue;
+
+    if (!mpu.begin(address, &Wire)) {
+      Serial.printf("[MPU6050] begin failed at 0x%02X\n", address);
+      continue;
+    }
+
+    mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
+    mpu.setGyroRange(MPU6050_RANGE_500_DEG);
+    mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);
+    g_mpuReady = true;
+    Serial.printf("[MPU6050] ready at 0x%02X\n", address);
     return;
   }
 
-  mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
-  mpu.setGyroRange(MPU6050_RANGE_500_DEG);
-  mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);
-  g_mpuReady = true;
-  Serial.println("[MPU6050] ready");
+  logI2CBusDevices(Wire);
+  Serial.println("[MPU6050] init failed");
+  g_mpuReady = false;
 }
 
 void sensorTask(void*) {
@@ -819,10 +966,12 @@ void sensorTask(void*) {
   uint32_t signalInvalidSinceMs = 0;
   uint32_t lastRPeakMs = 0;
   uint32_t lastStableHrMs = 0;
-  uint32_t rrHistory[8] = {0};
+  uint32_t rrHistory[ECG_RR_HISTORY_SIZE] = {0};
   size_t rrHistoryCount = 0;
   size_t rrHistoryIndex = 0;
   int lastStableHr = 0;
+  float prevPeakSignal = 0.0f;
+  float prevPrevPeakSignal = 0.0f;
 
   float motionLocal = 0.0f;
   bool lastFallState = false;
@@ -860,6 +1009,8 @@ void sensorTask(void*) {
         ecgDisplayWindowSum = 0.0f;
         ecgDisplayWindowHead = 0U;
         for (size_t i = 0; i < 5U; ++i) ecgDisplayWindow[i] = 0.0f;
+        prevPeakSignal = 0.0f;
+        prevPrevPeakSignal = 0.0f;
       } else {
         leadConnectCandidateMs = 0;
         signalInvalidSinceMs = 0;
@@ -889,10 +1040,14 @@ void sensorTask(void*) {
       ecgDisplaySmooth += ECG_DISPLAY_SMOOTH_ALPHA * (ecgDisplayNotch - ecgDisplaySmooth);
       ecgDisplayEnvelope += ECG_DISPLAY_ENVELOPE_ALPHA * (fabsf(ecgDisplaySmooth) - ecgDisplayEnvelope);
 
+      const float envelopeMin = leadSignalQualified ? ECG_CONTACT_ENVELOPE_HOLD_MIN
+                                                    : ECG_CONTACT_ENVELOPE_MIN;
+      const float envelopeMax = leadSignalQualified ? ECG_CONTACT_ENVELOPE_HOLD_MAX
+                                                    : ECG_CONTACT_ENVELOPE_MAX;
       bool signalPlausible =
         rawInRange &&
-        ecgEnvelope >= ECG_CONTACT_ENVELOPE_MIN &&
-        ecgEnvelope <= ECG_CONTACT_ENVELOPE_MAX;
+        ecgEnvelope >= envelopeMin &&
+        ecgEnvelope <= envelopeMax;
 
       if (!leadSignalQualified) {
         if (signalPlausible) {
@@ -930,6 +1085,8 @@ void sensorTask(void*) {
       ecgDisplayWindowSum = 0.0f;
       ecgDisplayWindowHead = 0U;
       for (size_t i = 0; i < 5U; ++i) ecgDisplayWindow[i] = 0.0f;
+      prevPeakSignal = 0.0f;
+      prevPrevPeakSignal = 0.0f;
     }
 
     bool leadOff = stableLeadOff || !leadSignalQualified;
@@ -941,7 +1098,9 @@ void sensorTask(void*) {
       rrHistoryCount = 0;
       rrHistoryIndex = 0;
       lastStableHr = 0;
-      for (size_t i = 0; i < 8; ++i) {
+      prevPeakSignal = 0.0f;
+      prevPrevPeakSignal = 0.0f;
+      for (size_t i = 0; i < ECG_RR_HISTORY_SIZE; ++i) {
         rrHistory[i] = 0;
       }
       if (!leadOff) {
@@ -962,42 +1121,68 @@ void sensorTask(void*) {
       if (dynamicThreshold < ECG_THRESHOLD_MIN) dynamicThreshold = ECG_THRESHOLD_MIN;
       dynamicThreshold *= 1.0f + (fminf(fabsf(motionLocal), 1.5f) * ECG_MOTION_THRESHOLD_BOOST);
 
-      bool above = peakSignal > dynamicThreshold;
-      if (above &&
-          !ecgPeakArmed &&
-          (lastRPeakMs == 0 || (nowMs - lastRPeakMs) >= ECG_REFACTORY_MS)) {
-        ecgPeakArmed = true;
-        if (lastRPeakMs != 0) {
-          uint32_t rr = nowMs - lastRPeakMs;
-          if (rr >= ECG_RR_MIN_MS && rr <= ECG_RR_MAX_MS) {
-            rrHistory[rrHistoryIndex] = rr;
-            rrHistoryIndex = (rrHistoryIndex + 1U) % 8U;
-            if (rrHistoryCount < 8U) rrHistoryCount++;
+      if (ENABLE_ECG_HEART_RATE) {
+        bool localPeak = prevPeakSignal >= prevPrevPeakSignal && prevPeakSignal > peakSignal;
+        bool above = prevPeakSignal > dynamicThreshold;
+        if (above &&
+            localPeak &&
+            !ecgPeakArmed &&
+            (lastRPeakMs == 0 || (nowMs - lastRPeakMs) >= ECG_REFACTORY_MS)) {
+          ecgPeakArmed = true;
+          if (lastRPeakMs != 0) {
+            uint32_t rr = nowMs - lastRPeakMs;
+            if (rr >= ECG_RR_MIN_MS && rr <= ECG_RR_MAX_MS) {
+              rrHistory[rrHistoryIndex] = rr;
+              rrHistoryIndex = (rrHistoryIndex + 1U) % ECG_RR_HISTORY_SIZE;
+              if (rrHistoryCount < ECG_RR_HISTORY_SIZE) rrHistoryCount++;
 
-            uint32_t medianRr = medianU32(rrHistory, rrHistoryCount);
-            if (medianRr > 0) {
-              int hrCandidate = (int)(60000UL / medianRr);
-              if (hrCandidate >= 35 && hrCandidate <= 210) {
-                lastStableHr = hrCandidate;
-                lastStableHrMs = nowMs;
+              uint32_t medianRr = 0;
+              if (rrWindowStable(rrHistory, rrHistoryCount, medianRr) && medianRr > 0) {
+                int hrCandidate = (int)(60000UL / medianRr);
+                if (hrCandidate >= 35 && hrCandidate <= 210) {
+                  if (lastStableHr > 0 &&
+                      abs(hrCandidate - lastStableHr) > ECG_MAX_HR_STEP_BPM &&
+                      (nowMs - lastStableHrMs) <= ECG_HR_HOLD_MS) {
+                    hrCandidate = (lastStableHr * 3 + hrCandidate) / 4;
+                  }
+
+                  if (lastStableHr > 0) {
+                    hrCandidate = (int)roundf(((float)lastStableHr * (1.0f - ECG_HR_SMOOTHING_ALPHA)) +
+                                              ((float)hrCandidate * ECG_HR_SMOOTHING_ALPHA));
+                  }
+
+                  lastStableHr = hrCandidate;
+                  lastStableHrMs = nowMs;
+                }
               }
             }
           }
+          lastRPeakMs = nowMs;
         }
-        lastRPeakMs = nowMs;
-      }
-      if (peakSignal < dynamicThreshold * ECG_RELEASE_RATIO) {
+        if (peakSignal < dynamicThreshold * ECG_RELEASE_RATIO) {
+          ecgPeakArmed = false;
+        }
+
+        if (lastStableHr > 0 && (nowMs - lastStableHrMs) <= ECG_HR_HOLD_MS) {
+          hrFromEcg = lastStableHr;
+        } else {
+          hrFromEcg = 0;
+          if ((nowMs - lastStableHrMs) > ECG_HR_HOLD_MS) {
+            lastStableHr = 0;
+          }
+        }
+      } else {
         ecgPeakArmed = false;
+        hrFromEcg = 0;
+        lastRPeakMs = 0;
+        lastStableHr = 0;
+        lastStableHrMs = 0;
+        rrHistoryCount = 0;
+        rrHistoryIndex = 0;
       }
 
-      if (lastStableHr > 0 && (nowMs - lastStableHrMs) <= ECG_HR_HOLD_MS) {
-        hrFromEcg = lastStableHr;
-      } else {
-        hrFromEcg = 0;
-        if ((nowMs - lastStableHrMs) > ECG_HR_HOLD_MS) {
-          lastStableHr = 0;
-        }
-      }
+      prevPrevPeakSignal = prevPeakSignal;
+      prevPeakSignal = peakSignal;
 
       qualityPct = constrain((int)((ecgEnvelope - 8.0f) * 2.4f), 0, 100);
       qualityPct -= constrain((int)(fminf(fabsf(motionLocal), 1.5f) * 12.0f), 0, 30);
@@ -1226,12 +1411,179 @@ void stopBleWindow() {
   }
 }
 
-// ===================== WIFI/HTTP =====================
-void startWiFi() {
-  Serial.printf("[WiFi] connecting to %s\n", WIFI_SSID);
+// ===================== WIFI PORTAL =====================
+String escapeHtml(String input) {
+  input.replace("&", "&amp;");
+  input.replace("<", "&lt;");
+  input.replace(">", "&gt;");
+  input.replace("\"", "&quot;");
+  input.replace("'", "&#39;");
+  return input;
+}
+
+String escapeJsSingleQuoted(String input) {
+  input.replace("\\", "\\\\");
+  input.replace("'", "\\'");
+  input.replace("\r", "");
+  input.replace("\n", " ");
+  input.replace("<", "\\x3C");
+  return input;
+}
+
+String getStoredWifiSsid() {
+  wifi_config_t cfg;
+  memset(&cfg, 0, sizeof(cfg));
+  if (esp_wifi_get_config(WIFI_IF_STA, &cfg) != ESP_OK) {
+    return String();
+  }
+  if (cfg.sta.ssid[0] == '\0') {
+    return String();
+  }
+  return String(reinterpret_cast<const char*>(cfg.sta.ssid));
+}
+
+String buildPortalWifiList() {
+  String out;
+  int networkCount = WiFi.scanNetworks();
+  if (networkCount <= 0) {
+    WiFi.scanDelete();
+    out += "<div style='color:#9ca3af;font-size:13px'>Khong tim thay mang Wi-Fi.</div>";
+    return out;
+  }
+
+  out += "<div style='display:flex;flex-direction:column;gap:6px;max-height:240px;overflow:auto;padding:6px;border:1px solid rgba(148,163,184,.25);border-radius:12px;background:#0b1220'>";
+  for (int i = 0; i < networkCount; ++i) {
+    String ssid = WiFi.SSID(i);
+    String htmlSsid = escapeHtml(ssid);
+    String jsSsid = escapeJsSingleQuoted(ssid);
+
+    out += "<button type='button' style='text-align:left;padding:10px;border-radius:10px;border:1px solid rgba(148,163,184,.20);background:#111a2e;color:#e5e7eb;cursor:pointer' ";
+    out += "onclick=\"document.getElementById('ssid').value='";
+    out += jsSsid;
+    out += "'\">";
+    out += "<div style='font-weight:600'>";
+    out += htmlSsid;
+    out += "</div>";
+    out += "<div style='font-size:12px;color:#9ca3af'>RSSI ";
+    out += String(WiFi.RSSI(i));
+    out += " dBm</div>";
+    out += "</button>";
+  }
+  out += "</div>";
+  WiFi.scanDelete();
+  return out;
+}
+
+void sendPortalLoginPage(const String& errorText = "") {
+  String page = FPSTR(WIFI_LOGIN_PAGE);
+  page.replace("%ERR%", escapeHtml(errorText));
+  g_wm.server->send(200, "text/html", page);
+}
+
+void sendPortalWifiPage() {
+  if (!g_portalLoggedIn) {
+    g_wm.server->sendHeader("Location", "/", true);
+    g_wm.server->send(302, "text/plain", "");
+    return;
+  }
+
+  String page;
+  page += "<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>";
+  page += "<style>body{font-family:system-ui;background:#0b1220;color:#e5e7eb;display:flex;min-height:100vh;align-items:center;justify-content:center;margin:0}.card{width:min(440px,92vw);background:#111a2e;border:1px solid rgba(148,163,184,.35);border-radius:18px;padding:18px 16px}input{width:100%;padding:10px;border-radius:12px;border:1px solid rgba(148,163,184,.35);background:#0b1220;color:#e5e7eb;margin:8px 0}button{width:100%;padding:11px;border-radius:999px;border:none;background:#16a34a;color:white;font-weight:800;margin-top:8px}</style>";
+  page += "</head><body><div class='card'>";
+  page += "<h2>Wi-Fi Setup</h2>";
+  page += "<div style='font-size:12px;color:#9ca3af;margin-bottom:10px'>AP: ";
+  page += escapeHtml(g_wm.getConfigPortalSSID());
+  page += "</div>";
+  page += buildPortalWifiList();
+  page += "<form method='GET' action='/wifisave'>";
+  page += "<input id='ssid' name='s' placeholder='SSID' required>";
+  page += "<input name='p' type='password' placeholder='Password'>";
+  page += "<button type='submit'>Luu & ket noi</button></form>";
+  page += "</div></body></html>";
+  g_wm.server->send(200, "text/html", page);
+}
+
+void bindPortalRoutes() {
+  if (g_wm.server == nullptr) return;
+
+  g_wm.server->on("/", []() {
+    if (g_portalLoggedIn) {
+      g_wm.server->sendHeader("Location", "/wifi", true);
+      g_wm.server->send(302, "text/plain", "");
+      return;
+    }
+    sendPortalLoginPage();
+  });
+
+  g_wm.server->on("/login", []() {
+    if (!g_wm.server->hasArg("user") || !g_wm.server->hasArg("pass")) {
+      sendPortalLoginPage("Missing fields");
+      return;
+    }
+
+    String user = g_wm.server->arg("user");
+    String pass = g_wm.server->arg("pass");
+    if (user == WIFI_PORTAL_USER && pass == WIFI_PORTAL_PASS) {
+      g_portalLoggedIn = true;
+      g_wm.server->sendHeader("Location", "/wifi", true);
+      g_wm.server->send(302, "text/plain", "");
+      return;
+    }
+
+    g_portalLoggedIn = false;
+    sendPortalLoginPage("Wrong user/pass");
+  });
+
+  g_wm.server->on("/wifi", []() {
+    sendPortalWifiPage();
+  });
+}
+
+bool setupWiFiWithPortal(const char* apName = WIFI_PORTAL_AP_NAME,
+                         const char* apPass = WIFI_PORTAL_AP_PASS,
+                         uint16_t timeoutSec = WIFI_PORTAL_TIMEOUT_SEC) {
   WiFi.mode(WIFI_STA);
   WiFi.setSleep(false);
-  WiFi.begin(WIFI_SSID, WIFI_PASS);
+  g_portalLoggedIn = false;
+
+  g_wm.setConfigPortalTimeout(timeoutSec);
+  static std::vector<const char*> menu = {"wifi", "exit"};
+  g_wm.setMenu(menu);
+  g_wm.setWebServerCallback(bindPortalRoutes);
+
+  bool connected = g_wm.autoConnect(apName, apPass);
+  String storedSsid = getStoredWifiSsid();
+  g_wifiCredentialsReady = storedSsid.length() > 0;
+
+  if (connected) {
+    Serial.printf("[WiFi] portal ready, connected to %s IP=%s\n",
+                  WiFi.SSID().c_str(),
+                  WiFi.localIP().toString().c_str());
+  } else if (g_wifiCredentialsReady) {
+    Serial.printf("[WiFi] portal timeout, stored SSID=%s\n", storedSsid.c_str());
+  } else {
+    Serial.println("[WiFi] portal timeout/failed, no stored credentials");
+  }
+
+  return connected;
+}
+
+// ===================== WIFI/HTTP =====================
+bool startWiFi() {
+  WiFi.mode(WIFI_STA);
+  WiFi.setSleep(false);
+
+  String storedSsid = getStoredWifiSsid();
+  g_wifiCredentialsReady = storedSsid.length() > 0;
+  if (!g_wifiCredentialsReady) {
+    Serial.println("[WiFi] no stored credentials, skip connect");
+    return false;
+  }
+
+  Serial.printf("[WiFi] connecting to saved SSID %s\n", storedSsid.c_str());
+  WiFi.begin();
+  return true;
 }
 
 void stopWiFi() {
@@ -1316,7 +1668,7 @@ Snapshot captureSnapshot() {
   portEXIT_CRITICAL(&g_c3Mux);
 
   portENTER_CRITICAL(&g_sensorMux);
-  s.hrEcg = g_ecgDerivedHeartRate;
+  s.hrEcg = ENABLE_ECG_HEART_RATE ? g_ecgDerivedHeartRate : 0;
   s.ecgLeadOff = g_latestLeadOff;
   s.ecgQuality = g_ecgQualityPct;
   s.fallDetected = g_fallDetected;
@@ -1335,22 +1687,30 @@ Snapshot captureSnapshot() {
 
   const bool c3Available = c3.valid;
   const bool c3Fresh = c3.valid && ((millis() - c3.lastUpdateMs) <= C3_PACKET_FRESH_MS);
+  const bool c3VitalsValid = c3Fresh && c3.q >= C3_MIN_VALID_QUALITY;
   s.c3Available = c3Available;
   s.c3Fresh = c3Fresh;
   s.c3Sim = c3Available ? c3.sim : false;
   s.c3Quality = c3Available ? c3.q : 0;
-  s.hrBle = c3Available ? c3.hr : 0;
-  s.spo2 = c3Available ? c3.spo2 : 0;
-  s.temp = c3Available ? c3.temp : NAN;
+  s.hrBle = c3VitalsValid ? c3.hr : 0;
+  s.spo2 = c3VitalsValid ? c3.spo2 : 0;
+  s.temp = c3Fresh ? c3.temp : NAN;
 
-  if (PREFER_ECG_HEART_RATE && s.hrEcg > 0) s.hr = s.hrEcg;
+  const bool ecgPreferred =
+    ENABLE_ECG_HEART_RATE &&
+    PREFER_ECG_HEART_RATE &&
+    s.hrEcg > 0 &&
+    !s.ecgLeadOff &&
+    s.ecgQuality >= ECG_PRIMARY_HR_MIN_QUALITY;
+
+  if (ecgPreferred) s.hr = s.hrEcg;
   else if (s.hrBle > 0) s.hr = s.hrBle;
-  else s.hr = s.hrEcg;
+  else s.hr = 0;
 
   return s;
 }
 
-String buildPayload(const Snapshot& s, bool includeC3) {
+String buildPayload(const Snapshot& s, bool includeC3Vitals, bool includeC3Temp) {
   bool fallPending = false;
   FallPhase fallAlertPhase = FALL_PHASE_IDLE;
 
@@ -1397,14 +1757,14 @@ String buildPayload(const Snapshot& s, bool includeC3) {
     needComma = true;
   }
 
-  if (includeC3 && s.spo2 > 0) {
+  if (includeC3Vitals && s.spo2 > 0) {
     if (needComma) body += ",";
     body += "\"spo2\":";
     body += String(s.spo2);
     needComma = true;
   }
 
-  if (includeC3 && !isnan(s.temp)) {
+  if (includeC3Temp && shouldUploadBodyTemperature(s.temp)) {
     if (needComma) body += ",";
     body += "\"temperature\":";
     body += String(s.temp, 1);
@@ -1430,7 +1790,7 @@ String buildPayload(const Snapshot& s, bool includeC3) {
   body += (s.ecgLeadOff ? "true" : "false");
   body += ",";
   body += "\"ecg_hr\":";
-  body += String(s.hrEcg);
+  body += String(ENABLE_ECG_HEART_RATE ? s.hrEcg : 0);
   body += "},";
 
   body += "\"metadata\":{";
@@ -1460,7 +1820,12 @@ bool sendMergedReading() {
   }
 
   Snapshot s = captureSnapshot();
-  bool includeC3 = g_c3PacketReceivedThisCycle && s.c3Fresh;
+  bool includeC3Vitals = g_c3PacketReceivedThisCycle &&
+                         s.c3Fresh &&
+                         s.c3Quality >= C3_MIN_VALID_QUALITY;
+  bool includeTemp = g_c3PacketReceivedThisCycle &&
+                     s.c3Fresh &&
+                     shouldUploadBodyTemperature(s.temp);
   bool fallPending = false;
 
   portENTER_CRITICAL(&g_sensorMux);
@@ -1471,17 +1836,24 @@ bool sendMergedReading() {
   const UploadReason payloadUploadReason = fallPending ? UPLOAD_REASON_FALL_ALERT : g_uploadReason;
 
   String url = String(API_BASE_URL) + "/api/v1/esp/devices/" + DEVICE_ID + "/readings";
-  String body = buildPayload(s, includeC3);
+  String body = buildPayload(s, includeC3Vitals, includeTemp);
+
+  const char* uploadMode = "S3-only";
+  if (includeC3Vitals) {
+    uploadMode = includeTemp ? "S3+C3" : "S3+C3-vitals";
+  } else if (includeTemp) {
+    uploadMode = "S3+Temp";
+  }
 
   Serial.printf("[SEND] reason=%s mode=%s HR=%d ECG=%d BLE=%d FALL=%s SpO2=%d Temp=%.1f\n",
                 uploadReasonText(payloadUploadReason),
-                includeC3 ? "S3+C3" : "S3-only",
+                uploadMode,
                 s.hr,
                 s.hrEcg,
                 s.hrBle,
                 fallValue ? "true" : "false",
-                includeC3 ? s.spo2 : 0,
-                includeC3 && !isnan(s.temp) ? s.temp : 0.0f);
+                includeC3Vitals ? s.spo2 : 0,
+                includeTemp ? s.temp : 0.0f);
 
   Serial.printf("[TIME] epoch=%.3f synced=%s validRtc=%s\n",
                 nowEpochSeconds(),
@@ -1526,7 +1898,7 @@ bool sendMergedReading() {
 
 void logHealthSummary(const Snapshot& s) {
   Serial.printf(
-    "[HEALTH] heap=%lu wifi=%s ble=%s hr=%d fall=%s phase=%s pending=%s upload=%s ecgQ=%d spo2=%d temp=%.1f c3Fresh=%s packetThisCycle=%s\n",
+    "[HEALTH] heap=%lu wifi=%s ble=%s hr=%d fall=%s phase=%s pending=%s upload=%s ecgLead=%s ecgQ=%d spo2=%d temp=%.1f c3Fresh=%s packetThisCycle=%s\n",
     (unsigned long)ESP.getFreeHeap(),
     WiFi.status() == WL_CONNECTED ? "OK" : "OFF",
     g_bleClientConnected ? "CONN" : "WAIT",
@@ -1535,6 +1907,7 @@ void logHealthSummary(const Snapshot& s) {
     fallPhaseText((FallPhase)s.fallPhase),
     g_fallAlertPending ? "true" : "false",
     uploadReasonText(g_uploadReason),
+    s.ecgLeadOff ? "OFF" : "ON",
     s.ecgQuality,
     s.spo2,
     isnan(s.temp) ? 0.0f : s.temp,
@@ -1558,7 +1931,8 @@ void setup() {
 
   xTaskCreate(sensorTask, "sensorTask", 6144, nullptr, 1, &g_sensorTaskHandle);
 
-  WiFi.mode(WIFI_OFF);
+  setupWiFiWithPortal();
+  stopWiFi();
 
   initBleStackOnce();
   startBleWindow();
@@ -1612,8 +1986,11 @@ void loop() {
       if ((int32_t)(millis() - g_guardUntilMs) < 0) {
         break;
       }
-      startWiFi();
-      changeState(STATE_WIFI_WAIT);
+      if (startWiFi()) {
+        changeState(STATE_WIFI_WAIT);
+      } else {
+        changeState(STATE_CLEANUP);
+      }
       break;
 
     case STATE_WIFI_WAIT:
