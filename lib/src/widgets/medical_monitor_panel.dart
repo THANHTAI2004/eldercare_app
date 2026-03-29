@@ -8,22 +8,18 @@ class MedicalMonitorPanel extends StatelessWidget {
     this.hr,
     this.spo2,
     this.temp,
-    this.rr,
     this.hrWave,
     this.spo2Wave,
     this.tempWave,
-    this.rrWave,
     this.brightness = Brightness.light,
   });
 
   final double? hr;
   final double? spo2;
   final double? temp;
-  final double? rr;
   final List<double>? hrWave;
   final List<double>? spo2Wave;
   final List<double>? tempWave;
-  final List<double>? rrWave;
   final Brightness brightness;
 
   @override
@@ -107,17 +103,6 @@ class MedicalMonitorPanel extends StatelessWidget {
                 color: const Color(0xFFF2B705),
                 icon: Icons.thermostat_rounded,
                 wave: tempWave,
-              ),
-              SizedBox(height: gap),
-              _MonitorRow(
-                brightness: brightness,
-                compact: isCompact,
-                label: 'Nhịp thở',
-                unit: 'rpm',
-                value: rr,
-                color: const Color(0xFF7B61FF),
-                icon: Icons.air_rounded,
-                wave: rrWave,
               ),
             ],
           ),

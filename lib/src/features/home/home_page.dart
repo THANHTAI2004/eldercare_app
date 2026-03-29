@@ -206,11 +206,9 @@ class _HomePageState extends State<HomePage> {
           hr: _latestMetricValue(realtime, history, Metric.hr),
           spo2: _latestMetricValue(realtime, history, Metric.spo2),
           temp: _latestMetricValue(realtime, history, Metric.temp),
-          rr: _latestMetricValue(realtime, history, Metric.rr),
           hrWave: _seriesForMetric(history, Metric.hr),
           spo2Wave: _seriesForMetric(history, Metric.spo2),
           tempWave: _seriesForMetric(history, Metric.temp),
-          rrWave: _seriesForMetric(history, Metric.rr),
         ),
         Align(
           alignment: Alignment.centerLeft,

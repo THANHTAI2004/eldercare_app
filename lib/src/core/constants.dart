@@ -10,7 +10,6 @@ class AppConstants {
     Metric.hr,
     Metric.spo2,
     Metric.temp,
-    Metric.rr,
     Metric.leadOff,
   ];
 }

@@ -101,7 +101,6 @@ class HealthCard extends StatelessWidget {
     final hr = current?.hr?.toString() ?? '--';
     final spo2 = current?.spo2?.toString() ?? '--';
     final temp = current?.temp == null ? '--' : current!.temp!.toStringAsFixed(1);
-    final rr = current?.rr?.toString() ?? '--';
 
     return Card(
       child: Padding(
@@ -166,15 +165,6 @@ class HealthCard extends StatelessWidget {
                   unit: '°C',
                   icon: Icons.thermostat_rounded,
                   accent: const Color(0xFFFFA726),
-                ),
-                const SizedBox(width: 12),
-                _prettyItem(
-                  context: context,
-                  label: 'RR',
-                  value: rr,
-                  unit: 'rpm',
-                  icon: Icons.air_rounded,
-                  accent: const Color(0xFF8B5CF6),
                 ),
               ],
             ),
