@@ -83,7 +83,9 @@ static const uint32_t HTTP_TIMEOUT_MS         = 15000UL;
 static const uint8_t HTTP_RETRY_COUNT         = 2U;
 static const uint32_t HTTP_RETRY_BACKOFF_MS   = 600UL;
 static const uint32_t NTP_RETRY_MS            = 30000UL;
-static const float BODY_TEMP_UPLOAD_MIN_C     = 30.0f;
+// Skin/chest-mounted probes can legitimately read below 30C, especially before
+// thermal stabilization, so keep the upload gate loose enough to retain them.
+static const float BODY_TEMP_UPLOAD_MIN_C     = 25.0f;
 static const float BODY_TEMP_UPLOAD_MAX_C     = 43.5f;
 
 static const uint32_t SENSOR_TASK_PERIOD_MS   = 4UL;   // 250Hz
@@ -415,8 +417,12 @@ float clampUnit(float value) {
   return value;
 }
 
+bool hasDisplayTemperature(float value) {
+  return !isnan(value);
+}
+
 bool shouldUploadBodyTemperature(float value) {
-  return !isnan(value) &&
+  return hasDisplayTemperature(value) &&
          value >= BODY_TEMP_UPLOAD_MIN_C &&
          value <= BODY_TEMP_UPLOAD_MAX_C;
 }
@@ -844,7 +850,7 @@ void initDisplay() {
 void refreshDisplay() {
   Snapshot s = captureSnapshot();
   bool includeC3Vitals = s.c3Fresh && s.c3Quality >= C3_MIN_VALID_QUALITY;
-  bool includeTemp = s.c3Fresh && shouldUploadBodyTemperature(s.temp);
+  bool includeTemp = s.c3Fresh && hasDisplayTemperature(s.temp);
   uint16_t screenBg = rgb565(6, 11, 20);
   uint16_t cardBg = rgb565(15, 23, 36);
   uint16_t cardBorder = rgb565(34, 52, 72);
