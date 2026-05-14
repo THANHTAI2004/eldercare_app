@@ -65,6 +65,9 @@ class PushNotificationService extends ChangeNotifier {
   String? _lastSyncedTokenKey;
   Map<String, dynamic>? _pendingNotificationData;
   bool _pushSyncDisabledByServer = false;
+  bool _notificationsEnabled = true;
+
+  bool get notificationsEnabled => _notificationsEnabled;
 
   static Future<void> bootstrap() async {
     if (_bootstrapAttempted) return;
@@ -129,6 +132,17 @@ class PushNotificationService extends ChangeNotifier {
       return;
     }
     unawaited(_syncPushToken());
+  }
+
+  Future<void> setNotificationsEnabled(bool value) async {
+    _notificationsEnabled = value;
+    notifyListeners();
+    if (!value) {
+      await unregisterCurrentInstallation();
+      return;
+    }
+    await initialize();
+    await _syncPushToken();
   }
 
   Future<void> unregisterCurrentInstallation() async {
@@ -234,6 +248,7 @@ class PushNotificationService extends ChangeNotifier {
     if (!_firebaseReady ||
         !_isAuthenticated ||
         _authenticatedUserId.isEmpty ||
+        !_notificationsEnabled ||
         _pushSyncDisabledByServer) {
       return;
     }

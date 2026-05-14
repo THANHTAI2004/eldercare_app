@@ -82,7 +82,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Đánh dấu đã xử lý'), findsNothing);
+    expect(find.text('Xác nhận'), findsNothing);
     expect(
       find.text(
         'Bạn đang ở chế độ chỉ xem trên thiết bị này. Chỉ chủ thiết bị mới có thể đánh dấu đã xử lý cảnh báo.',

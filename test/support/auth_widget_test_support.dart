@@ -2,14 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:eldercare_app/src/data/api/api_client.dart';
+import 'package:eldercare_app/src/data/api/alerts_api_service.dart';
 import 'package:eldercare_app/src/data/api/auth_api_service.dart';
 import 'package:eldercare_app/src/data/api/device_api_service.dart';
 import 'package:eldercare_app/src/data/api/health_api_service.dart';
 import 'package:eldercare_app/src/data/local/auth_storage.dart';
 import 'package:eldercare_app/src/domain/models/auth_tokens.dart';
 import 'package:eldercare_app/src/domain/models/device.dart';
+import 'package:eldercare_app/src/domain/models/ecg_reading.dart';
 import 'package:eldercare_app/src/domain/models/register_request.dart';
 import 'package:eldercare_app/src/domain/models/vital_point.dart';
+import 'package:eldercare_app/src/state/alerts_provider.dart';
 import 'package:eldercare_app/src/state/device_provider.dart';
 import 'package:eldercare_app/src/state/ecg_provider.dart';
 import 'package:eldercare_app/src/state/history_provider.dart';
@@ -62,6 +65,14 @@ class AuthTestShell extends StatelessWidget {
           create: (_) => EcgProvider(
             client: client,
             api: healthApi,
+          )..handleSessionState(
+              isAuthenticated: session.isAuthenticated,
+              authenticatedUserId: session.authenticatedUserId,
+            ),
+        ),
+        ChangeNotifierProvider<AlertsProvider>(
+          create: (_) => AlertsProvider(
+            api: AlertsApiService(client: client),
           )..handleSessionState(
               isAuthenticated: session.isAuthenticated,
               authenticatedUserId: session.authenticatedUserId,
@@ -178,5 +189,13 @@ class FakeHealthApiService extends HealthApiService {
     int limit = 100,
   }) async {
     return const <VitalPoint>[];
+  }
+
+  @override
+  Future<List<EcgReading>> getEcgReadingsByDevice({
+    required String deviceId,
+    int limit = 100,
+  }) async {
+    return const <EcgReading>[];
   }
 }

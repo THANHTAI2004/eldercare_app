@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:eldercare_app/src/core/app_strings.dart';
 import 'package:eldercare_app/src/data/api/api_client.dart';
 import 'package:eldercare_app/src/data/local/auth_storage.dart';
 import 'package:eldercare_app/src/features/auth/register_page.dart';
@@ -42,14 +43,12 @@ void main() {
     );
     await tester.pump();
 
-    final registerButtonIcon = find.byIcon(Icons.person_add_alt_1);
-    await tester.ensureVisible(registerButtonIcon);
-    await tester.tap(registerButtonIcon);
+    await tester.tap(find.widgetWithText(FilledButton, 'Tạo tài khoản'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Nhập họ và tên'), findsOneWidget);
-    expect(find.text('Nhập số điện thoại'), findsOneWidget);
-    expect(find.text('Nhập mật khẩu'), findsOneWidget);
+    expect(find.text('Nhập họ và tên'), findsWidgets);
+    expect(find.text(AppStrings.loginPhoneRequired), findsWidgets);
+    expect(find.text(AppStrings.loginPasswordRequired), findsWidgets);
     expect(find.text('Nhập lại mật khẩu'), findsWidgets);
   });
 
@@ -78,38 +77,20 @@ void main() {
     );
     await tester.pump();
 
-    await tester.enterText(
-      find.widgetWithText(TextFormField, 'Ho va ten'),
-      'Nguyen Van A',
-    );
-    await tester.enterText(
-      find.widgetWithText(TextFormField, 'Số điện thoại'),
-      '0987654321',
-    );
-    await tester.enterText(
-      find.widgetWithText(TextFormField, 'Mật khẩu'),
-      'MatKhau123',
-    );
-    await tester.enterText(
-      find.widgetWithText(TextFormField, 'Nhập lại mật khẩu'),
-      'MatKhau999',
-    );
-    final registerButtonIcon = find.byIcon(Icons.person_add_alt_1);
-    await tester.ensureVisible(registerButtonIcon);
-    await tester.tap(registerButtonIcon);
+    await tester.enterText(find.byType(TextFormField).at(0), 'Nguyen Van A');
+    await tester.enterText(find.byType(TextFormField).at(1), '0987654321');
+    await tester.enterText(find.byType(TextFormField).at(2), 'MatKhau123');
+    await tester.enterText(find.byType(TextFormField).at(3), 'MatKhau999');
+    await tester.tap(find.widgetWithText(FilledButton, 'Tạo tài khoản'));
     await tester.pumpAndSettle();
 
     expect(find.text('Mật khẩu nhập lại không khớp'), findsOneWidget);
 
-    await tester.enterText(
-      find.widgetWithText(TextFormField, 'Nhập lại mật khẩu'),
-      'MatKhau123',
-    );
-    await tester.ensureVisible(registerButtonIcon);
-    await tester.tap(registerButtonIcon);
+    await tester.enterText(find.byType(TextFormField).at(3), 'MatKhau123');
+    await tester.tap(find.widgetWithText(FilledButton, 'Tạo tài khoản'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Vui lòng chọn ngày sinh'), findsOneWidget);
+    expect(find.text(AppStrings.registerPickBirthDate), findsOneWidget);
   });
 
   testWidgets('register shows short password error', (tester) async {
@@ -135,28 +116,14 @@ void main() {
     );
     await tester.pump();
 
-    await tester.enterText(
-      find.widgetWithText(TextFormField, 'Ho va ten'),
-      'Nguyen Van A',
-    );
-    await tester.enterText(
-      find.widgetWithText(TextFormField, 'Số điện thoại'),
-      '0987654321',
-    );
-    await tester.enterText(
-      find.widgetWithText(TextFormField, 'Mật khẩu'),
-      '1234567',
-    );
-    await tester.enterText(
-      find.widgetWithText(TextFormField, 'Nhập lại mật khẩu'),
-      '1234567',
-    );
-    final registerButtonIcon = find.byIcon(Icons.person_add_alt_1);
-    await tester.ensureVisible(registerButtonIcon);
-    await tester.tap(registerButtonIcon);
+    await tester.enterText(find.byType(TextFormField).at(0), 'Nguyen Van A');
+    await tester.enterText(find.byType(TextFormField).at(1), '0987654321');
+    await tester.enterText(find.byType(TextFormField).at(2), '1234567');
+    await tester.enterText(find.byType(TextFormField).at(3), '1234567');
+    await tester.tap(find.widgetWithText(FilledButton, 'Tạo tài khoản'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Mật khẩu phải từ 8 ký tự trở lên'), findsOneWidget);
+    expect(find.text(AppStrings.passwordTooShort), findsOneWidget);
   });
 
   testWidgets('register with valid form calls session register flow', (
@@ -189,38 +156,24 @@ void main() {
     );
     await tester.pump();
 
-    await tester.enterText(
-      find.widgetWithText(TextFormField, 'Ho va ten'),
-      'Nguyen Van A',
-    );
-    await tester.enterText(
-      find.widgetWithText(TextFormField, 'Số điện thoại'),
-      '0987654321',
-    );
-    await tester.enterText(
-      find.widgetWithText(TextFormField, 'Mật khẩu'),
-      'MatKhau123',
-    );
-    await tester.enterText(
-      find.widgetWithText(TextFormField, 'Nhập lại mật khẩu'),
-      'MatKhau123',
-    );
-    final pickDateButton = find.widgetWithText(TextButton, 'Chon ngay');
-    await tester.ensureVisible(pickDateButton);
-    await tester.tap(pickDateButton);
+    await tester.enterText(find.byType(TextFormField).at(0), 'Nguyen Van A');
+    await tester.enterText(find.byType(TextFormField).at(1), '0987654321');
+    await tester.enterText(find.byType(TextFormField).at(2), 'MatKhau123');
+    await tester.enterText(find.byType(TextFormField).at(3), 'MatKhau123');
+
+    await tester.tap(find.widgetWithText(TextButton, 'Chọn ngày'));
     await tester.pumpAndSettle();
+
     final confirmDateButton = find.text('OK').evaluate().isNotEmpty
         ? find.text('OK').last
         : find.text('Save').last;
     await tester.tap(confirmDateButton);
     await tester.pumpAndSettle();
 
-    final registerButtonIcon = find.byIcon(Icons.person_add_alt_1);
-    await tester.ensureVisible(registerButtonIcon);
-    await tester.tap(registerButtonIcon);
+    await tester.tap(find.widgetWithText(FilledButton, 'Tạo tài khoản'));
     await tester.pumpAndSettle();
 
     expect(authApi.registerCalls, 1);
-    expect(authApi.lastRegisterRequest?.phoneNumber, '0987654321');
+    expect(authApi.lastRegisterRequest?.phoneNumber, '+84987654321');
   });
 }

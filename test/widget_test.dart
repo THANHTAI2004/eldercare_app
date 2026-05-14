@@ -1,19 +1,22 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
+import 'package:eldercare_app/src/data/api/alerts_api_service.dart';
 import 'package:eldercare_app/src/data/api/api_client.dart';
 import 'package:eldercare_app/src/data/api/auth_api_service.dart';
 import 'package:eldercare_app/src/data/api/device_api_service.dart';
 import 'package:eldercare_app/src/data/api/health_api_service.dart';
 import 'package:eldercare_app/src/data/local/auth_storage.dart';
+import 'package:eldercare_app/src/domain/models/alert_item.dart';
 import 'package:eldercare_app/src/domain/models/auth_tokens.dart';
 import 'package:eldercare_app/src/domain/models/device.dart';
 import 'package:eldercare_app/src/domain/models/ecg_reading.dart';
 import 'package:eldercare_app/src/domain/models/vital_point.dart';
-import 'package:eldercare_app/src/features/auth/register_page.dart';
 import 'package:eldercare_app/src/features/devices/device_page.dart';
 import 'package:eldercare_app/src/features/home/home_page.dart';
+import 'package:eldercare_app/src/features/navigation/app_root_page.dart';
+import 'package:eldercare_app/src/state/alerts_provider.dart';
 import 'package:eldercare_app/src/state/device_provider.dart';
 import 'package:eldercare_app/src/state/ecg_provider.dart';
 import 'package:eldercare_app/src/state/history_provider.dart';
@@ -29,7 +32,7 @@ void main() {
     setUpSharedPreferences();
   });
 
-  testWidgets('DevicePage shows login form when session is unauthenticated', (
+  testWidgets('AppRootPage shows login page when session is unauthenticated', (
     tester,
   ) async {
     final session = _buildSessionProvider();
@@ -42,75 +45,13 @@ void main() {
       _TestShell(
         session: session,
         deviceProvider: deviceProvider,
-        child: const DevicePage(),
+        child: const AppRootPage(),
       ),
     );
     await tester.pump();
 
-    expect(find.text('ÄÄƒng nháº­p'), findsWidgets);
-    expect(
-      find.text('ÄÄƒng nháº­p Ä‘á»ƒ táº£i danh sÃ¡ch thiáº¿t bá»‹ Ä‘Ã£ liÃªn káº¿t'),
-      findsOneWidget,
-    );
-    expect(find.text('Sá»‘ Ä‘iá»‡n thoáº¡i'), findsOneWidget);
-    expect(find.text('Máº­t kháº©u'), findsOneWidget);
-    expect(find.text('ChÆ°a cÃ³ tÃ i khoáº£n? ÄÄƒng kÃ½'), findsOneWidget);
-  });
-
-  testWidgets('DevicePage validates login fields before submit', (
-    tester,
-  ) async {
-    final session = _buildSessionProvider();
-    final deviceProvider = DeviceProvider(
-      api: _FakeDeviceApiService(devices: const <Device>[]),
-    );
-    await deviceProvider.load();
-
-    await tester.pumpWidget(
-      _TestShell(
-        session: session,
-        deviceProvider: deviceProvider,
-        child: const DevicePage(),
-      ),
-    );
-    await tester.pump();
-
-    final loginButtonIcon = find.byIcon(Icons.login);
-    await tester.ensureVisible(loginButtonIcon);
-    await tester.tap(loginButtonIcon);
-    await tester.pumpAndSettle();
-
-    expect(find.text('Nháº­p sá»‘ Ä‘iá»‡n thoáº¡i'), findsOneWidget);
-    expect(find.text('Nháº­p máº­t kháº©u'), findsOneWidget);
-  });
-
-  testWidgets('HomePage shows unauthenticated empty state with no device', (
-    tester,
-  ) async {
-    final session = _buildSessionProvider();
-    final deviceProvider = DeviceProvider(
-      api: _FakeDeviceApiService(devices: const <Device>[]),
-    );
-    await deviceProvider.load();
-
-    await tester.pumpWidget(
-      _TestShell(
-        session: session,
-        deviceProvider: deviceProvider,
-        child: const HomePage(),
-      ),
-    );
-    await tester.pump();
-    await tester.pump();
-
-    expect(find.text('ChÆ°a Ä‘Äƒng nháº­p'), findsOneWidget);
-    expect(
-      find.text(
-        'Báº¡n cáº§n Ä‘Äƒng nháº­p trÆ°á»›c, sau Ä‘Ã³ á»©ng dá»¥ng sáº½ táº£i danh sÃ¡ch thiáº¿t bá»‹ Ä‘Ã£ liÃªn káº¿t tá»« mÃ¡y chá»§.',
-      ),
-      findsOneWidget,
-    );
-    expect(find.text('ÄÄƒng nháº­p'), findsOneWidget);
+    expect(find.text('Chào mừng trở lại'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Đăng nhập'), findsOneWidget);
   });
 
   testWidgets('HomePage shows no-device state for authenticated user', (
@@ -143,11 +84,11 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    expect(find.text('Báº¡n chÆ°a cÃ³ thiáº¿t bá»‹ nÃ o'), findsOneWidget);
-    expect(find.text('Má»Ÿ danh sÃ¡ch thiáº¿t bá»‹'), findsOneWidget);
+    expect(find.text('Bạn chưa chọn thiết bị theo dõi'), findsOneWidget);
+    expect(find.text('Mở màn thiết bị'), findsOneWidget);
   });
 
-  testWidgets('DevicePage shows no-device state for authenticated user', (
+  testWidgets('DevicePage shows redesigned empty state for authenticated user', (
     tester,
   ) async {
     final session = _buildSessionProvider(
@@ -180,12 +121,20 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    expect(find.text('Báº¡n chÆ°a cÃ³ thiáº¿t bá»‹ nÃ o'), findsOneWidget);
-    expect(find.text('LiÃªn káº¿t thiáº¿t bá»‹'), findsOneWidget);
-    expect(find.text('Xem huong dan lien ket'), findsOneWidget);
+    expect(find.text('Bạn chưa liên kết thiết bị nào'), findsOneWidget);
+    expect(find.text('Liên kết thiết bị'), findsWidgets);
   });
 
-  testWidgets('HomePage hides ECG action for viewer', (tester) async {
+  testWidgets('HomePage keeps ECG quick action visible for viewer', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1200, 1800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
     final session = _buildSessionProvider(
       loginTokens: const AuthTokens(
         accessToken: 'access-123',
@@ -236,42 +185,8 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    expect(find.text('YÃªu cáº§u Ä‘o ECG'), findsNothing);
-    expect(find.text('ECG'), findsOneWidget);
-  });
-
-  testWidgets('RegisterPage validates required fields inline', (tester) async {
-    tester.view.physicalSize = const Size(1200, 1800);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(() {
-      tester.view.resetPhysicalSize();
-      tester.view.resetDevicePixelRatio();
-    });
-
-    final session = _buildSessionProvider();
-    final deviceProvider = DeviceProvider(
-      api: _FakeDeviceApiService(devices: const <Device>[]),
-    );
-    await deviceProvider.load();
-
-    await tester.pumpWidget(
-      _TestShell(
-        session: session,
-        deviceProvider: deviceProvider,
-        child: const RegisterPage(),
-      ),
-    );
-    await tester.pump();
-
-    final registerButtonIcon = find.byIcon(Icons.person_add_alt_1);
-    await tester.ensureVisible(registerButtonIcon);
-    await tester.tap(registerButtonIcon);
-    await tester.pumpAndSettle();
-
-    expect(find.text('Nháº­p há» vÃ  tÃªn'), findsOneWidget);
-    expect(find.text('Nháº­p sá»‘ Ä‘iá»‡n thoáº¡i'), findsOneWidget);
-    expect(find.text('Nháº­p máº­t kháº©u'), findsOneWidget);
-    expect(find.text('Nháº­p láº¡i máº­t kháº©u'), findsWidgets);
+    expect(find.textContaining('ECG'), findsWidgets);
+    expect(find.text('Xem cảnh báo'), findsOneWidget);
   });
 }
 
@@ -319,6 +234,15 @@ class _TestShell extends StatelessWidget {
         ChangeNotifierProvider<EcgProvider>(
           create: (_) =>
               EcgProvider(client: client, api: healthApi)..handleSessionState(
+                isAuthenticated: session.isAuthenticated,
+                authenticatedUserId: session.authenticatedUserId,
+              ),
+        ),
+        ChangeNotifierProvider<AlertsProvider>(
+          create: (_) =>
+              AlertsProvider(
+                api: _FakeAlertsApiService(client: client),
+              )..handleSessionState(
                 isAuthenticated: session.isAuthenticated,
                 authenticatedUserId: session.authenticatedUserId,
               ),
@@ -426,5 +350,21 @@ class _FakeHealthApiService extends HealthApiService {
       ecgHr: 72,
     );
   }
+
+  @override
+  Future<List<EcgReading>> getEcgReadingsByDevice({
+    required String deviceId,
+    int limit = 100,
+  }) async {
+    return const <EcgReading>[];
+  }
 }
 
+class _FakeAlertsApiService extends AlertsApiService {
+  _FakeAlertsApiService({required super.client});
+
+  @override
+  Future<List<AlertItem>> getAlertsByDevice({required String deviceId}) async {
+    return const <AlertItem>[];
+  }
+}

@@ -5,6 +5,12 @@ import 'package:eldercare_app/src/domain/models/device.dart';
 import 'package:eldercare_app/src/domain/models/device_thresholds.dart';
 import 'package:eldercare_app/src/state/device_provider.dart';
 import 'package:eldercare_app/src/state/device_thresholds_provider.dart';
+import 'package:eldercare_app/src/ui/app_spacing.dart';
+import 'package:eldercare_app/src/ui/components/app_button.dart';
+import 'package:eldercare_app/src/ui/components/app_card.dart';
+import 'package:eldercare_app/src/ui/components/app_scaffold.dart';
+import 'package:eldercare_app/src/ui/components/app_text_field.dart';
+import 'package:eldercare_app/src/ui/components/empty_state.dart';
 
 class DeviceThresholdsPage extends StatefulWidget {
   const DeviceThresholdsPage({super.key});
@@ -15,7 +21,6 @@ class DeviceThresholdsPage extends StatefulWidget {
 
 class _DeviceThresholdsPageState extends State<DeviceThresholdsPage> {
   final _formKey = GlobalKey<FormState>();
-
   final _spo2LowCtrl = TextEditingController();
   final _spo2CriticalCtrl = TextEditingController();
   final _tempLowCtrl = TextEditingController();
@@ -93,15 +98,12 @@ class _DeviceThresholdsPageState extends State<DeviceThresholdsPage> {
 
     final ok = await provider.saveThresholds(next);
     if (!mounted) return;
-
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.hideCurrentSnackBar();
-    messenger.showSnackBar(
+    ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
           ok
-              ? 'Da luu nguong canh bao cho thiet bi.'
-              : (provider.error ?? 'Khong the luu nguong canh bao'),
+              ? 'Đã lưu ngưỡng cảnh báo cho thiết bị.'
+              : (provider.error ?? 'Không thể lưu ngưỡng cảnh báo'),
         ),
       ),
     );
@@ -118,192 +120,136 @@ class _DeviceThresholdsPageState extends State<DeviceThresholdsPage> {
 
     final canEdit = device?.isOwnerLink == true;
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Cai dat nguong canh bao')),
-      body: SafeArea(
-        child: Align(
-          alignment: Alignment.topCenter,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 760),
-            child: ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+    return AppScaffold(
+      title: 'Ngưỡng cảnh báo',
+      subtitle: 'Cập nhật ngưỡng SpO2, nhiệt độ và nhịp tim cho thiết bị hiện tại.',
+      leading: IconButton(
+        onPressed: () => Navigator.pop(context),
+        icon: const Icon(Icons.arrow_back_rounded),
+      ),
+      child: ListView(
+        children: [
+          if (device == null || !canEdit)
+            EmptyState(
+              icon: Icons.tune_rounded,
+              title: device == null
+                  ? 'Chưa có thiết bị hiện tại'
+                  : 'Bạn không có quyền chỉnh ngưỡng',
+              message: device == null
+                  ? 'Hãy chọn thiết bị trước khi cấu hình ngưỡng cảnh báo.'
+                  : 'Chỉ chủ thiết bị mới có thể chỉnh sửa ngưỡng cảnh báo.',
+            )
+          else ...[
+            AppCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(device.name, style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: AppSpacing.sm),
+                  Text(device.resolvedDeviceId),
+                ],
+              ),
+            ),
+            const SizedBox(height: AppSpacing.section),
+            AppCard(
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (thresholdsProvider.isLoading) ...[
+                      const LinearProgressIndicator(),
+                      const SizedBox(height: AppSpacing.lg),
+                    ],
+                    _ThresholdSection(
+                      title: 'SpO2',
                       children: [
-                        Text(
-                          device?.name ?? 'Chua chon thiet bi',
-                          style: Theme.of(context).textTheme.titleMedium,
+                        _ThresholdField(
+                          controller: _spo2LowCtrl,
+                          label: 'SpO2 thấp',
+                          suffixText: '%',
+                          allowDecimal: false,
                         ),
-                        const SizedBox(height: 6),
-                        Text(
-                          device == null
-                              ? 'Hay chon thiet bi truoc khi chinh nguong canh bao.'
-                              : 'Ma thiet bi: ${device.resolvedDeviceId}',
+                        _ThresholdField(
+                          controller: _spo2CriticalCtrl,
+                          label: 'SpO2 nguy kịch',
+                          suffixText: '%',
+                          allowDecimal: false,
                         ),
-                        if (device != null) ...[
-                          const SizedBox(height: 6),
-                          Text(
-                            canEdit
-                                ? 'Ban dang la chu thiet bi va co the chinh sua nguong.'
-                                : 'Thiet bi nay dang o che do chi xem. Chi chu thiet bi moi duoc chinh nguong.',
-                          ),
-                        ],
                       ],
                     ),
-                  ),
-                ),
-                if (thresholdsProvider.error != null &&
-                    thresholdsProvider.error!.trim().isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  _InlineBanner(
-                    message: thresholdsProvider.error!,
-                    isError: true,
-                  ),
-                ],
-                if (thresholdsProvider.infoMessage != null &&
-                    thresholdsProvider.infoMessage!.trim().isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  _InlineBanner(
-                    message: thresholdsProvider.infoMessage!,
-                    isError: false,
-                  ),
-                ],
-                if (!canEdit || device == null) ...[
-                  const SizedBox(height: 12),
-                  _InlineBanner(
-                    message: device == null
-                        ? 'Chua co thiet bi hien tai de cau hinh nguong canh bao.'
-                        : 'Chi chu thiet bi moi co the mo man hinh nay.',
-                    isError: false,
-                  ),
-                ] else ...[
-                  const SizedBox(height: 12),
-                  if (thresholdsProvider.isLoading &&
-                      thresholdsProvider.thresholds == null)
-                    const Center(child: CircularProgressIndicator())
-                  else
-                    Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Form(
-                          key: _formKey,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              if (thresholdsProvider.isLoading) ...[
-                                const LinearProgressIndicator(),
-                                const SizedBox(height: 16),
-                              ],
-                              Text(
-                                'Nhap nguong canh bao',
-                                style: Theme.of(context).textTheme.titleMedium,
-                              ),
-                              const SizedBox(height: 16),
-                              _ThresholdSection(
-                                title: 'SpO2',
-                                children: [
-                                  _ThresholdField(
-                                    controller: _spo2LowCtrl,
-                                    label: 'SpO2 thap',
-                                    suffixText: '%',
-                                    allowDecimal: false,
-                                  ),
-                                  _ThresholdField(
-                                    controller: _spo2CriticalCtrl,
-                                    label: 'SpO2 nguy kich',
-                                    suffixText: '%',
-                                    allowDecimal: false,
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 16),
-                              _ThresholdSection(
-                                title: 'Nhiet do',
-                                children: [
-                                  _ThresholdField(
-                                    controller: _tempLowCtrl,
-                                    label: 'Nhiet do thap',
-                                    suffixText: '°C',
-                                    allowDecimal: true,
-                                  ),
-                                  _ThresholdField(
-                                    controller: _tempHighCtrl,
-                                    label: 'Nhiet do cao',
-                                    suffixText: '°C',
-                                    allowDecimal: true,
-                                  ),
-                                  _ThresholdField(
-                                    controller: _tempCriticalCtrl,
-                                    label: 'Nhiet do nguy kich',
-                                    suffixText: '°C',
-                                    allowDecimal: true,
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 16),
-                              _ThresholdSection(
-                                title: 'Nhip tim',
-                                children: [
-                                  _ThresholdField(
-                                    controller: _hrLowCtrl,
-                                    label: 'Nhip tim thap',
-                                    suffixText: 'bpm',
-                                    allowDecimal: false,
-                                  ),
-                                  _ThresholdField(
-                                    controller: _hrLowCriticalCtrl,
-                                    label: 'Nhip tim thap nguy kich',
-                                    suffixText: 'bpm',
-                                    allowDecimal: false,
-                                  ),
-                                  _ThresholdField(
-                                    controller: _hrHighCtrl,
-                                    label: 'Nhip tim cao',
-                                    suffixText: 'bpm',
-                                    allowDecimal: false,
-                                  ),
-                                  _ThresholdField(
-                                    controller: _hrCriticalCtrl,
-                                    label: 'Nhip tim nguy kich',
-                                    suffixText: 'bpm',
-                                    allowDecimal: false,
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 20),
-                              FilledButton.icon(
-                                onPressed: thresholdsProvider.isSaving
-                                    ? null
-                                    : () => _save(thresholdsProvider),
-                                icon: thresholdsProvider.isSaving
-                                    ? const SizedBox(
-                                        width: 16,
-                                        height: 16,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                        ),
-                                      )
-                                    : const Icon(Icons.save_outlined),
-                                label: Text(
-                                  thresholdsProvider.isSaving
-                                      ? 'Dang luu...'
-                                      : 'Luu nguong',
-                                ),
-                              ),
-                            ],
-                          ),
+                    const SizedBox(height: AppSpacing.xl),
+                    _ThresholdSection(
+                      title: 'Nhiệt độ',
+                      children: [
+                        _ThresholdField(
+                          controller: _tempLowCtrl,
+                          label: 'Nhiệt độ thấp',
+                          suffixText: '°C',
+                          allowDecimal: true,
                         ),
+                        _ThresholdField(
+                          controller: _tempHighCtrl,
+                          label: 'Nhiệt độ cao',
+                          suffixText: '°C',
+                          allowDecimal: true,
+                        ),
+                        _ThresholdField(
+                          controller: _tempCriticalCtrl,
+                          label: 'Nhiệt độ nguy kịch',
+                          suffixText: '°C',
+                          allowDecimal: true,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.xl),
+                    _ThresholdSection(
+                      title: 'Nhịp tim',
+                      children: [
+                        _ThresholdField(
+                          controller: _hrLowCtrl,
+                          label: 'Nhịp tim thấp',
+                          suffixText: 'bpm',
+                          allowDecimal: false,
+                        ),
+                        _ThresholdField(
+                          controller: _hrLowCriticalCtrl,
+                          label: 'Nhịp tim thấp nguy kịch',
+                          suffixText: 'bpm',
+                          allowDecimal: false,
+                        ),
+                        _ThresholdField(
+                          controller: _hrHighCtrl,
+                          label: 'Nhịp tim cao',
+                          suffixText: 'bpm',
+                          allowDecimal: false,
+                        ),
+                        _ThresholdField(
+                          controller: _hrCriticalCtrl,
+                          label: 'Nhịp tim nguy kịch',
+                          suffixText: 'bpm',
+                          allowDecimal: false,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.xxl),
+                    SizedBox(
+                      width: double.infinity,
+                      child: PrimaryButton(
+                        label: thresholdsProvider.isSaving
+                            ? 'Đang lưu...'
+                            : 'Lưu ngưỡng cảnh báo',
+                        onPressed: () => _save(thresholdsProvider),
+                        isLoading: thresholdsProvider.isSaving,
+                        icon: const Icon(Icons.save_outlined),
                       ),
                     ),
-                ],
-              ],
+                  ],
+                ),
+              ),
             ),
-          ),
-        ),
+          ],
+        ],
       ),
     );
   }
@@ -331,11 +277,11 @@ class _ThresholdSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title, style: Theme.of(context).textTheme.titleSmall),
-        const SizedBox(height: 8),
+        Text(title, style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: AppSpacing.lg),
         ...children.map(
           (child) =>
-              Padding(padding: const EdgeInsets.only(bottom: 12), child: child),
+              Padding(padding: const EdgeInsets.only(bottom: AppSpacing.md), child: child),
         ),
       ],
     );
@@ -357,52 +303,28 @@ class _ThresholdField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return TextFormField(
+    return AppTextField(
       controller: controller,
+      label: label,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
-      decoration: InputDecoration(labelText: label, suffixText: suffixText),
       validator: (value) {
         final raw = value?.trim() ?? '';
-        if (raw.isEmpty) return 'Nhap gia tri cho $label';
+        if (raw.isEmpty) return 'Nhập giá trị cho $label';
 
         final normalized = raw.replaceAll(',', '.');
         final parsed = double.tryParse(normalized);
-        if (parsed == null) return 'Gia tri cua $label phai la so';
+        if (parsed == null) return 'Giá trị của $label phải là số';
         if (!allowDecimal && parsed != parsed.roundToDouble()) {
-          return '$label phai la so nguyen';
+          return '$label phải là số nguyên';
         }
         return null;
       },
-    );
-  }
-}
-
-class _InlineBanner extends StatelessWidget {
-  const _InlineBanner({required this.message, required this.isError});
-
-  final String message;
-  final bool isError;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final color = isError ? scheme.errorContainer : scheme.primaryContainer;
-    final textColor = isError
-        ? scheme.onErrorContainer
-        : scheme.onPrimaryContainer;
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Text(
-        message,
-        style: Theme.of(
-          context,
-        ).textTheme.bodyMedium?.copyWith(color: textColor),
+      suffix: Padding(
+        padding: const EdgeInsets.only(right: 12),
+        child: Center(
+          widthFactor: 1,
+          child: Text(suffixText),
+        ),
       ),
     );
   }

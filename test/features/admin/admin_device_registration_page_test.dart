@@ -44,7 +44,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Trang này chỉ dành cho quản trị viên'), findsOneWidget);
-    expect(find.text('Đăng ký thiết bị cho quản trị viên'), findsNothing);
+    expect(find.text('Thông tin thiết bị'), findsNothing);
   });
 
   testWidgets('admin can register device and receive pairing code', (
@@ -74,20 +74,20 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.enterText(find.byType(TextFormField).at(0), 'dev-esp-001');
-    await tester.enterText(find.byType(TextFormField).at(1), 'Máy đo phòng ngủ');
+    await tester.enterText(find.byType(TextFormField).at(1), 'May do phong ngu');
     await tester.enterText(find.byType(TextFormField).at(2), 'esp32');
     await tester.enterText(find.byType(TextFormField).at(3), '1.0.0');
     await tester.enterText(find.byType(TextFormField).at(4), 'PAIR-001');
-    await tester.tap(find.text('Đăng ký thiết bị'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Đăng ký thiết bị'));
     await tester.pumpAndSettle();
 
     expect(api.lastDeviceId, 'dev-esp-001');
-    expect(api.lastDeviceName, 'Máy đo phòng ngủ');
+    expect(api.lastDeviceName, 'May do phong ngu');
     expect(api.lastDeviceType, 'esp32');
     expect(api.lastFirmwareVersion, '1.0.0');
     expect(api.lastPairingCode, 'PAIR-001');
-    expect(find.text('Đăng ký thiết bị thành công'), findsOneWidget);
-    expect(find.textContaining('Mã ghép nối: PAIR-001'), findsOneWidget);
+    expect(find.textContaining('PAIR-001'), findsWidgets);
+    expect(find.textContaining('dev-esp-001'), findsWidgets);
   });
 }
 

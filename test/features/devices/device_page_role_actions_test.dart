@@ -70,14 +70,12 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    expect(find.text('Quản lý'), findsOneWidget);
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Quản lý'));
+    await tester.pumpAndSettle();
+
     expect(find.text('Quản lý người xem'), findsOneWidget);
-    expect(find.text('Người xem đang được chia sẻ'), findsOneWidget);
-    expect(
-      find.text(
-        'Tài khoản này chỉ có quyền xem dữ liệu và cảnh báo của thiết bị này.',
-      ),
-      findsNothing,
-    );
+    expect(find.text('Cập nhật ngưỡng cảnh báo'), findsOneWidget);
   });
 
   testWidgets('viewer only sees read-only device actions on device page', (
@@ -134,15 +132,15 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    expect(find.text('Người xem'), findsWidgets);
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Quản lý'));
+    await tester.pumpAndSettle();
+
     expect(find.text('Quản lý người xem'), findsNothing);
-    expect(
-      find.text(
-        'Tài khoản này chỉ có quyền xem dữ liệu và cảnh báo của thiết bị này.',
-      ),
-      findsOneWidget,
-    );
-    expect(find.text('Theo dõi thiết bị này'), findsOneWidget);
+    expect(find.text('Cập nhật ngưỡng cảnh báo'), findsNothing);
+    expect(find.text('Đổi tên hiển thị'), findsOneWidget);
   });
+
   testWidgets('user can rename device locally on device page', (tester) async {
     final session = buildSessionProvider(
       loginTokens: const AuthTokens(
@@ -190,17 +188,16 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byTooltip('Đổi tên trên ứng dụng'));
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Quản lý'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Đổi tên hiển thị'));
     await tester.pumpAndSettle();
 
-    await tester.enterText(
-      find.widgetWithText(TextField, 'Tên hiển thị trên ứng dụng'),
-      'Máy đo phòng ngủ',
-    );
-    await tester.tap(find.text('Lưu'));
+    await tester.enterText(find.byType(TextField).last, 'May do phong ngu');
+    await tester.tap(find.widgetWithText(FilledButton, 'Lưu'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Máy đo phòng ngủ'), findsOneWidget);
-    expect(deviceProvider.current?.name, 'Máy đo phòng ngủ');
+    expect(find.text('May do phong ngu'), findsOneWidget);
+    expect(deviceProvider.current?.name, 'May do phong ngu');
   });
 }

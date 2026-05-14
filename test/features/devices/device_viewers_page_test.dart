@@ -102,7 +102,7 @@ void main() {
 
     expect(api.getLinkedUsersCalls, 0);
     expect(
-      find.text('Chỉ chủ thiết bị mới có thể quản lý người xem của thiết bị này.'),
+      find.text('Bạn không có quyền quản lý người xem'),
       findsOneWidget,
     );
   });
@@ -122,16 +122,13 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.enterText(
-      find.widgetWithText(TextFormField, 'Mã tài khoản'),
-      'viewer-001',
-    );
-    await tester.tap(find.byIcon(Icons.person_add_alt_1));
+    await tester.enterText(find.byType(TextFormField).first, 'viewer-001');
+    await tester.tap(find.widgetWithText(FilledButton, 'Thêm'));
     await tester.pumpAndSettle();
 
     expect(api.lastAddUserId, 'viewer-001');
     expect(api.getLinkedUsersCalls, 2);
-    expect(find.text('viewer-001'), findsOneWidget);
+    expect(find.text('viewer-001'), findsWidgets);
 
     await tester.tap(find.byIcon(Icons.person_remove_outlined));
     await tester.pumpAndSettle();
@@ -164,11 +161,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.enterText(
-      find.widgetWithText(TextFormField, 'Mã tài khoản'),
-      'viewer-001',
-    );
-    await tester.tap(find.byIcon(Icons.person_add_alt_1));
+    await tester.enterText(find.byType(TextFormField).first, 'viewer-001');
+    await tester.tap(find.widgetWithText(FilledButton, 'Thêm'));
     await tester.pumpAndSettle();
 
     expect(

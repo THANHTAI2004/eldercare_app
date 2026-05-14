@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -5,6 +7,14 @@ import 'package:eldercare_app/src/core/device_access_labels.dart';
 import 'package:eldercare_app/src/data/api/api_client.dart';
 import 'package:eldercare_app/src/data/api/device_api_service.dart';
 import 'package:eldercare_app/src/domain/models/device.dart';
+import 'package:eldercare_app/src/ui/app_spacing.dart';
+import 'package:eldercare_app/src/ui/components/app_button.dart';
+import 'package:eldercare_app/src/ui/components/app_card.dart';
+import 'package:eldercare_app/src/ui/components/app_scaffold.dart';
+import 'package:eldercare_app/src/ui/components/app_text_field.dart';
+import 'package:eldercare_app/src/ui/components/empty_state.dart';
+import 'package:eldercare_app/src/ui/components/loading_state.dart';
+import 'package:eldercare_app/src/ui/components/status_badge.dart';
 
 class DeviceViewersPage extends StatefulWidget {
   const DeviceViewersPage({
@@ -73,10 +83,10 @@ class _DeviceViewersPageState extends State<DeviceViewersPage> {
       setState(() {
         _linkedUsers = users;
       });
-    } catch (e) {
+    } catch (error) {
       if (!mounted) return;
       setState(() {
-        _errorMessage = _friendlyError(e);
+        _errorMessage = _friendlyError(error);
       });
     } finally {
       if (mounted) {
@@ -88,11 +98,7 @@ class _DeviceViewersPageState extends State<DeviceViewersPage> {
   }
 
   Future<void> _addViewer() async {
-    if (!_canManageViewers || !(_formKey.currentState?.validate() ?? false)) {
-      return;
-    }
-
-    final userId = _userIdCtrl.text.trim();
+    if (!_canManageViewers || !(_formKey.currentState?.validate() ?? false)) return;
 
     setState(() {
       _isSubmitting = true;
@@ -102,18 +108,14 @@ class _DeviceViewersPageState extends State<DeviceViewersPage> {
     try {
       await _resolvedApi.addViewer(
         deviceId: widget.device.resolvedDeviceId,
-        userId: userId,
+        userId: _userIdCtrl.text.trim(),
       );
       _userIdCtrl.clear();
       await _loadUsers();
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Đã thêm người xem vào thiết bị.')),
-      );
-    } catch (e) {
+    } catch (error) {
       if (!mounted) return;
       setState(() {
-        _errorMessage = _friendlyError(e);
+        _errorMessage = _friendlyError(error);
       });
     } finally {
       if (mounted) {
@@ -125,8 +127,6 @@ class _DeviceViewersPageState extends State<DeviceViewersPage> {
   }
 
   Future<void> _removeViewer(DeviceLinkedUser user) async {
-    if (!_canManageViewers) return;
-
     setState(() {
       _isSubmitting = true;
       _errorMessage = null;
@@ -138,14 +138,10 @@ class _DeviceViewersPageState extends State<DeviceViewersPage> {
         userId: user.id,
       );
       await _loadUsers();
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Đã xóa người xem ${user.displayName}.')),
-      );
-    } catch (e) {
+    } catch (error) {
       if (!mounted) return;
       setState(() {
-        _errorMessage = _friendlyError(e);
+        _errorMessage = _friendlyError(error);
       });
     } finally {
       if (mounted) {
@@ -156,200 +152,189 @@ class _DeviceViewersPageState extends State<DeviceViewersPage> {
     }
   }
 
-  String _friendlyError(Object e) {
-    if (e is ApiRequestException) {
-      if (e.statusCode == 403) {
-        return 'Tài khoản hiện tại không phải chủ thiết bị này.';
+  String _friendlyError(Object error) {
+    if (error is ApiRequestException) {
+      switch (error.statusCode) {
+        case 403:
+          return 'Tài khoản hiện tại không phải chủ thiết bị này.';
+        case 404:
+          return 'Không tìm thấy thiết bị hoặc tài khoản cần thêm.';
+        case 409:
+          return 'Tài khoản này đã được thêm vào thiết bị.';
+        case 422:
+          return 'Dữ liệu gửi lên không đúng định dạng máy chủ yêu cầu.';
       }
-      if (e.statusCode == 404) {
-        return 'Không tìm thấy thiết bị hoặc tài khoản cần thêm.';
-      }
-      if (e.statusCode == 409) {
-        return 'Tài khoản này đã được thêm vào thiết bị.';
-      }
-      if (e.statusCode == 422) {
-        return 'Dữ liệu gửi lên không đúng định dạng máy chủ yêu cầu.';
-      }
-      return e.message;
+      return error.message;
     }
     return 'Không thể cập nhật danh sách người xem.';
   }
 
   @override
   Widget build(BuildContext context) {
-    final viewers = _linkedUsers
-        .where((user) => user.isViewerLink)
-        .toList(growable: false);
+    final viewers = _linkedUsers.where((user) => user.isViewerLink).toList();
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Quản lý người xem')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
+    return AppScaffold(
+      title: 'Quản lý người xem',
+      subtitle: 'Chia sẻ quyền theo dõi cho người thân bằng User ID hiện có.',
+      leading: IconButton(
+        onPressed: () => Navigator.pop(context),
+        icon: const Icon(Icons.arrow_back_rounded),
+      ),
+      child: ListView(
         children: [
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    widget.device.name,
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 6),
-                  Text('Mã thiết bị: ${widget.device.resolvedDeviceId}'),
-                  Text(
-                    'Quyền trên thiết bị hiện tại: ${deviceAccessRoleLabel(widget.device.normalizedLinkRole)}',
-                  ),
-                ],
-              ),
+          AppCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(widget.device.name, style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: AppSpacing.sm),
+                Text(widget.device.resolvedDeviceId),
+                const SizedBox(height: AppSpacing.md),
+                StatusBadge(
+                  label: deviceAccessRoleLabel(widget.device.normalizedLinkRole),
+                  tone: widget.device.isOwnerLink
+                      ? StatusTone.info
+                      : StatusTone.neutral,
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpacing.section),
           if (!_canManageViewers)
-            const Card(
-              child: Padding(
-                padding: EdgeInsets.all(20),
-                child: Text(
-                  'Chỉ chủ thiết bị mới có thể quản lý người xem của thiết bị này.',
-                  textAlign: TextAlign.center,
-                ),
-              ),
+            const EmptyState(
+              icon: Icons.lock_outline_rounded,
+              title: 'Bạn không có quyền quản lý người xem',
+              message:
+                  'Chỉ chủ thiết bị mới có thể thêm hoặc xoá người xem cho thiết bị này.',
             )
-          else
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Thêm người xem',
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Nhập mã tài khoản của người cần được cấp quyền xem thiết bị này.',
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: _userIdCtrl,
-                        enabled: !_isSubmitting,
-                        decoration: const InputDecoration(
-                          labelText: 'Mã tài khoản',
+          else ...[
+            AppCard(
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Thêm người xem', style: Theme.of(context).textTheme.titleMedium),
+                    const SizedBox(height: AppSpacing.sm),
+                    Text(
+                      'Nhập User ID hoặc mã tài khoản của người cần được chia sẻ quyền xem.',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: AppTextField(
+                            controller: _userIdCtrl,
+                            label: 'User ID / Mã tài khoản',
+                            prefix: const Icon(Icons.person_add_alt_rounded),
+                            enabled: !_isSubmitting,
+                            validator: (value) {
+                              if ((value ?? '').trim().isEmpty) {
+                                return 'Nhập User ID';
+                              }
+                              return null;
+                            },
+                            onFieldSubmitted: (_) => _addViewer(),
+                          ),
                         ),
-                        validator: (value) {
-                          if (value == null || value.trim().isEmpty) {
-                            return 'Nhập mã tài khoản';
-                          }
-                          return null;
-                        },
-                        onFieldSubmitted: (_) => _addViewer(),
-                      ),
-                      if (_errorMessage != null &&
-                          _errorMessage!.trim().isNotEmpty) ...[
-                        const SizedBox(height: 12),
-                        _InlineError(message: _errorMessage!),
+                        const SizedBox(width: AppSpacing.md),
+                        SizedBox(
+                          width: 112,
+                          child: PrimaryButton(
+                            label: 'Thêm',
+                            onPressed: _addViewer,
+                            isLoading: _isSubmitting,
+                          ),
+                        ),
                       ],
-                      const SizedBox(height: 16),
-                      FilledButton.icon(
-                        onPressed: _isSubmitting ? null : _addViewer,
-                        icon: _isSubmitting
-                            ? const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Icon(Icons.person_add_alt_1),
-                        label: Text(
-                          _isSubmitting
-                              ? 'Đang cập nhật...'
-                              : 'Thêm người xem',
+                    ),
+                    if (_errorMessage != null) ...[
+                      const SizedBox(height: AppSpacing.md),
+                      Text(
+                        _errorMessage!,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.error,
                         ),
                       ),
                     ],
-                  ),
+                  ],
                 ),
               ),
             ),
-          const SizedBox(height: 12),
-          if (_isLoading)
-            const Center(child: CircularProgressIndicator())
-          else if (viewers.isEmpty)
-            const Card(
-              child: Padding(
-                padding: EdgeInsets.all(20),
-                child: Text(
-                  'Chưa có người xem nào được chia sẻ với thiết bị này.',
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            )
-          else
-            ...viewers.map(
-              (user) => Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Card(
-                  child: ListTile(
-                    title: Text(user.displayName),
-                    subtitle: Text(_viewerSubtitle(user)),
-                    trailing: !_canManageViewers
-                        ? null
-                        : IconButton(
-                            tooltip: 'Xóa người xem',
-                            onPressed: _isSubmitting
-                                ? null
-                                : () => _removeViewer(user),
-                            icon: const Icon(Icons.person_remove_outlined),
-                          ),
+            const SizedBox(height: AppSpacing.section),
+            if (_isLoading)
+              const LoadingState(message: 'Đang tải danh sách người xem...')
+            else if (viewers.isEmpty)
+              const EmptyState(
+                icon: Icons.group_outlined,
+                title: 'Chưa có người xem nào',
+                message: 'Thiết bị này chưa được chia sẻ cho tài khoản nào khác.',
+              )
+            else
+              ...viewers.map(
+                (user) => Padding(
+                  padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+                  child: _ViewerCard(
+                    user: user,
+                    onRemove: _isSubmitting ? null : () => _removeViewer(user),
                   ),
                 ),
               ),
-            ),
+          ],
         ],
       ),
     );
   }
-
-  String _viewerSubtitle(DeviceLinkedUser user) {
-    final segments = <String>[];
-    if ((user.phoneNumber ?? '').trim().isNotEmpty) {
-      segments.add(user.phoneNumber!.trim());
-    }
-    if ((user.normalizedLinkRole ?? '').trim().isNotEmpty) {
-      segments.add(
-        'Quyền trên thiết bị này: ${deviceAccessRoleLabel(user.normalizedLinkRole)}',
-      );
-    }
-    return segments.isEmpty ? user.id : segments.join(' | ');
-  }
 }
 
-class _InlineError extends StatelessWidget {
-  const _InlineError({required this.message});
+class _ViewerCard extends StatelessWidget {
+  const _ViewerCard({
+    required this.user,
+    required this.onRemove,
+  });
 
-  final String message;
+  final DeviceLinkedUser user;
+  final FutureOr<void> Function()? onRemove;
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: scheme.errorContainer,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Text(
-        message,
-        style: Theme.of(
-          context,
-        ).textTheme.bodyMedium?.copyWith(color: scheme.onErrorContainer),
+    final initials = user.displayName
+        .split(RegExp(r'\s+'))
+        .take(2)
+        .map((part) => part.isEmpty ? '' : part[0].toUpperCase())
+        .join();
+
+    return AppCard(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      child: Row(
+        children: [
+          CircleAvatar(child: Text(initials.isEmpty ? 'U' : initials)),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(user.displayName, style: Theme.of(context).textTheme.titleSmall),
+                const SizedBox(height: 4),
+                Text(
+                  (user.phoneNumber ?? '').trim().isNotEmpty
+                      ? user.phoneNumber!
+                      : user.id,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          const StatusBadge(label: 'Người xem', tone: StatusTone.info),
+          const SizedBox(width: AppSpacing.md),
+          DangerButton(
+            label: 'Xoá quyền',
+            onPressed: onRemove,
+            icon: const Icon(Icons.person_remove_outlined),
+          ),
+        ],
       ),
     );
   }

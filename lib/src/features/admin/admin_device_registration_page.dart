@@ -1,11 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import 'package:eldercare_app/src/data/api/api_client.dart';
 import 'package:eldercare_app/src/data/api/device_api_service.dart';
 import 'package:eldercare_app/src/domain/models/device_registration_result.dart';
 import 'package:eldercare_app/src/state/session_provider.dart';
-import 'package:eldercare_app/src/widgets/app_logo.dart';
+import 'package:eldercare_app/src/ui/app_spacing.dart';
+import 'package:eldercare_app/src/ui/components/app_button.dart';
+import 'package:eldercare_app/src/ui/components/app_card.dart';
+import 'package:eldercare_app/src/ui/components/app_scaffold.dart';
+import 'package:eldercare_app/src/ui/components/app_text_field.dart';
+import 'package:eldercare_app/src/ui/components/empty_state.dart';
 
 class AdminDeviceRegistrationPage extends StatefulWidget {
   const AdminDeviceRegistrationPage({super.key, DeviceApiService? api})
@@ -51,9 +57,7 @@ class _AdminDeviceRegistrationPageState
   }
 
   Future<void> _submit() async {
-    if (!(_formKey.currentState?.validate() ?? false)) {
-      return;
-    }
+    if (!(_formKey.currentState?.validate() ?? false)) return;
 
     setState(() {
       _isSubmitting = true;
@@ -73,10 +77,10 @@ class _AdminDeviceRegistrationPageState
       setState(() {
         _result = result;
       });
-    } catch (e) {
+    } catch (error) {
       if (!mounted) return;
       setState(() {
-        _errorMessage = _friendlyError(e);
+        _errorMessage = _friendlyError(error);
       });
     } finally {
       if (mounted) {
@@ -87,22 +91,29 @@ class _AdminDeviceRegistrationPageState
     }
   }
 
+  Future<void> _copyPairingCode() async {
+    final pairingCode = _result?.pairingCode ?? '';
+    if (pairingCode.isEmpty) return;
+    await Clipboard.setData(ClipboardData(text: pairingCode));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Đã sao chép pairing code.')),
+    );
+  }
+
   String _friendlyError(Object error) {
     if (error is ApiRequestException) {
-      if (error.statusCode == 401) {
-        return 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn. Vui lòng đăng nhập lại.';
-      }
-      if (error.statusCode == 403) {
-        return 'Tài khoản hiện tại không có quyền quản trị để đăng ký thiết bị.';
-      }
-      if (error.statusCode == 409) {
-        return 'Thiết bị hoặc mã ghép nối đang bị trùng. Hãy kiểm tra lại và thử lại.';
-      }
-      if (error.statusCode == 422) {
-        return 'Dữ liệu đăng ký thiết bị chưa hợp lệ. Hãy kiểm tra lại các trường bắt buộc.';
-      }
-      if (error.statusCode == 500) {
-        return 'Máy chủ đang gặp lỗi khi đăng ký thiết bị. Vui lòng thử lại sau.';
+      switch (error.statusCode) {
+        case 401:
+          return 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn. Vui lòng đăng nhập lại.';
+        case 403:
+          return 'Tài khoản hiện tại không có quyền quản trị để đăng ký thiết bị.';
+        case 409:
+          return 'Thiết bị hoặc pairing code đang bị trùng. Hãy kiểm tra lại.';
+        case 422:
+          return 'Dữ liệu đăng ký thiết bị chưa hợp lệ.';
+        case 500:
+          return 'Máy chủ đang gặp lỗi khi đăng ký thiết bị.';
       }
       return error.message;
     }
@@ -114,228 +125,126 @@ class _AdminDeviceRegistrationPageState
     final session = context.watch<SessionProvider>();
     final isAdmin = session.authenticatedRole == 'admin';
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Đăng ký thiết bị')),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 640),
-          child: ListView(
-            padding: const EdgeInsets.all(24),
-            children: [
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: !isAdmin
-                      ? const _AdminAccessDenied()
-                      : Form(
-                          key: _formKey,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Center(
-                                child: AppBrandLockup(
-                                  logoSize: 72,
-                                  subtitle:
-                                      'Tạo mới thiết bị hoặc cấp lại mã ghép nối để chuyển cho chủ thiết bị.',
-                                ),
-                              ),
-                              const SizedBox(height: 24),
-                              Text(
-                                'Đăng ký thiết bị cho quản trị viên',
-                                style: Theme.of(context).textTheme.titleLarge,
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Trang này gọi trực tiếp endpoint quản trị để tạo hoặc cập nhật thiết bị, sau đó trả lại mã ghép nối cho bạn.',
-                                style: Theme.of(context).textTheme.bodyMedium,
-                              ),
-                              const SizedBox(height: 20),
-                              TextFormField(
-                                controller: _deviceIdCtrl,
-                                enabled: !_isSubmitting,
-                                textInputAction: TextInputAction.next,
-                                decoration: const InputDecoration(
-                                  labelText: 'Mã thiết bị',
-                                  hintText: 'Ví dụ: dev-esp-001',
-                                ),
-                                validator: (value) {
-                                  if (value == null || value.trim().isEmpty) {
-                                    return 'Nhập mã thiết bị';
-                                  }
-                                  return null;
-                                },
-                              ),
-                              const SizedBox(height: 12),
-                              TextFormField(
-                                controller: _deviceNameCtrl,
-                                enabled: !_isSubmitting,
-                                textInputAction: TextInputAction.next,
-                                decoration: const InputDecoration(
-                                  labelText: 'Tên thiết bị',
-                                  hintText: 'Ví dụ: Máy đo phòng ngủ',
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              TextFormField(
-                                controller: _deviceTypeCtrl,
-                                enabled: !_isSubmitting,
-                                textInputAction: TextInputAction.next,
-                                decoration: const InputDecoration(
-                                  labelText: 'Loại thiết bị',
-                                  hintText: 'Ví dụ: esp32',
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              TextFormField(
-                                controller: _firmwareVersionCtrl,
-                                enabled: !_isSubmitting,
-                                textInputAction: TextInputAction.next,
-                                decoration: const InputDecoration(
-                                  labelText: 'Phiên bản firmware',
-                                  hintText: 'Ví dụ: 1.0.0',
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              TextFormField(
-                                controller: _pairingCodeCtrl,
-                                enabled: !_isSubmitting,
-                                textInputAction: TextInputAction.done,
-                                decoration: const InputDecoration(
-                                  labelText: 'Mã ghép nối tùy chọn',
-                                  hintText:
-                                      'Bỏ trống để máy chủ tự sinh mã mới',
-                                ),
-                                onFieldSubmitted: (_) => _submit(),
-                              ),
-                              if (_errorMessage != null &&
-                                  _errorMessage!.trim().isNotEmpty) ...[
-                                const SizedBox(height: 16),
-                                _ResultBanner(
-                                  backgroundColor: Theme.of(
-                                    context,
-                                  ).colorScheme.errorContainer,
-                                  textColor: Theme.of(
-                                    context,
-                                  ).colorScheme.onErrorContainer,
-                                  child: Text(_errorMessage!),
-                                ),
-                              ],
-                              if (_result != null) ...[
-                                const SizedBox(height: 16),
-                                _ResultBanner(
-                                  backgroundColor: Theme.of(
-                                    context,
-                                  ).colorScheme.primaryContainer,
-                                  textColor: Theme.of(
-                                    context,
-                                  ).colorScheme.onPrimaryContainer,
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'Đăng ký thiết bị thành công',
-                                        style: Theme.of(
-                                          context,
-                                        ).textTheme.titleMedium,
-                                      ),
-                                      const SizedBox(height: 8),
-                                      SelectableText(
-                                        'Mã thiết bị: ${_result!.deviceId}',
-                                      ),
-                                      const SizedBox(height: 4),
-                                      SelectableText(
-                                        'Mã ghép nối: ${_result!.pairingCode}',
-                                      ),
-                                      const SizedBox(height: 8),
-                                      const Text(
-                                        'Hãy gửi đúng hai mã này cho chủ thiết bị để họ liên kết trên ứng dụng.',
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                              const SizedBox(height: 20),
-                              FilledButton.icon(
-                                onPressed: _isSubmitting ? null : _submit,
-                                icon: _isSubmitting
-                                    ? const SizedBox(
-                                        width: 18,
-                                        height: 18,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                        ),
-                                      )
-                                    : const Icon(Icons.admin_panel_settings),
-                                label: Text(
-                                  _isSubmitting
-                                      ? 'Đang đăng ký thiết bị'
-                                      : 'Đăng ký thiết bị',
-                                ),
-                              ),
-                            ],
-                          ),
+    return AppScaffold(
+      title: 'Đăng ký thiết bị mới',
+      subtitle: 'Công cụ dành cho quản trị viên để tạo hoặc cấp lại thiết bị.',
+      leading: IconButton(
+        onPressed: () => Navigator.pop(context),
+        icon: const Icon(Icons.arrow_back_rounded),
+      ),
+      child: ListView(
+        children: [
+          if (!isAdmin)
+            const EmptyState(
+              icon: Icons.admin_panel_settings_outlined,
+              title: 'Trang này chỉ dành cho quản trị viên',
+              message:
+                  'Hãy đăng nhập bằng tài khoản admin để đăng ký hoặc cấp lại thiết bị.',
+            )
+          else ...[
+            AppCard(
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Thông tin thiết bị', style: Theme.of(context).textTheme.titleMedium),
+                    const SizedBox(height: AppSpacing.lg),
+                    AppTextField(
+                      controller: _deviceIdCtrl,
+                      label: 'Device ID',
+                      hint: 'VD: dev-esp-001',
+                      prefix: const Icon(Icons.watch_outlined),
+                      validator: (value) {
+                        if ((value ?? '').trim().isEmpty) {
+                          return 'Nhập Device ID';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    AppTextField(
+                      controller: _deviceNameCtrl,
+                      label: 'Tên thiết bị',
+                      hint: 'VD: Elder Band 01',
+                      prefix: const Icon(Icons.badge_outlined),
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    AppTextField(
+                      controller: _deviceTypeCtrl,
+                      label: 'Loại thiết bị',
+                      hint: 'VD: esp32',
+                      prefix: const Icon(Icons.memory_outlined),
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    AppTextField(
+                      controller: _firmwareVersionCtrl,
+                      label: 'Firmware version',
+                      hint: 'VD: 1.0.0',
+                      prefix: const Icon(Icons.system_update_alt_outlined),
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    AppTextField(
+                      controller: _pairingCodeCtrl,
+                      label: 'Pairing code',
+                      hint: 'Bỏ trống để server tự sinh',
+                      prefix: const Icon(Icons.password_outlined),
+                    ),
+                    if (_errorMessage != null) ...[
+                      const SizedBox(height: AppSpacing.lg),
+                      Text(
+                        _errorMessage!,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Theme.of(context).colorScheme.error,
                         ),
+                      ),
+                    ],
+                    const SizedBox(height: AppSpacing.xxl),
+                    SizedBox(
+                      width: double.infinity,
+                      child: PrimaryButton(
+                        label: _isSubmitting
+                            ? 'Đang đăng ký thiết bị...'
+                            : 'Đăng ký thiết bị',
+                        onPressed: _submit,
+                        isLoading: _isSubmitting,
+                        icon: const Icon(Icons.add_circle_outline_rounded),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            if (_result != null) ...[
+              const SizedBox(height: AppSpacing.section),
+              AppCard(
+                backgroundColor: const Color(0xFFF0FDF4),
+                borderColor: const Color(0xFFBBF7D0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Đăng ký thiết bị thành công',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
+                    Text('Device ID: ${_result!.deviceId}'),
+                    const SizedBox(height: AppSpacing.sm),
+                    Text('Pairing code: ${_result!.pairingCode}'),
+                    const SizedBox(height: AppSpacing.sm),
+                    Text('Trạng thái: ${_result!.status}'),
+                    const SizedBox(height: AppSpacing.xl),
+                    SecondaryButton(
+                      label: 'Sao chép pairing code',
+                      onPressed: _copyPairingCode,
+                      icon: const Icon(Icons.copy_outlined),
+                    ),
+                  ],
                 ),
               ),
             ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _AdminAccessDenied extends StatelessWidget {
-  const _AdminAccessDenied();
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Trang này chỉ dành cho quản trị viên',
-          style: Theme.of(context).textTheme.titleLarge,
-        ),
-        const SizedBox(height: 8),
-        const Text(
-          'Bạn đang đăng nhập bằng tài khoản không có quyền quản trị. Hãy dùng tài khoản admin để đăng ký hoặc cấp lại mã ghép nối cho thiết bị.',
-        ),
-      ],
-    );
-  }
-}
-
-class _ResultBanner extends StatelessWidget {
-  const _ResultBanner({
-    required this.backgroundColor,
-    required this.textColor,
-    required this.child,
-  });
-
-  final Color backgroundColor;
-  final Color textColor;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: DefaultTextStyle(
-        style: Theme.of(
-          context,
-        ).textTheme.bodyMedium!.copyWith(color: textColor),
-        child: IconTheme(
-          data: IconThemeData(color: textColor),
-          child: child,
-        ),
+          ],
+        ],
       ),
     );
   }

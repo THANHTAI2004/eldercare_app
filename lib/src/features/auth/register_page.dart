@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -5,6 +7,10 @@ import 'package:provider/provider.dart';
 import 'package:eldercare_app/src/core/app_strings.dart';
 import 'package:eldercare_app/src/core/validators.dart';
 import 'package:eldercare_app/src/state/session_provider.dart';
+import 'package:eldercare_app/src/ui/app_spacing.dart';
+import 'package:eldercare_app/src/ui/components/app_button.dart';
+import 'package:eldercare_app/src/ui/components/app_card.dart';
+import 'package:eldercare_app/src/ui/components/app_text_field.dart';
 import 'package:eldercare_app/src/widgets/app_logo.dart';
 
 class RegisterPage extends StatefulWidget {
@@ -55,28 +61,22 @@ class _RegisterPageState extends State<RegisterPage> {
     if (!(_formKey.currentState?.validate() ?? false)) {
       return;
     }
-
-    final selectedDate = _selectedDate;
-    if (selectedDate == null) {
+    if (_selectedDate == null) {
       setState(() {
         _dateErrorText = AppStrings.registerPickBirthDate;
       });
       return;
     }
 
-    final session = context.read<SessionProvider>();
-    final normalizedPhoneNumber = AppValidators.normalizePhoneNumber(
-      _phoneCtrl.text,
-    );
-    final ok = await session.register(
+    final normalizedPhone = AppValidators.normalizePhoneNumber(_phoneCtrl.text);
+    final ok = await context.read<SessionProvider>().register(
       name: _nameCtrl.text.trim(),
-      phoneNumber: normalizedPhoneNumber,
-      dateOfBirth: DateFormat('yyyy-MM-dd').format(selectedDate),
+      phoneNumber: normalizedPhone,
+      dateOfBirth: DateFormat('yyyy-MM-dd').format(_selectedDate!),
       password: _passwordCtrl.text,
     );
     if (!mounted || !ok) return;
-
-    Navigator.pop(context, normalizedPhoneNumber);
+    Navigator.pop(context, normalizedPhone);
   }
 
   @override
@@ -87,200 +87,240 @@ class _RegisterPageState extends State<RegisterPage> {
         : DateFormat('dd/MM/yyyy').format(_selectedDate!);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Đăng ký')),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 520),
-          child: ListView(
-            padding: const EdgeInsets.all(24),
-            children: [
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
+      body: DecoratedBox(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFFF6FAFF), Color(0xFFF7FAFC)],
+          ),
+        ),
+        child: SafeArea(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 560),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(AppSpacing.xxl),
+                child: AppCard(
+                  padding: const EdgeInsets.all(28),
                   child: Form(
                     key: _formKey,
                     autovalidateMode: AutovalidateMode.onUserInteraction,
-                    child: AutofillGroup(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Center(
-                            child: AppBrandLockup(
-                              logoSize: 76,
-                              subtitle:
-                                  'Tạo tài khoản để bắt đầu liên kết thiết bị và theo dõi sức khỏe từ xa.',
-                            ),
-                          ),
-                          const SizedBox(height: 24),
-                          Text(
-                            'Tạo tài khoản mới',
-                            style: Theme.of(context).textTheme.titleLarge,
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Nhập thông tin cơ bản để tạo tài khoản, sau đó quay lại đăng nhập bằng số điện thoại và mật khẩu vừa tạo.',
-                            style: Theme.of(context).textTheme.bodyMedium,
-                          ),
-                          const SizedBox(height: 20),
-                          TextFormField(
-                            controller: _nameCtrl,
-                            enabled: !session.isRegistering,
-                            textInputAction: TextInputAction.next,
-                            autofillHints: const <String>[AutofillHints.name],
-                            decoration: const InputDecoration(
-                              labelText: 'Họ và tên',
-                            ),
-                            validator: (value) {
-                              if (value == null || value.trim().isEmpty) {
-                                return 'Nhập họ và tên';
-                              }
-                              return null;
-                            },
-                          ),
-                          const SizedBox(height: 12),
-                          TextFormField(
-                            controller: _phoneCtrl,
-                            enabled: !session.isRegistering,
-                            keyboardType: TextInputType.phone,
-                            textInputAction: TextInputAction.next,
-                            autofillHints: const <String>[
-                              AutofillHints.telephoneNumber,
-                            ],
-                            decoration: const InputDecoration(
-                              labelText: 'Số điện thoại',
-                            ),
-                            validator: AppValidators.validatePhoneNumber,
-                          ),
-                          const SizedBox(height: 12),
-                          InputDecorator(
-                            decoration: InputDecoration(
-                              labelText: 'Ngày sinh',
-                              errorText: _dateErrorText,
-                            ),
-                            child: Row(
-                              children: [
-                                Expanded(child: Text(dateText)),
-                                TextButton(
-                                  onPressed: session.isRegistering
-                                      ? null
-                                      : _pickDate,
-                                  child: const Text('Chọn ngày'),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          TextFormField(
-                            controller: _passwordCtrl,
-                            enabled: !session.isRegistering,
-                            obscureText: _obscurePassword,
-                            textInputAction: TextInputAction.next,
-                            autofillHints: const <String>[
-                              AutofillHints.newPassword,
-                            ],
-                            decoration: InputDecoration(
-                              labelText: 'Mật khẩu',
-                              suffixIcon: IconButton(
-                                tooltip: _obscurePassword
-                                    ? 'Hiện mật khẩu'
-                                    : 'Ẩn mật khẩu',
-                                onPressed: () {
-                                  setState(() {
-                                    _obscurePassword = !_obscurePassword;
-                                  });
-                                },
-                                icon: Icon(
-                                  _obscurePassword
-                                      ? Icons.visibility
-                                      : Icons.visibility_off,
-                                ),
-                              ),
-                            ),
-                            validator: (value) {
-                              return AppValidators.validatePassword(value);
-                            },
-                          ),
-                          const SizedBox(height: 12),
-                          TextFormField(
-                            controller: _confirmPasswordCtrl,
-                            enabled: !session.isRegistering,
-                            obscureText: _obscureConfirmPassword,
-                            autofillHints: const <String>[
-                              AutofillHints.newPassword,
-                            ],
-                            decoration: InputDecoration(
-                              labelText: 'Nhập lại mật khẩu',
-                              suffixIcon: IconButton(
-                                tooltip: _obscureConfirmPassword
-                                    ? 'Hiện mật khẩu'
-                                    : 'Ẩn mật khẩu',
-                                onPressed: () {
-                                  setState(() {
-                                    _obscureConfirmPassword =
-                                        !_obscureConfirmPassword;
-                                  });
-                                },
-                                icon: Icon(
-                                  _obscureConfirmPassword
-                                      ? Icons.visibility
-                                      : Icons.visibility_off,
-                                ),
-                              ),
-                            ),
-                            validator: (value) {
-                              if ((value ?? '').isEmpty) {
-                                return 'Nhập lại mật khẩu';
-                              }
-                              if (value != _passwordCtrl.text) {
-                                return 'Mật khẩu nhập lại không khớp';
-                              }
-                              return null;
-                            },
-                            onFieldSubmitted: (_) => _submit(),
-                          ),
-                          if (session.error != null &&
-                              session.error!.trim().isNotEmpty) ...[
-                            const SizedBox(height: 12),
-                            _InlineBanner(message: session.error!),
-                          ],
-                          const SizedBox(height: 20),
-                          FilledButton.icon(
-                            onPressed: session.isRegistering ? null : _submit,
-                            icon: session.isRegistering
-                                ? const SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : const Icon(Icons.person_add_alt_1),
-                            label: Text(
-                              session.isRegistering
-                                  ? 'Đang tạo tài khoản...'
-                                  : 'Tạo tài khoản',
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          Align(
-                            alignment: Alignment.centerLeft,
-                            child: TextButton(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            IconButton(
                               onPressed: session.isRegistering
                                   ? null
                                   : () => Navigator.pop(context),
-                              child: const Text('Đã có tài khoản? Đăng nhập'),
+                              icon: const Icon(Icons.arrow_back_rounded),
+                            ),
+                            const Expanded(
+                              child: AppBrandLockup(
+                                center: false,
+                                logoSize: 48,
+                                subtitle:
+                                    'Tạo tài khoản mới trong vài bước để bắt đầu theo dõi người thân.',
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: AppSpacing.xxl),
+                        Text(
+                          'Tạo tài khoản',
+                          style: Theme.of(context).textTheme.headlineSmall,
+                        ),
+                        const SizedBox(height: AppSpacing.sm),
+                        Text(
+                          'Vui lòng cung cấp thông tin để đăng ký tài khoản Eldercare.',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        const SizedBox(height: AppSpacing.xxl),
+                        AppTextField(
+                          controller: _nameCtrl,
+                          label: 'Họ và tên',
+                          hint: 'Nhập họ và tên',
+                          prefix: const Icon(Icons.person_outline_rounded),
+                          textInputAction: TextInputAction.next,
+                          autofillHints: const [AutofillHints.name],
+                          enabled: !session.isRegistering,
+                          validator: (value) {
+                            if ((value ?? '').trim().isEmpty) {
+                              return 'Nhập họ và tên';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: AppSpacing.lg),
+                        AppTextField(
+                          controller: _phoneCtrl,
+                          label: 'Số điện thoại',
+                          hint: 'Nhập số điện thoại',
+                          prefix: const Icon(Icons.call_outlined),
+                          keyboardType: TextInputType.phone,
+                          textInputAction: TextInputAction.next,
+                          autofillHints: const [AutofillHints.telephoneNumber],
+                          enabled: !session.isRegistering,
+                          validator: AppValidators.validatePhoneNumber,
+                        ),
+                        const SizedBox(height: AppSpacing.lg),
+                        _DateField(
+                          label: 'Ngày sinh',
+                          dateText: dateText,
+                          errorText: _dateErrorText,
+                          onTap: session.isRegistering ? null : _pickDate,
+                        ),
+                        const SizedBox(height: AppSpacing.lg),
+                        AppTextField(
+                          controller: _passwordCtrl,
+                          label: 'Mật khẩu',
+                          hint: 'Nhập mật khẩu',
+                          prefix: const Icon(Icons.lock_outline_rounded),
+                          suffix: IconButton(
+                            onPressed: () {
+                              setState(() {
+                                _obscurePassword = !_obscurePassword;
+                              });
+                            },
+                            icon: Icon(
+                              _obscurePassword
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined,
                             ),
                           ),
+                          obscureText: _obscurePassword,
+                          textInputAction: TextInputAction.next,
+                          autofillHints: const [AutofillHints.newPassword],
+                          enabled: !session.isRegistering,
+                          validator: AppValidators.validatePassword,
+                        ),
+                        const SizedBox(height: AppSpacing.lg),
+                        AppTextField(
+                          controller: _confirmPasswordCtrl,
+                          label: 'Nhập lại mật khẩu',
+                          hint: 'Nhập lại mật khẩu',
+                          prefix: const Icon(Icons.lock_reset_outlined),
+                          suffix: IconButton(
+                            onPressed: () {
+                              setState(() {
+                                _obscureConfirmPassword =
+                                    !_obscureConfirmPassword;
+                              });
+                            },
+                            icon: Icon(
+                              _obscureConfirmPassword
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined,
+                            ),
+                          ),
+                          obscureText: _obscureConfirmPassword,
+                          textInputAction: TextInputAction.done,
+                          autofillHints: const [AutofillHints.newPassword],
+                          enabled: !session.isRegistering,
+                          validator: (value) {
+                            if ((value ?? '').isEmpty) {
+                              return 'Nhập lại mật khẩu';
+                            }
+                            if (value != _passwordCtrl.text) {
+                              return 'Mật khẩu nhập lại không khớp';
+                            }
+                            return null;
+                          },
+                          onFieldSubmitted: (_) => _submit(),
+                        ),
+                        if (session.error != null &&
+                            session.error!.trim().isNotEmpty) ...[
+                          const SizedBox(height: AppSpacing.lg),
+                          _InlineBanner(message: session.error!),
                         ],
-                      ),
+                        const SizedBox(height: AppSpacing.xxl),
+                        SizedBox(
+                          width: double.infinity,
+                          child: PrimaryButton(
+                            label: session.isRegistering
+                                ? 'Đang tạo tài khoản...'
+                                : 'Tạo tài khoản',
+                            onPressed: _submit,
+                            isLoading: session.isRegistering,
+                            icon: const Icon(Icons.person_add_alt_1_rounded),
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.md),
+                        Center(
+                          child: TextButton(
+                            onPressed: session.isRegistering
+                                ? null
+                                : () => Navigator.pop(context),
+                            child: const Text('Đã có tài khoản? Đăng nhập'),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
               ),
-            ],
+            ),
           ),
         ),
       ),
+    );
+  }
+}
+
+class _DateField extends StatelessWidget {
+  const _DateField({
+    required this.label,
+    required this.dateText,
+    required this.errorText,
+    required this.onTap,
+  });
+
+  final String label;
+  final String dateText;
+  final String? errorText;
+  final FutureOr<void> Function()? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        InkWell(
+          onTap: onTap == null ? null : () => onTap!.call(),
+          borderRadius: BorderRadius.circular(18),
+          child: InputDecorator(
+            decoration: InputDecoration(
+              labelText: label,
+              prefixIcon: const Icon(Icons.calendar_month_outlined),
+              suffixIcon: TextButton(
+                onPressed: onTap == null ? null : () => onTap!.call(),
+                child: const Text('Chọn ngày'),
+              ),
+            ),
+            child: Text(
+              dateText,
+              style: theme.textTheme.bodyLarge?.copyWith(
+                color: theme.colorScheme.onSurface,
+              ),
+            ),
+          ),
+        ),
+        if (errorText != null) ...[
+          const SizedBox(height: 6),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Text(
+              errorText!,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.error,
+              ),
+            ),
+          ),
+        ],
+      ],
     );
   }
 }
@@ -292,19 +332,18 @@ class _InlineBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: scheme.errorContainer,
-        borderRadius: BorderRadius.circular(12),
+        color: Theme.of(context).colorScheme.errorContainer,
+        borderRadius: BorderRadius.circular(18),
       ),
       child: Text(
         message,
-        style: Theme.of(
-          context,
-        ).textTheme.bodyMedium?.copyWith(color: scheme.onErrorContainer),
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+          color: Theme.of(context).colorScheme.onErrorContainer,
+        ),
       ),
     );
   }

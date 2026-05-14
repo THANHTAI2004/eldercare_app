@@ -23,6 +23,7 @@ void main() {
   testWidgets('claim device success reloads my devices and returns selected device id', (
     tester,
   ) async {
+    _setLargeView(tester);
     final session = buildSessionProvider(
       loginTokens: const AuthTokens(
         accessToken: 'access-123',
@@ -74,7 +75,9 @@ void main() {
 
     await tester.enterText(find.byType(TextFormField).at(0), 'dev-esp-001');
     await tester.enterText(find.byType(TextFormField).at(1), 'PAIR-001');
-    await tester.tap(find.byIcon(Icons.add_link));
+    final claimButton = find.widgetWithText(FilledButton, 'Liên kết thiết bị');
+    await tester.ensureVisible(claimButton);
+    await tester.tap(claimButton);
     await tester.pumpAndSettle();
 
     expect(claimApi.lastClaimedDeviceId, 'dev-esp-001');
@@ -87,6 +90,7 @@ void main() {
   testWidgets('claim device uses shared ApiClient bearer token and sends pairing code', (
     tester,
   ) async {
+    _setLargeView(tester);
     final session = buildSessionProvider(
       loginTokens: const AuthTokens(
         accessToken: 'access-123',
@@ -137,7 +141,9 @@ void main() {
 
     await tester.enterText(find.byType(TextFormField).at(0), 'dev-esp-009');
     await tester.enterText(find.byType(TextFormField).at(1), 'PAIR-009');
-    await tester.tap(find.byIcon(Icons.add_link));
+    final claimButton = find.widgetWithText(FilledButton, 'Liên kết thiết bị');
+    await tester.ensureVisible(claimButton);
+    await tester.tap(claimButton);
     await tester.pumpAndSettle();
 
     expect(find.text('result:dev-esp-009'), findsOneWidget);
@@ -146,6 +152,7 @@ void main() {
   testWidgets('claim device shows pairing-code specific error for 422 response', (
     tester,
   ) async {
+    _setLargeView(tester);
     final session = buildSessionProvider(
       loginTokens: const AuthTokens(
         accessToken: 'access-123',
@@ -189,13 +196,24 @@ void main() {
 
     await tester.enterText(find.byType(TextFormField).at(0), 'dev-esp-404');
     await tester.enterText(find.byType(TextFormField).at(1), 'WRONG-CODE');
-    await tester.tap(find.byIcon(Icons.add_link));
+    final claimButton = find.widgetWithText(FilledButton, 'Liên kết thiết bị');
+    await tester.ensureVisible(claimButton);
+    await tester.tap(claimButton);
     await tester.pumpAndSettle();
 
     expect(
-      find.text('Mã ghép nối không đúng hoặc dữ liệu gửi lên chưa hợp lệ.'),
+      find.text('Pairing Code không đúng hoặc dữ liệu gửi lên chưa hợp lệ.'),
       findsOneWidget,
     );
+  });
+}
+
+void _setLargeView(WidgetTester tester) {
+  tester.view.physicalSize = const Size(1200, 1800);
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(() {
+    tester.view.resetPhysicalSize();
+    tester.view.resetDevicePixelRatio();
   });
 }
 

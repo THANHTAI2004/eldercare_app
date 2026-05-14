@@ -1,408 +1,479 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
-import 'package:eldercare_app/src/core/app_strings.dart';
+import 'package:eldercare_app/src/core/app_date_utils.dart';
 import 'package:eldercare_app/src/core/validators.dart';
+import 'package:eldercare_app/src/services/push_notification_service.dart';
+import 'package:eldercare_app/src/state/device_provider.dart';
 import 'package:eldercare_app/src/state/session_provider.dart';
+import 'package:eldercare_app/src/ui/app_spacing.dart';
+import 'package:eldercare_app/src/ui/components/app_button.dart';
+import 'package:eldercare_app/src/ui/components/app_card.dart';
+import 'package:eldercare_app/src/ui/components/app_scaffold.dart';
+import 'package:eldercare_app/src/ui/components/app_text_field.dart';
+import 'package:eldercare_app/src/ui/components/status_badge.dart';
 
-class AccountPage extends StatefulWidget {
+class AccountPage extends StatelessWidget {
   const AccountPage({super.key});
 
-  @override
-  State<AccountPage> createState() => _AccountPageState();
-}
-
-class _AccountPageState extends State<AccountPage> {
-  final _profileFormKey = GlobalKey<FormState>();
-  final _passwordFormKey = GlobalKey<FormState>();
-
-  final _nameCtrl = TextEditingController();
-  final _phoneCtrl = TextEditingController();
-  final _currentPasswordCtrl = TextEditingController();
-  final _newPasswordCtrl = TextEditingController();
-  final _confirmPasswordCtrl = TextEditingController();
-
-  DateTime? _selectedDateOfBirth;
-  bool _profileInitialized = false;
-  bool _obscureCurrentPassword = true;
-  bool _obscureNewPassword = true;
-  bool _obscureConfirmPassword = true;
-
-  @override
-  void dispose() {
-    _nameCtrl.dispose();
-    _phoneCtrl.dispose();
-    _currentPasswordCtrl.dispose();
-    _newPasswordCtrl.dispose();
-    _confirmPasswordCtrl.dispose();
-    super.dispose();
+  Future<void> _logout(BuildContext context) async {
+    final push = context.read<PushNotificationService?>();
+    final session = context.read<SessionProvider>();
+    final deviceProvider = context.read<DeviceProvider>();
+    await push?.unregisterCurrentInstallation();
+    await session.logout();
+    await deviceProvider.clear();
   }
 
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (_profileInitialized) return;
+  Future<void> _openEditProfile(BuildContext context) async {
+    final session = context.read<SessionProvider>();
+    final nameCtrl = TextEditingController(text: session.currentUser?.name ?? '');
+    DateTime? selectedDate = _parseDate(session.currentUser?.dateOfBirth);
+    final formKey = GlobalKey<FormState>();
+    String? dateError;
 
-    final user = context.read<SessionProvider>().currentUser;
-    _nameCtrl.text = user?.name ?? '';
-    _phoneCtrl.text = user?.phoneNumber ?? '';
-    _selectedDateOfBirth = _parseDate(user?.dateOfBirth);
-    _profileInitialized = true;
-  }
-
-  DateTime? _parseDate(String? raw) {
-    final text = raw?.trim() ?? '';
-    if (text.isEmpty) return null;
-    return DateTime.tryParse(text);
-  }
-
-  Future<void> _pickDateOfBirth() async {
-    final now = DateTime.now();
-    final picked = await showDatePicker(
+    await showDialog<void>(
       context: context,
-      initialDate:
-          _selectedDateOfBirth ?? DateTime(now.year - 60, now.month, now.day),
-      firstDate: DateTime(1900),
-      lastDate: now,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) => AlertDialog(
+            title: const Text('Thông tin cá nhân'),
+            content: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  AppTextField(
+                    controller: nameCtrl,
+                    label: 'Họ và tên',
+                    prefix: const Icon(Icons.person_outline_rounded),
+                    validator: (value) {
+                      if ((value ?? '').trim().isEmpty) {
+                        return 'Nhập họ và tên';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+                  _DatePickerField(
+                    date: selectedDate,
+                    errorText: dateError,
+                    onTap: () async {
+                      final now = DateTime.now();
+                      final picked = await showDatePicker(
+                        context: context,
+                        initialDate: selectedDate ??
+                            DateTime(now.year - 60, now.month, now.day),
+                        firstDate: DateTime(1900),
+                        lastDate: now,
+                      );
+                      if (picked == null) return;
+                      setState(() {
+                        selectedDate = DateTime(picked.year, picked.month, picked.day);
+                        dateError = null;
+                      });
+                    },
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Huỷ'),
+              ),
+              FilledButton(
+                onPressed: () async {
+                  if (!(formKey.currentState?.validate() ?? false)) return;
+                  if (selectedDate == null) {
+                    setState(() {
+                      dateError = 'Vui lòng chọn ngày sinh';
+                    });
+                    return;
+                  }
+                  final ok = await session.updateProfile(
+                    name: nameCtrl.text.trim(),
+                    dateOfBirth:
+                        '${selectedDate!.year.toString().padLeft(4, '0')}-${selectedDate!.month.toString().padLeft(2, '0')}-${selectedDate!.day.toString().padLeft(2, '0')}',
+                  );
+                  if (!context.mounted) return;
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        ok
+                            ? 'Đã cập nhật thông tin cá nhân.'
+                            : (session.error ?? 'Không thể cập nhật hồ sơ'),
+                      ),
+                    ),
+                  );
+                },
+                child: const Text('Lưu'),
+              ),
+            ],
+          ),
+        );
+      },
     );
-    if (picked == null) return;
 
-    setState(() {
-      _selectedDateOfBirth = DateTime(picked.year, picked.month, picked.day);
-    });
+    nameCtrl.dispose();
   }
 
-  Future<void> _saveProfile() async {
-    if (!(_profileFormKey.currentState?.validate() ?? false)) {
-      return;
-    }
-
-    final selectedDate = _selectedDateOfBirth;
-    if (selectedDate == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text(AppStrings.registerPickBirthDate)),
-      );
-      return;
-    }
-
+  Future<void> _openChangePassword(BuildContext context) async {
     final session = context.read<SessionProvider>();
-    final ok = await session.updateProfile(
-      name: _nameCtrl.text.trim(),
-      dateOfBirth: DateFormat('yyyy-MM-dd').format(selectedDate),
+    final currentCtrl = TextEditingController();
+    final newCtrl = TextEditingController();
+    final confirmCtrl = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+    bool obscureCurrent = true;
+    bool obscureNew = true;
+    bool obscureConfirm = true;
+
+    await showDialog<void>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) => AlertDialog(
+            title: const Text('Đổi mật khẩu'),
+            content: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  AppTextField(
+                    controller: currentCtrl,
+                    label: 'Mật khẩu hiện tại',
+                    obscureText: obscureCurrent,
+                    prefix: const Icon(Icons.lock_outline_rounded),
+                    suffix: IconButton(
+                      onPressed: () {
+                        setState(() {
+                          obscureCurrent = !obscureCurrent;
+                        });
+                      },
+                      icon: Icon(
+                        obscureCurrent
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined,
+                      ),
+                    ),
+                    validator: (value) {
+                      if ((value ?? '').isEmpty) {
+                        return 'Nhập mật khẩu hiện tại';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+                  AppTextField(
+                    controller: newCtrl,
+                    label: 'Mật khẩu mới',
+                    obscureText: obscureNew,
+                    prefix: const Icon(Icons.password_outlined),
+                    suffix: IconButton(
+                      onPressed: () {
+                        setState(() {
+                          obscureNew = !obscureNew;
+                        });
+                      },
+                      icon: Icon(
+                        obscureNew
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined,
+                      ),
+                    ),
+                    validator: AppValidators.validatePassword,
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+                  AppTextField(
+                    controller: confirmCtrl,
+                    label: 'Nhập lại mật khẩu mới',
+                    obscureText: obscureConfirm,
+                    prefix: const Icon(Icons.lock_reset_outlined),
+                    suffix: IconButton(
+                      onPressed: () {
+                        setState(() {
+                          obscureConfirm = !obscureConfirm;
+                        });
+                      },
+                      icon: Icon(
+                        obscureConfirm
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined,
+                      ),
+                    ),
+                    validator: (value) {
+                      if ((value ?? '').isEmpty) {
+                        return 'Nhập lại mật khẩu mới';
+                      }
+                      if (value != newCtrl.text) {
+                        return 'Mật khẩu nhập lại không khớp';
+                      }
+                      return null;
+                    },
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Huỷ'),
+              ),
+              FilledButton(
+                onPressed: () async {
+                  if (!(formKey.currentState?.validate() ?? false)) return;
+                  final ok = await session.changePassword(
+                    currentPassword: currentCtrl.text,
+                    newPassword: newCtrl.text,
+                  );
+                  if (!context.mounted) return;
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        ok
+                            ? 'Đổi mật khẩu thành công.'
+                            : (session.error ?? 'Không thể đổi mật khẩu'),
+                      ),
+                    ),
+                  );
+                },
+                child: const Text('Cập nhật'),
+              ),
+            ],
+          ),
+        );
+      },
     );
 
-    if (!mounted) return;
-    if (ok) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Đã cập nhật thông tin tài khoản.')),
-      );
-      return;
-    }
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          session.error ?? 'Không thể cập nhật thông tin tài khoản',
-        ),
-      ),
-    );
-  }
-
-  Future<void> _changePassword() async {
-    if (!(_passwordFormKey.currentState?.validate() ?? false)) {
-      return;
-    }
-
-    final session = context.read<SessionProvider>();
-    final ok = await session.changePassword(
-      currentPassword: _currentPasswordCtrl.text,
-      newPassword: _newPasswordCtrl.text,
-    );
-
-    if (!mounted) return;
-    if (ok) {
-      _currentPasswordCtrl.clear();
-      _newPasswordCtrl.clear();
-      _confirmPasswordCtrl.clear();
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Đổi mật khẩu thành công.')));
-      return;
-    }
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(session.error ?? 'Không thể đổi mật khẩu')),
-    );
-  }
-
-  Future<void> _copyAccountCode(String accountCode) async {
-    await Clipboard.setData(ClipboardData(text: accountCode));
-    if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Đã sao chép mã tài khoản.')));
+    currentCtrl.dispose();
+    newCtrl.dispose();
+    confirmCtrl.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final session = context.watch<SessionProvider>();
+    final push = context.watch<PushNotificationService?>();
     final user = session.currentUser;
-    final accountCode = user?.userId.trim() ?? '';
-    final dateText = _selectedDateOfBirth == null
-        ? 'Chưa cập nhật'
-        : DateFormat('dd/MM/yyyy').format(_selectedDateOfBirth!);
+    final initials = (user?.name.trim().isNotEmpty ?? false)
+        ? user!.name
+            .trim()
+            .split(RegExp(r'\s+'))
+            .take(2)
+            .map((part) => part[0].toUpperCase())
+            .join()
+        : 'EC';
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Tài khoản')),
-      body: SafeArea(
-        child: Align(
-          alignment: Alignment.topCenter,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 760),
-            child: ListView(
-              padding: const EdgeInsets.all(16),
+    return AppScaffold(
+      title: 'Tài khoản',
+      subtitle: 'Quản lý hồ sơ, bảo mật và thông báo cho phiên hiện tại.',
+      child: ListView(
+        children: [
+          AppCard(
+            child: Row(
               children: [
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Mã tài khoản',
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                        const SizedBox(height: 8),
-                        SelectableText(
-                          accountCode.isEmpty ? 'Chưa có dữ liệu' : accountCode,
-                          style: Theme.of(context).textTheme.bodyLarge,
-                        ),
-                        const SizedBox(height: 8),
-                        if (accountCode.isNotEmpty)
-                          OutlinedButton.icon(
-                            onPressed: () => _copyAccountCode(accountCode),
-                            icon: const Icon(Icons.copy_outlined),
-                            label: const Text('Sao chép mã tài khoản'),
-                          ),
-                      ],
-                    ),
-                  ),
+                CircleAvatar(
+                  radius: 34,
+                  child: Text(initials),
                 ),
-                const SizedBox(height: 12),
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Form(
-                      key: _profileFormKey,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Thông tin cá nhân',
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          const SizedBox(height: 12),
-                          TextFormField(
-                            controller: _nameCtrl,
-                            enabled: !session.isUpdatingProfile,
-                            decoration: const InputDecoration(
-                              labelText: 'Họ và tên',
-                            ),
-                            validator: (value) {
-                              if ((value ?? '').trim().isEmpty) {
-                                return 'Nhập họ và tên';
-                              }
-                              return null;
-                            },
-                          ),
-                          const SizedBox(height: 12),
-                          TextFormField(
-                            controller: _phoneCtrl,
-                            enabled: false,
-                            decoration: const InputDecoration(
-                              labelText: 'Số điện thoại',
-                              helperText:
-                                  'Số điện thoại hiện chưa hỗ trợ chỉnh sửa trên app',
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          InputDecorator(
-                            decoration: const InputDecoration(
-                              labelText: 'Ngày sinh',
-                            ),
-                            child: Row(
-                              children: [
-                                Expanded(child: Text(dateText)),
-                                TextButton(
-                                  onPressed: session.isUpdatingProfile
-                                      ? null
-                                      : _pickDateOfBirth,
-                                  child: const Text('Chọn ngày'),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          FilledButton.icon(
-                            onPressed: session.isUpdatingProfile
-                                ? null
-                                : _saveProfile,
-                            icon: session.isUpdatingProfile
-                                ? const SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : const Icon(Icons.save_outlined),
-                            label: Text(
-                              session.isUpdatingProfile
-                                  ? 'Đang lưu...'
-                                  : 'Lưu thông tin',
-                            ),
-                          ),
-                        ],
+                const SizedBox(width: AppSpacing.lg),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        user?.name.trim().isEmpty ?? true
+                            ? 'Chưa cập nhật tên'
+                            : user!.name,
+                        style: Theme.of(context).textTheme.titleLarge,
                       ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Form(
-                      key: _passwordFormKey,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Đổi mật khẩu',
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          const SizedBox(height: 12),
-                          TextFormField(
-                            controller: _currentPasswordCtrl,
-                            enabled: !session.isChangingPassword,
-                            obscureText: _obscureCurrentPassword,
-                            decoration: InputDecoration(
-                              labelText: 'Mật khẩu hiện tại',
-                              suffixIcon: IconButton(
-                                tooltip: _obscureCurrentPassword
-                                    ? 'Hiện mật khẩu'
-                                    : 'Ẩn mật khẩu',
-                                onPressed: () {
-                                  setState(() {
-                                    _obscureCurrentPassword =
-                                        !_obscureCurrentPassword;
-                                  });
-                                },
-                                icon: Icon(
-                                  _obscureCurrentPassword
-                                      ? Icons.visibility
-                                      : Icons.visibility_off,
-                                ),
-                              ),
-                            ),
-                            validator: (value) {
-                              if ((value ?? '').isEmpty) {
-                                return 'Nhập mật khẩu hiện tại';
-                              }
-                              return null;
-                            },
-                          ),
-                          const SizedBox(height: 12),
-                          TextFormField(
-                            controller: _newPasswordCtrl,
-                            enabled: !session.isChangingPassword,
-                            obscureText: _obscureNewPassword,
-                            decoration: InputDecoration(
-                              labelText: 'Mật khẩu mới',
-                              suffixIcon: IconButton(
-                                tooltip: _obscureNewPassword
-                                    ? 'Hiện mật khẩu'
-                                    : 'Ẩn mật khẩu',
-                                onPressed: () {
-                                  setState(() {
-                                    _obscureNewPassword = !_obscureNewPassword;
-                                  });
-                                },
-                                icon: Icon(
-                                  _obscureNewPassword
-                                      ? Icons.visibility
-                                      : Icons.visibility_off,
-                                ),
-                              ),
-                            ),
-                            validator: AppValidators.validatePassword,
-                          ),
-                          const SizedBox(height: 12),
-                          TextFormField(
-                            controller: _confirmPasswordCtrl,
-                            enabled: !session.isChangingPassword,
-                            obscureText: _obscureConfirmPassword,
-                            decoration: InputDecoration(
-                              labelText: 'Nhập lại mật khẩu mới',
-                              suffixIcon: IconButton(
-                                tooltip: _obscureConfirmPassword
-                                    ? 'Hiện mật khẩu'
-                                    : 'Ẩn mật khẩu',
-                                onPressed: () {
-                                  setState(() {
-                                    _obscureConfirmPassword =
-                                        !_obscureConfirmPassword;
-                                  });
-                                },
-                                icon: Icon(
-                                  _obscureConfirmPassword
-                                      ? Icons.visibility
-                                      : Icons.visibility_off,
-                                ),
-                              ),
-                            ),
-                            validator: (value) {
-                              if ((value ?? '').isEmpty) {
-                                return 'Nhập lại mật khẩu mới';
-                              }
-                              if (value != _newPasswordCtrl.text) {
-                                return 'Mật khẩu nhập lại không khớp';
-                              }
-                              return null;
-                            },
-                            onFieldSubmitted: (_) => _changePassword(),
-                          ),
-                          const SizedBox(height: 16),
-                          FilledButton.icon(
-                            onPressed: session.isChangingPassword
-                                ? null
-                                : _changePassword,
-                            icon: session.isChangingPassword
-                                ? const SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : const Icon(Icons.lock_reset_outlined),
-                            label: Text(
-                              session.isChangingPassword
-                                  ? 'Đang cập nhật...'
-                                  : 'Đổi mật khẩu',
-                            ),
-                          ),
-                        ],
+                      const SizedBox(height: 4),
+                      Text(
+                        user?.phoneNumber ?? '--',
+                        style: Theme.of(context).textTheme.bodyMedium,
                       ),
-                    ),
+                      const SizedBox(height: 8),
+                      const StatusBadge(
+                        label: 'Phiên đang hoạt động',
+                        tone: StatusTone.success,
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
           ),
-        ),
+          const SizedBox(height: AppSpacing.section),
+          AppCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Thông tin cá nhân', style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: AppSpacing.lg),
+                _InfoRow(label: 'Họ và tên', value: user?.name ?? '--'),
+                const Divider(height: 24),
+                _InfoRow(label: 'Ngày sinh', value: AppDateUtils.formatDateOfBirth(user?.dateOfBirth) ?? '--'),
+                const SizedBox(height: AppSpacing.lg),
+                SizedBox(
+                  width: double.infinity,
+                  child: SecondaryButton(
+                    label: 'Sửa thông tin',
+                    onPressed: () => _openEditProfile(context),
+                    icon: const Icon(Icons.edit_outlined),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppSpacing.section),
+          AppCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Thông báo', style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: AppSpacing.sm),
+                Text(
+                  'Quản lý trạng thái nhận push notification trong phiên hiện tại.',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+                const SizedBox(height: AppSpacing.lg),
+                SwitchListTile.adaptive(
+                  value: push?.notificationsEnabled ?? false,
+                  onChanged: push == null
+                      ? null
+                      : (value) => push.setNotificationsEnabled(value),
+                  title: const Text('Nhận thông báo'),
+                  subtitle: Text(
+                    push == null
+                        ? 'Thiết bị hiện tại chưa hỗ trợ push notification.'
+                        : 'Bật/tắt đồng bộ push token mà không thay đổi API hiện có.',
+                  ),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppSpacing.section),
+          AppCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Bảo mật', style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: AppSpacing.lg),
+                SizedBox(
+                  width: double.infinity,
+                  child: SecondaryButton(
+                    label: 'Đổi mật khẩu',
+                    onPressed: () => _openChangePassword(context),
+                    icon: const Icon(Icons.lock_reset_outlined),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppSpacing.section),
+          DangerButton(
+            label: 'Đăng xuất',
+            onPressed: () => _logout(context),
+            icon: const Icon(Icons.logout_rounded),
+          ),
+        ],
       ),
     );
   }
+}
+
+class _InfoRow extends StatelessWidget {
+  const _InfoRow({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(label, style: Theme.of(context).textTheme.bodyMedium),
+        ),
+        const SizedBox(width: AppSpacing.md),
+        Flexible(
+          child: Text(
+            value,
+            textAlign: TextAlign.right,
+            style: Theme.of(context).textTheme.titleSmall,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _DatePickerField extends StatelessWidget {
+  const _DatePickerField({
+    required this.date,
+    required this.errorText,
+    required this.onTap,
+  });
+
+  final DateTime? date;
+  final String? errorText;
+  final FutureOr<void> Function() onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        InkWell(
+          onTap: () => onTap.call(),
+          borderRadius: BorderRadius.circular(18),
+          child: InputDecorator(
+            decoration: const InputDecoration(
+              labelText: 'Ngày sinh',
+              prefixIcon: Icon(Icons.calendar_month_outlined),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    date == null
+                        ? 'Chọn ngày sinh'
+                        : '${date!.day.toString().padLeft(2, '0')}/${date!.month.toString().padLeft(2, '0')}/${date!.year}',
+                  ),
+                ),
+                const SizedBox(width: 12),
+                TextButton(
+                  onPressed: () => onTap.call(),
+                  child: const Text('Chọn ngày'),
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (errorText != null) ...[
+          const SizedBox(height: 6),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Text(
+              errorText!,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.error,
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+DateTime? _parseDate(String? raw) {
+  final value = raw?.trim() ?? '';
+  if (value.isEmpty) return null;
+  return DateTime.tryParse(value);
 }
