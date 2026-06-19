@@ -39,6 +39,7 @@ class AccountPage extends StatelessWidget {
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setState) => AlertDialog(
+            scrollable: true,
             title: const Text('Thông tin cá nhân'),
             content: Form(
               key: formKey,
@@ -71,7 +72,8 @@ class AccountPage extends StatelessWidget {
                       );
                       if (picked == null) return;
                       setState(() {
-                        selectedDate = DateTime(picked.year, picked.month, picked.day);
+                        selectedDate =
+                            DateTime(picked.year, picked.month, picked.day);
                         dateError = null;
                       });
                     },
@@ -118,7 +120,9 @@ class AccountPage extends StatelessWidget {
       },
     );
 
-    nameCtrl.dispose();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      nameCtrl.dispose();
+    });
   }
 
   Future<void> _openChangePassword(BuildContext context) async {
@@ -136,6 +140,7 @@ class AccountPage extends StatelessWidget {
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setState) => AlertDialog(
+            scrollable: true,
             title: const Text('Đổi mật khẩu'),
             content: Form(
               key: formKey,
@@ -249,9 +254,11 @@ class AccountPage extends StatelessWidget {
       },
     );
 
-    currentCtrl.dispose();
-    newCtrl.dispose();
-    confirmCtrl.dispose();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      currentCtrl.dispose();
+      newCtrl.dispose();
+      confirmCtrl.dispose();
+    });
   }
 
   @override

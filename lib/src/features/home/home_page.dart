@@ -9,6 +9,7 @@ import 'package:eldercare_app/src/features/ecg/ecg_page.dart';
 import 'package:eldercare_app/src/features/history/history_page.dart';
 import 'package:eldercare_app/src/features/navigation/main_shell.dart';
 import 'package:eldercare_app/src/state/alerts_provider.dart';
+import 'package:eldercare_app/src/state/async_status.dart';
 import 'package:eldercare_app/src/state/device_provider.dart';
 import 'package:eldercare_app/src/state/ecg_provider.dart';
 import 'package:eldercare_app/src/state/history_provider.dart';
@@ -20,10 +21,10 @@ import 'package:eldercare_app/src/ui/components/alert_card.dart';
 import 'package:eldercare_app/src/ui/components/app_card.dart';
 import 'package:eldercare_app/src/ui/components/app_scaffold.dart';
 import 'package:eldercare_app/src/ui/components/device_selector.dart';
+import 'package:eldercare_app/src/ui/components/ecg_waveform_card.dart';
 import 'package:eldercare_app/src/ui/components/empty_state.dart';
 import 'package:eldercare_app/src/ui/components/health_chart_card.dart';
 import 'package:eldercare_app/src/ui/components/loading_state.dart';
-import 'package:eldercare_app/src/ui/components/metric_card.dart';
 import 'package:eldercare_app/src/ui/components/section_header.dart';
 import 'package:eldercare_app/src/ui/components/status_badge.dart';
 
@@ -110,6 +111,7 @@ class _HomePageState extends State<HomePage> {
     if (realtimeValue != null && realtimeValue.isFinite) {
       return realtimeValue;
     }
+
     final fallback = history.points.reversed
         .map((point) => point.valueOf(metric))
         .whereType<double>()
@@ -119,8 +121,8 @@ class _HomePageState extends State<HomePage> {
     return fallback;
   }
 
-  List<VitalPoint> _pointsForLast24Hours(HistoryProvider history) {
-    final cutoff = DateTime.now().toUtc().subtract(const Duration(hours: 24));
+  List<VitalPoint> _pointsForLastHour(HistoryProvider history) {
+    final cutoff = DateTime.now().toUtc().subtract(const Duration(hours: 1));
     final points = history.points
         .where((point) => point.time.toUtc().isAfter(cutoff))
         .toList(growable: false);
@@ -131,9 +133,7 @@ class _HomePageState extends State<HomePage> {
   Future<void> _openHistory({Metric? metric}) async {
     await Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => HistoryPage(initialMetric: metric),
-      ),
+      MaterialPageRoute(builder: (_) => HistoryPage(initialMetric: metric)),
     );
   }
 
@@ -150,10 +150,11 @@ class _HomePageState extends State<HomePage> {
     final deviceProvider = context.watch<DeviceProvider>();
     final realtime = context.watch<RealtimeProvider>();
     final history = context.watch<HistoryProvider>();
+    final ecg = context.watch<EcgProvider>();
     final alerts = context.watch<AlertsProvider>();
     final currentDevice = deviceProvider.current;
     final currentUserName = session.currentUser?.name.trim() ?? '';
-    final recentPoints = _pointsForLast24Hours(history);
+    final oneHourPoints = _pointsForLastHour(history);
 
     _syncScope();
 
@@ -175,7 +176,8 @@ class _HomePageState extends State<HomePage> {
               message:
                   'Liên kết hoặc chọn một thiết bị để xem chỉ số realtime, ECG và cảnh báo gần đây.',
               actionLabel: 'Mở màn thiết bị',
-              onAction: () => MainShell.maybeOf(context)?.goToTab(MainTab.devices),
+              onAction: () =>
+                  MainShell.maybeOf(context)?.goToTab(MainTab.devices),
             ),
           ],
         ),
@@ -198,7 +200,7 @@ class _HomePageState extends State<HomePage> {
           ? 'Xin chào'
           : 'Xin chào, $currentUserName',
       subtitle:
-          'Theo dõi nhanh chỉ số sức khỏe, xu hướng 24 giờ và cảnh báo mới nhất.',
+          'Theo dõi nhanh 3 chỉ số chính trong 1 giờ gần nhất và trạng thái ECG.',
       actions: [
         IconButton(
           onPressed: realtime.isLoadingLatest ? null : _refreshAll,
@@ -214,111 +216,156 @@ class _HomePageState extends State<HomePage> {
               devices: deviceProvider.devices,
               currentDeviceId: currentDevice.id,
               onChanged: _selectDevice,
-              onOpenDevices: () => MainShell.maybeOf(context)?.goToTab(MainTab.devices),
+              onOpenDevices: () =>
+                  MainShell.maybeOf(context)?.goToTab(MainTab.devices),
               isBusy: deviceProvider.isSyncing,
             ),
             const SizedBox(height: AppSpacing.xl),
             _OverviewBanner(status: overallStatus),
-            const SizedBox(height: AppSpacing.xl),
-            if (realtime.isLoadingLatest && realtime.latest == null)
-              const LoadingState(message: 'Đang tải dữ liệu sức khỏe mới nhất...')
-            else
-              GridView.count(
-                crossAxisCount: MediaQuery.sizeOf(context).width >= 1100 ? 4 : 2,
-                crossAxisSpacing: AppSpacing.lg,
-                mainAxisSpacing: AppSpacing.lg,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                childAspectRatio: MediaQuery.sizeOf(context).width >= 1100
-                    ? 1.24
-                    : 0.96,
-                children: [
-                  MetricCard(
-                    title: 'Nhịp tim',
-                    value: _displayMetric(Metric.hr, _metricValue(Metric.hr)),
-                    unit: 'bpm',
-                    icon: Icons.favorite_rounded,
-                    color: const Color(0xFFE11D48),
-                    caption: 'Cập nhật ${realtime.lastSeenText}',
-                    onTap: () => _openHistory(metric: Metric.hr),
-                  ),
-                  MetricCard(
-                    title: 'SpO2',
-                    value: _displayMetric(Metric.spo2, _metricValue(Metric.spo2)),
-                    unit: '%',
-                    icon: Icons.water_drop_rounded,
-                    color: AppColors.primary,
-                    caption: 'Theo dõi oxy máu',
-                    onTap: () => _openHistory(metric: Metric.spo2),
-                  ),
-                  MetricCard(
-                    title: 'Nhiệt độ',
-                    value: _displayMetric(Metric.temp, _metricValue(Metric.temp)),
-                    unit: '°C',
-                    icon: Icons.thermostat_rounded,
-                    color: AppColors.secondary,
-                    caption: 'Theo dõi thân nhiệt',
-                    onTap: () => _openHistory(metric: Metric.temp),
-                  ),
-                  MetricCard(
-                    title: 'Nhịp thở',
-                    value: _displayMetric(Metric.rr, _metricValue(Metric.rr)),
-                    unit: '/phút',
-                    icon: Icons.air_rounded,
-                    color: AppColors.warning,
-                    caption: 'Theo dõi hô hấp',
-                    onTap: () => _openHistory(metric: Metric.rr),
-                  ),
-                ],
-              ),
             const SizedBox(height: AppSpacing.section),
-            HealthChartCard(
-              title: 'Xu hướng 24 giờ gần nhất',
-              subtitle: recentPoints.isEmpty
-                  ? 'Chưa có dữ liệu đủ để hiển thị xu hướng.'
-                  : 'Biểu đồ nhịp tim trong 24 giờ gần đây.',
-              metric: Metric.hr,
-              points: recentPoints,
+            SectionHeader(
+              title: 'Biểu đồ 1 giờ gần nhất',
+              subtitle:
+                  'Ẩn nhịp thở và tập trung vào 3 chỉ số quan trọng nhất.',
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            if ((realtime.isLoadingLatest || history.status.isLoading) &&
+                history.points.isEmpty)
+              const LoadingState(
+                message: 'Đang tải dữ liệu sức khỏe 1 giờ gần nhất...',
+              )
+            else ...[
+              _MetricTrendChart(
+                title: 'Nhịp tim',
+                metric: Metric.hr,
+                points: oneHourPoints,
+                currentValue: _metricValue(Metric.hr),
+                subtitle:
+                    'Biểu đồ đường trong 1 giờ gần nhất cho nhịp tim.',
+                onOpenHistory: () => _openHistory(metric: Metric.hr),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              _MetricTrendChart(
+                title: 'SpO2',
+                metric: Metric.spo2,
+                points: oneHourPoints,
+                currentValue: _metricValue(Metric.spo2),
+                subtitle:
+                    'Biểu đồ đường trong 1 giờ gần nhất cho nồng độ oxy máu.',
+                onOpenHistory: () => _openHistory(metric: Metric.spo2),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              _MetricTrendChart(
+                title: 'Nhiệt độ',
+                metric: Metric.temp,
+                points: oneHourPoints,
+                currentValue: _metricValue(Metric.temp),
+                subtitle:
+                    'Biểu đồ đường trong 1 giờ gần nhất cho nhiệt độ cơ thể.',
+                onOpenHistory: () => _openHistory(metric: Metric.temp),
+              ),
+            ],
+            const SizedBox(height: AppSpacing.section),
+            _EcgOverviewSection(
+              ecg: ecg,
+              onOpenEcg: _openEcg,
             ),
             const SizedBox(height: AppSpacing.section),
             _RecentAlertsSection(
-              onSeeAll: () => MainShell.maybeOf(context)?.goToTab(MainTab.alerts),
+              onSeeAll: () =>
+                  MainShell.maybeOf(context)?.goToTab(MainTab.alerts),
               onAcknowledge: (alertId) =>
                   context.read<AlertsProvider>().acknowledge(alertId),
-            ),
-            const SizedBox(height: AppSpacing.section),
-            SectionHeader(
-              title: 'Thao tác nhanh',
-              subtitle: 'Mở nhanh các khu vực quan trọng nhất.',
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            Wrap(
-              spacing: AppSpacing.lg,
-              runSpacing: AppSpacing.lg,
-              children: [
-                _QuickAction(
-                  icon: Icons.query_stats_rounded,
-                  title: 'Xem lịch sử',
-                  subtitle: 'Biểu đồ theo thời gian',
-                  onTap: () => MainShell.maybeOf(context)?.goToTab(MainTab.history),
-                ),
-                _QuickAction(
-                  icon: Icons.monitor_heart_outlined,
-                  title: 'Điện tâm đồ ECG',
-                  subtitle: 'Xem bản ghi gần nhất',
-                  onTap: _openEcg,
-                ),
-                _QuickAction(
-                  icon: Icons.notifications_active_outlined,
-                  title: 'Xem cảnh báo',
-                  subtitle: 'Ưu tiên cảnh báo chưa xử lý',
-                  onTap: () => MainShell.maybeOf(context)?.goToTab(MainTab.alerts),
-                ),
-              ],
             ),
           ],
         ),
       ),
+    );
+  }
+}
+
+class _MetricTrendChart extends StatelessWidget {
+  const _MetricTrendChart({
+    required this.title,
+    required this.metric,
+    required this.points,
+    required this.currentValue,
+    required this.subtitle,
+    required this.onOpenHistory,
+  });
+
+  final String title;
+  final Metric metric;
+  final List<VitalPoint> points;
+  final double? currentValue;
+  final String subtitle;
+  final Future<void> Function() onOpenHistory;
+
+  @override
+  Widget build(BuildContext context) {
+    final valueText = _displayMetric(metric, currentValue);
+    final unitText = _metricUnit(metric);
+
+    return HealthChartCard(
+      title: title,
+      subtitle: 'Hiện tại: $valueText $unitText • $subtitle',
+      metric: metric,
+      points: points,
+      height: 160,
+      actionLabel: 'Chi tiết',
+      onAction: () => onOpenHistory(),
+      emptyMessage: 'Chưa có dữ liệu trong 1 giờ gần nhất',
+    );
+  }
+}
+
+class _EcgOverviewSection extends StatelessWidget {
+  const _EcgOverviewSection({
+    required this.ecg,
+    required this.onOpenEcg,
+  });
+
+  final EcgProvider ecg;
+  final Future<void> Function() onOpenEcg;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SectionHeader(
+          title: 'Trạng thái ECG',
+          subtitle: 'Thay cho xu hướng 24 giờ, hiển thị bản ghi ECG gần nhất.',
+          actionLabel: 'Mở ECG',
+          onAction: () => onOpenEcg(),
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        if (ecg.isLoading && ecg.latest == null)
+          const LoadingState(message: 'Đang tải trạng thái ECG...')
+        else if (ecg.latest == null || !ecg.latest!.hasWaveform)
+          AppCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const StatusBadge(
+                  label: 'Chưa có bản ghi ECG',
+                  tone: StatusTone.neutral,
+                  icon: Icons.monitor_heart_outlined,
+                ),
+                const SizedBox(height: AppSpacing.md),
+                Text(
+                  'Thiết bị hiện chưa gửi bản ghi ECG có thể hiển thị trên trang chủ.',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ],
+            ),
+          )
+        else
+          ECGWaveformCard(
+            reading: ecg.latest!,
+            title: 'Bản ghi ECG gần nhất',
+          ),
+      ],
     );
   }
 }
@@ -428,53 +475,6 @@ class _RecentAlertsSection extends StatelessWidget {
   }
 }
 
-class _QuickAction extends StatelessWidget {
-  const _QuickAction({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final FutureOr<void> Function() onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: MediaQuery.sizeOf(context).width >= 760 ? 220 : double.infinity,
-      child: InkWell(
-        onTap: () => onTap.call(),
-        borderRadius: BorderRadius.circular(24),
-        child: AppCard(
-          child: Row(
-            children: [
-              CircleAvatar(
-                radius: 24,
-                backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-                child: Icon(icon, color: Theme.of(context).colorScheme.primary),
-              ),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(title, style: Theme.of(context).textTheme.titleSmall),
-                    const SizedBox(height: 4),
-                    Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _OverviewStatus {
   const _OverviewStatus({
     required this.label,
@@ -555,6 +555,21 @@ String _displayMetric(Metric metric, double? value) {
     return value.toStringAsFixed(1);
   }
   return value.round().toString();
+}
+
+String _metricUnit(Metric metric) {
+  switch (metric) {
+    case Metric.hr:
+      return 'bpm';
+    case Metric.spo2:
+      return '%';
+    case Metric.temp:
+      return '°C';
+    case Metric.rr:
+      return '/phút';
+    case Metric.leadOff:
+      return '';
+  }
 }
 
 DateTime _todayLocal() {

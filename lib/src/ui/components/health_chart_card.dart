@@ -17,6 +17,9 @@ class HealthChartCard extends StatelessWidget {
     required this.points,
     this.subtitle,
     this.height = 220,
+    this.actionLabel,
+    this.onAction,
+    this.emptyMessage,
   });
 
   final String title;
@@ -24,6 +27,9 @@ class HealthChartCard extends StatelessWidget {
   final Metric metric;
   final List<VitalPoint> points;
   final double height;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+  final String? emptyMessage;
 
   @override
   Widget build(BuildContext context) {
@@ -38,14 +44,19 @@ class HealthChartCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SectionHeader(title: title, subtitle: subtitle),
+          SectionHeader(
+            title: title,
+            subtitle: subtitle,
+            actionLabel: actionLabel,
+            onAction: onAction,
+          ),
           const SizedBox(height: AppSpacing.xl),
           if (spots.isEmpty)
             SizedBox(
               height: height,
               child: Center(
                 child: Text(
-                  'Chưa có dữ liệu biểu đồ',
+                  emptyMessage ?? 'Chưa có dữ liệu biểu đồ',
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
               ),

@@ -186,7 +186,6 @@ void main() {
     await tester.pump();
 
     expect(find.textContaining('ECG'), findsWidgets);
-    expect(find.text('Xem cảnh báo'), findsOneWidget);
   });
 }
 

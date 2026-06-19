@@ -10,7 +10,6 @@ import 'package:eldercare_app/src/data/api/device_api_service.dart';
 import 'package:eldercare_app/src/data/api/device_thresholds_api_service.dart';
 import 'package:eldercare_app/src/data/api/push_token_api_service.dart';
 import 'package:eldercare_app/src/data/local/auth_storage.dart';
-import 'package:eldercare_app/src/features/navigation/app_root_page.dart';
 import 'package:eldercare_app/src/services/push_notification_service.dart';
 import 'package:eldercare_app/src/state/alerts_provider.dart';
 import 'package:eldercare_app/src/state/device_provider.dart';
@@ -170,7 +169,7 @@ class EldercareApp extends StatelessWidget {
             theme: AppTheme.light,
             darkTheme: AppTheme.dark,
             themeMode: ThemeMode.light,
-            home: const AppRootPage(),
+            initialRoute: AppRoutes.root,
             routes: AppRoutes.routes,
             onUnknownRoute: AppRoutes.unknownRoute,
           );
