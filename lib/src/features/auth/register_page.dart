@@ -11,7 +11,6 @@ import 'package:eldercare_app/src/ui/app_spacing.dart';
 import 'package:eldercare_app/src/ui/components/app_button.dart';
 import 'package:eldercare_app/src/ui/components/app_card.dart';
 import 'package:eldercare_app/src/ui/components/app_text_field.dart';
-import 'package:eldercare_app/src/widgets/app_logo.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -107,7 +106,7 @@ class _RegisterPageState extends State<RegisterPage> {
                     key: _formKey,
                     autovalidateMode: AutovalidateMode.onUserInteraction,
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         Row(
                           children: [
@@ -117,25 +116,13 @@ class _RegisterPageState extends State<RegisterPage> {
                                   : () => Navigator.pop(context),
                               icon: const Icon(Icons.arrow_back_rounded),
                             ),
-                            const Expanded(
-                              child: AppBrandLockup(
-                                center: false,
-                                logoSize: 48,
-                                subtitle:
-                                    'Tạo tài khoản mới trong vài bước để bắt đầu theo dõi người thân.',
-                              ),
-                            ),
                           ],
                         ),
                         const SizedBox(height: AppSpacing.xxl),
                         Text(
                           'Tạo tài khoản',
                           style: Theme.of(context).textTheme.headlineSmall,
-                        ),
-                        const SizedBox(height: AppSpacing.sm),
-                        Text(
-                          'Vui lòng cung cấp thông tin để đăng ký tài khoản Eldercare.',
-                          style: Theme.of(context).textTheme.bodyMedium,
+                          textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: AppSpacing.xxl),
                         AppTextField(

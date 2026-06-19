@@ -209,7 +209,6 @@ class _DevicePageState extends State<DevicePage> {
 
     return AppScaffold(
       title: 'Thiết bị',
-      subtitle: 'Quản lý danh sách thiết bị đã liên kết và quyền truy cập.',
       actions: [
         if (isAdmin)
           IconButton(
@@ -247,11 +246,8 @@ class _DevicePageState extends State<DevicePage> {
                 onAction: _openClaimDevice,
               )
             else ...[
-              SectionHeader(
+              const SectionHeader(
                 title: 'Thiết bị đang theo dõi',
-                subtitle: currentDevice == null
-                    ? 'Chưa chọn thiết bị hiện tại.'
-                    : 'Thiết bị chính đang dùng để theo dõi sức khỏe.',
               ),
               const SizedBox(height: AppSpacing.lg),
               if (currentDevice != null)
@@ -265,18 +261,18 @@ class _DevicePageState extends State<DevicePage> {
               const SizedBox(height: AppSpacing.section),
               Row(
                 children: [
-                  Expanded(
+                  const Expanded(
                     child: SectionHeader(
                       title: 'Danh sách thiết bị',
-                      subtitle: otherDevices.isEmpty
-                          ? 'Không còn thiết bị nào khác.'
-                          : 'Chuyển nhanh thiết bị đang theo dõi hoặc mở quản lý.',
                     ),
                   ),
-                  FilledButton.icon(
-                    onPressed: _openClaimDevice,
-                    icon: const Icon(Icons.add_link_rounded),
-                    label: const Text('Liên kết thiết bị'),
+                  Padding(
+                    padding: const EdgeInsets.only(right: AppSpacing.md),
+                    child: FilledButton.icon(
+                      onPressed: _openClaimDevice,
+                      icon: const Icon(Icons.add_link_rounded),
+                      label: const Text('Liên kết'),
+                    ),
                   ),
                 ],
               ),

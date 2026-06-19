@@ -12,7 +12,9 @@ import 'package:eldercare_app/src/ui/components/app_scaffold.dart';
 import 'package:eldercare_app/src/ui/components/device_selector.dart';
 import 'package:eldercare_app/src/ui/components/empty_state.dart';
 import 'package:eldercare_app/src/ui/components/loading_state.dart';
+import 'package:eldercare_app/src/ui/components/responsive_grid.dart';
 import 'package:eldercare_app/src/ui/components/status_badge.dart';
+import 'package:eldercare_app/src/ui/components/summary_stat_card.dart';
 
 enum _AckFilter { all, pending, acknowledged }
 enum _SeverityFilter { all, low, medium, high }
@@ -124,6 +126,14 @@ class _AlertsPageState extends State<AlertsPage> {
     final currentDevice = deviceProvider.current;
     _syncScope();
 
+    final pendingCount = alertsProvider.items
+        .where((alert) => !alert.acknowledged)
+        .length;
+    final dangerousCount = alertsProvider.items
+        .where((alert) => !alert.acknowledged && alert.isHighSeverity)
+        .length;
+    final totalCount = alertsProvider.items.length;
+
     final visibleAlerts = alertsProvider.items.where((alert) {
       if (_ackFilter == _AckFilter.pending && alert.acknowledged) return false;
       if (_ackFilter == _AckFilter.acknowledged && !alert.acknowledged) {
@@ -147,7 +157,6 @@ class _AlertsPageState extends State<AlertsPage> {
 
     return AppScaffold(
       title: 'Cảnh báo',
-      subtitle: 'Theo dõi và xử lý cảnh báo kịp thời theo từng thiết bị.',
       actions: [
         IconButton(
           onPressed: alertsProvider.isLoading ? null : _refresh,
@@ -172,6 +181,12 @@ class _AlertsPageState extends State<AlertsPage> {
                 title: 'Chưa có thiết bị theo dõi',
                 message: 'Hãy chọn thiết bị để tải danh sách cảnh báo.',
               ),
+            const SizedBox(height: AppSpacing.xl),
+            _AlertsSummaryGrid(
+              pendingCount: pendingCount,
+              dangerousCount: dangerousCount,
+              totalCount: totalCount,
+            ),
             const SizedBox(height: AppSpacing.xl),
             _FilterChips(
               ackFilter: _ackFilter,
@@ -216,6 +231,45 @@ class _AlertsPageState extends State<AlertsPage> {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _AlertsSummaryGrid extends StatelessWidget {
+  const _AlertsSummaryGrid({
+    required this.pendingCount,
+    required this.dangerousCount,
+    required this.totalCount,
+  });
+
+  final int pendingCount;
+  final int dangerousCount;
+  final int totalCount;
+
+  @override
+  Widget build(BuildContext context) {
+    return ResponsiveGrid(
+      minItemWidth: 210,
+      children: [
+        SummaryStatCard(
+          label: 'Chưa xử lý',
+          value: pendingCount.toString(),
+          icon: Icons.pending_actions_rounded,
+          tone: pendingCount > 0 ? StatusTone.warning : StatusTone.success,
+        ),
+        SummaryStatCard(
+          label: 'Nguy hiểm',
+          value: dangerousCount.toString(),
+          icon: Icons.error_outline_rounded,
+          tone: dangerousCount > 0 ? StatusTone.danger : StatusTone.success,
+        ),
+        SummaryStatCard(
+          label: 'Tổng cảnh báo',
+          value: totalCount.toString(),
+          icon: Icons.notifications_active_outlined,
+          tone: StatusTone.info,
+        ),
+      ],
     );
   }
 }

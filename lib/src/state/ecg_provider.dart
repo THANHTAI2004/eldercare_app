@@ -21,6 +21,7 @@ class EcgProvider extends ChangeNotifier {
   String deviceId = '';
 
   AsyncStatus status = AsyncStatus.idle;
+  bool isRequesting = false;
   String? message;
   String? error;
   int? lastErrorStatusCode;
@@ -203,6 +204,41 @@ class EcgProvider extends ChangeNotifier {
     }
   }
 
+  Future<bool> requestMeasurement() async {
+    if (!_isAuthenticated) {
+      error = 'PhiÃªn Ä‘Äƒng nháº­p khÃ´ng há»£p lá»‡ hoáº·c Ä‘Ã£ háº¿t háº¡n';
+      lastErrorStatusCode = 401;
+      notifyListeners();
+      return false;
+    }
+
+    if (deviceId.trim().isEmpty) {
+      error = 'ChÆ°a cÃ³ thiáº¿t bá»‹ há»£p lá»‡ Ä‘á»ƒ yÃªu cáº§u Ä‘o ECG';
+      lastErrorStatusCode = null;
+      notifyListeners();
+      return false;
+    }
+
+    isRequesting = true;
+    error = null;
+    message = null;
+    lastErrorStatusCode = null;
+    notifyListeners();
+
+    try {
+      await _api.requestEcgByDevice(deviceId: deviceId);
+      message = 'ÄÃ£ gá»­i yÃªu cáº§u Ä‘o ECG tá»›i thiáº¿t bá»‹';
+      return true;
+    } catch (e) {
+      lastErrorStatusCode = e is ApiRequestException ? e.statusCode : null;
+      error = _friendlyError(e, fallback: 'KhÃ´ng thá»ƒ gá»­i yÃªu cáº§u Ä‘o ECG');
+      return false;
+    } finally {
+      isRequesting = false;
+      notifyListeners();
+    }
+  }
+
   void clearMessage() {
     message = null;
     if (status == AsyncStatus.success || status == AsyncStatus.empty) {
@@ -213,6 +249,7 @@ class EcgProvider extends ChangeNotifier {
 
   void _resetDeviceScopedState() {
     status = AsyncStatus.idle;
+    isRequesting = false;
     message = null;
     error = null;
     lastErrorStatusCode = null;

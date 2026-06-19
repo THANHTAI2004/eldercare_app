@@ -127,7 +127,6 @@ class _AdminDeviceRegistrationPageState
 
     return AppScaffold(
       title: 'Đăng ký thiết bị mới',
-      subtitle: 'Công cụ dành cho quản trị viên để tạo hoặc cấp lại thiết bị.',
       leading: IconButton(
         onPressed: () => Navigator.pop(context),
         icon: const Icon(Icons.arrow_back_rounded),

@@ -186,7 +186,6 @@ class _ClaimDevicePageState extends State<ClaimDevicePage> {
   Widget build(BuildContext context) {
     return AppScaffold(
       title: 'Liên kết thiết bị',
-      subtitle: 'Kết nối thiết bị nhanh bằng Device ID và Pairing Code.',
       leading: IconButton(
         onPressed: _isSubmitting ? null : () => Navigator.pop(context),
         icon: const Icon(Icons.arrow_back_rounded),
@@ -199,8 +198,6 @@ class _ClaimDevicePageState extends State<ClaimDevicePage> {
                 const AppBrandLockup(
                   logoSize: 64,
                   title: 'Kết nối thiết bị của bạn',
-                  subtitle:
-                      'Nhập Device ID và Pairing Code được hiển thị trên thiết bị hoặc trong hướng dẫn sử dụng.',
                 ),
                 const SizedBox(height: AppSpacing.xxl),
                 Form(

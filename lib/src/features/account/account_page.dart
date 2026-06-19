@@ -277,7 +277,6 @@ class AccountPage extends StatelessWidget {
 
     return AppScaffold(
       title: 'Tài khoản',
-      subtitle: 'Quản lý hồ sơ, bảo mật và thông báo cho phiên hiện tại.',
       child: ListView(
         children: [
           AppCard(
@@ -342,11 +341,6 @@ class AccountPage extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('Thông báo', style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: AppSpacing.sm),
-                Text(
-                  'Quản lý trạng thái nhận push notification trong phiên hiện tại.',
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
                 const SizedBox(height: AppSpacing.lg),
                 SwitchListTile.adaptive(
                   value: push?.notificationsEnabled ?? false,
@@ -354,11 +348,6 @@ class AccountPage extends StatelessWidget {
                       ? null
                       : (value) => push.setNotificationsEnabled(value),
                   title: const Text('Nhận thông báo'),
-                  subtitle: Text(
-                    push == null
-                        ? 'Thiết bị hiện tại chưa hỗ trợ push notification.'
-                        : 'Bật/tắt đồng bộ push token mà không thay đổi API hiện có.',
-                  ),
                   contentPadding: EdgeInsets.zero,
                 ),
               ],

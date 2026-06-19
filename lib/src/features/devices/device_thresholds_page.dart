@@ -122,7 +122,6 @@ class _DeviceThresholdsPageState extends State<DeviceThresholdsPage> {
 
     return AppScaffold(
       title: 'Ngưỡng cảnh báo',
-      subtitle: 'Cập nhật ngưỡng SpO2, nhiệt độ và nhịp tim cho thiết bị hiện tại.',
       leading: IconButton(
         onPressed: () => Navigator.pop(context),
         icon: const Icon(Icons.arrow_back_rounded),

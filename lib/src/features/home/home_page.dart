@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'package:eldercare_app/src/domain/models/alert_item.dart';
+import 'package:eldercare_app/src/domain/models/device.dart';
 import 'package:eldercare_app/src/domain/models/metric.dart';
 import 'package:eldercare_app/src/domain/models/vital_point.dart';
 import 'package:eldercare_app/src/features/ecg/ecg_page.dart';
@@ -25,6 +27,8 @@ import 'package:eldercare_app/src/ui/components/ecg_waveform_card.dart';
 import 'package:eldercare_app/src/ui/components/empty_state.dart';
 import 'package:eldercare_app/src/ui/components/health_chart_card.dart';
 import 'package:eldercare_app/src/ui/components/loading_state.dart';
+import 'package:eldercare_app/src/ui/components/metric_value_card.dart';
+import 'package:eldercare_app/src/ui/components/responsive_grid.dart';
 import 'package:eldercare_app/src/ui/components/section_header.dart';
 import 'package:eldercare_app/src/ui/components/status_badge.dart';
 
@@ -161,7 +165,6 @@ class _HomePageState extends State<HomePage> {
     if (currentDevice == null) {
       return AppScaffold(
         title: 'Trang chủ',
-        subtitle: 'Theo dõi nhanh tình trạng người thân theo thời gian thực.',
         actions: [
           IconButton(
             onPressed: deviceProvider.isSyncing ? null : _refreshAll,
@@ -188,9 +191,13 @@ class _HomePageState extends State<HomePage> {
       hr: _metricValue(Metric.hr),
       spo2: _metricValue(Metric.spo2),
       temp: _metricValue(Metric.temp),
-      rr: _metricValue(Metric.rr),
       hasCriticalAlert: alerts.items.any(
         (item) => !item.acknowledged && item.isHighSeverity,
+      ),
+      hasFallAlert: alerts.items.any(
+        (item) =>
+            !item.acknowledged &&
+            item.alertType?.toLowerCase() == 'fall_detected',
       ),
       leadOff: realtime.latest?.leadOff == 1,
     );
@@ -199,8 +206,6 @@ class _HomePageState extends State<HomePage> {
       title: currentUserName.isEmpty
           ? 'Xin chào'
           : 'Xin chào, $currentUserName',
-      subtitle:
-          'Theo dõi nhanh 3 chỉ số chính trong 1 giờ gần nhất và trạng thái ECG.',
       actions: [
         IconButton(
           onPressed: realtime.isLoadingLatest ? null : _refreshAll,
@@ -212,64 +217,73 @@ class _HomePageState extends State<HomePage> {
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
           children: [
-            DeviceSelector(
+            _DeviceStatusHeader(
+              device: currentDevice,
               devices: deviceProvider.devices,
-              currentDeviceId: currentDevice.id,
+              isOnline: realtime.hasDevice ? realtime.isOnline : null,
+              isBusy: deviceProvider.isSyncing,
               onChanged: _selectDevice,
               onOpenDevices: () =>
                   MainShell.maybeOf(context)?.goToTab(MainTab.devices),
-              isBusy: deviceProvider.isSyncing,
             ),
             const SizedBox(height: AppSpacing.xl),
-            _OverviewBanner(status: overallStatus),
-            const SizedBox(height: AppSpacing.section),
-            SectionHeader(
-              title: 'Biểu đồ 1 giờ gần nhất',
-              subtitle:
-                  'Ẩn nhịp thở và tập trung vào 3 chỉ số quan trọng nhất.',
+            _OverviewBanner(
+              status: overallStatus,
+              onOpenAlerts: () =>
+                  MainShell.maybeOf(context)?.goToTab(MainTab.alerts),
             ),
+            const SizedBox(height: AppSpacing.section),
+            const SectionHeader(title: 'Chỉ số hiện tại'),
+            const SizedBox(height: AppSpacing.lg),
+            _CurrentVitalsGrid(
+              hr: _metricValue(Metric.hr),
+              spo2: _metricValue(Metric.spo2),
+              temp: _metricValue(Metric.temp),
+              leadOff: realtime.latest?.leadOff == 1,
+              fallAlerts: alerts.items
+                  .where((a) => a.alertType?.toLowerCase() == 'fall_detected')
+                  .toList(growable: false),
+              onOpenHistory: _openHistory,
+              onOpenAlerts: () =>
+                  MainShell.maybeOf(context)?.goToTab(MainTab.alerts),
+            ),
+            const SizedBox(height: AppSpacing.section),
+            const SectionHeader(title: 'Biểu đồ 1 giờ gần nhất'),
             const SizedBox(height: AppSpacing.lg),
             if ((realtime.isLoadingLatest || history.status.isLoading) &&
                 history.points.isEmpty)
               const LoadingState(
                 message: 'Đang tải dữ liệu sức khỏe 1 giờ gần nhất...',
               )
-            else ...[
-              _MetricTrendChart(
-                title: 'Nhịp tim',
-                metric: Metric.hr,
-                points: oneHourPoints,
-                currentValue: _metricValue(Metric.hr),
-                subtitle:
-                    'Biểu đồ đường trong 1 giờ gần nhất cho nhịp tim.',
-                onOpenHistory: () => _openHistory(metric: Metric.hr),
+            else
+              ResponsiveGrid(
+                minItemWidth: 420,
+                children: [
+                  _MetricTrendChart(
+                    title: 'Nhịp tim',
+                    metric: Metric.hr,
+                    points: oneHourPoints,
+                    currentValue: _metricValue(Metric.hr),
+                    onOpenHistory: () => _openHistory(metric: Metric.hr),
+                  ),
+                  _MetricTrendChart(
+                    title: 'SpO2',
+                    metric: Metric.spo2,
+                    points: oneHourPoints,
+                    currentValue: _metricValue(Metric.spo2),
+                    onOpenHistory: () => _openHistory(metric: Metric.spo2),
+                  ),
+                  _MetricTrendChart(
+                    title: 'Nhiệt độ',
+                    metric: Metric.temp,
+                    points: oneHourPoints,
+                    currentValue: _metricValue(Metric.temp),
+                    onOpenHistory: () => _openHistory(metric: Metric.temp),
+                  ),
+                ],
               ),
-              const SizedBox(height: AppSpacing.lg),
-              _MetricTrendChart(
-                title: 'SpO2',
-                metric: Metric.spo2,
-                points: oneHourPoints,
-                currentValue: _metricValue(Metric.spo2),
-                subtitle:
-                    'Biểu đồ đường trong 1 giờ gần nhất cho nồng độ oxy máu.',
-                onOpenHistory: () => _openHistory(metric: Metric.spo2),
-              ),
-              const SizedBox(height: AppSpacing.lg),
-              _MetricTrendChart(
-                title: 'Nhiệt độ',
-                metric: Metric.temp,
-                points: oneHourPoints,
-                currentValue: _metricValue(Metric.temp),
-                subtitle:
-                    'Biểu đồ đường trong 1 giờ gần nhất cho nhiệt độ cơ thể.',
-                onOpenHistory: () => _openHistory(metric: Metric.temp),
-              ),
-            ],
             const SizedBox(height: AppSpacing.section),
-            _EcgOverviewSection(
-              ecg: ecg,
-              onOpenEcg: _openEcg,
-            ),
+            _EcgOverviewSection(ecg: ecg, onOpenEcg: _openEcg),
             const SizedBox(height: AppSpacing.section),
             _RecentAlertsSection(
               onSeeAll: () =>
@@ -284,13 +298,214 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
+// ---------------------------------------------------------------------------
+// _DeviceStatusHeader
+// ---------------------------------------------------------------------------
+
+class _DeviceStatusHeader extends StatelessWidget {
+  const _DeviceStatusHeader({
+    required this.device,
+    required this.devices,
+    required this.isOnline,
+    required this.isBusy,
+    required this.onChanged,
+    required this.onOpenDevices,
+  });
+
+  final Device device;
+  final List<Device> devices;
+  final bool? isOnline;
+  final bool isBusy;
+  final ValueChanged<String?> onChanged;
+  final VoidCallback onOpenDevices;
+
+  @override
+  Widget build(BuildContext context) {
+    return DeviceSelector(
+      devices: devices,
+      currentDeviceId: device.id,
+      onChanged: onChanged,
+      onOpenDevices: onOpenDevices,
+      isBusy: isBusy,
+      isOnline: isOnline,
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// _CurrentVitalsGrid
+// ---------------------------------------------------------------------------
+
+class _CurrentVitalsGrid extends StatelessWidget {
+  const _CurrentVitalsGrid({
+    required this.hr,
+    required this.spo2,
+    required this.temp,
+    required this.leadOff,
+    required this.fallAlerts,
+    required this.onOpenHistory,
+    required this.onOpenAlerts,
+  });
+
+  final double? hr;
+  final double? spo2;
+  final double? temp;
+  final bool leadOff;
+  final List<AlertItem> fallAlerts;
+  final Future<void> Function({Metric? metric}) onOpenHistory;
+  final VoidCallback onOpenAlerts;
+
+  @override
+  Widget build(BuildContext context) {
+    return ResponsiveGrid(
+      minItemWidth: 170,
+      children: [
+        MetricValueCard(
+          title: 'Nhịp tim',
+          value: _displayMetric(Metric.hr, hr),
+          unit: _metricUnit(Metric.hr),
+          icon: Icons.favorite_rounded,
+          tone: _metricTone(Metric.hr, hr),
+          subtitle: leadOff ? 'Kiểm tra tiếp xúc cảm biến' : null,
+          onTap: () => onOpenHistory(metric: Metric.hr),
+        ),
+        MetricValueCard(
+          title: 'SpO2',
+          value: _displayMetric(Metric.spo2, spo2),
+          unit: _metricUnit(Metric.spo2),
+          icon: Icons.bloodtype_outlined,
+          tone: _metricTone(Metric.spo2, spo2),
+          onTap: () => onOpenHistory(metric: Metric.spo2),
+        ),
+        MetricValueCard(
+          title: 'Nhiệt độ',
+          value: _displayMetric(Metric.temp, temp),
+          unit: _metricUnit(Metric.temp),
+          icon: Icons.thermostat_rounded,
+          tone: _metricTone(Metric.temp, temp),
+          onTap: () => onOpenHistory(metric: Metric.temp),
+        ),
+        _FallAlertCard(fallAlerts: fallAlerts, onTap: onOpenAlerts),
+      ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// _FallAlertCard
+// ---------------------------------------------------------------------------
+
+class _FallAlertCard extends StatelessWidget {
+  const _FallAlertCard({required this.fallAlerts, required this.onTap});
+
+  final List<AlertItem> fallAlerts;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasAlerts = fallAlerts.isNotEmpty;
+    final unacked = fallAlerts.where((a) => !a.acknowledged).length;
+    final tone = hasAlerts && unacked > 0
+        ? StatusTone.danger
+        : StatusTone.success;
+    final color = _toneColorForFall(tone);
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: AppCard(
+        backgroundColor: hasAlerts && unacked > 0
+            ? AppColors.danger.withValues(alpha: 0.06)
+            : null,
+        borderColor: hasAlerts && unacked > 0
+            ? AppColors.danger.withValues(alpha: 0.25)
+            : null,
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    hasAlerts && unacked > 0
+                        ? Icons.warning_amber_rounded
+                        : Icons.accessibility_new_rounded,
+                    color: color,
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Text(
+                    'Cảnh báo ngã',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            FittedBox(
+              alignment: Alignment.centerLeft,
+              fit: BoxFit.scaleDown,
+              child: RichText(
+                text: TextSpan(
+                  children: [
+                    TextSpan(
+                      text: hasAlerts && unacked > 0
+                          ? '$unacked'
+                          : 'Bình thường',
+                      style: Theme.of(context).textTheme.headlineMedium
+                          ?.copyWith(color: color, fontWeight: FontWeight.w800),
+                    ),
+                    if (hasAlerts && unacked > 0)
+                      TextSpan(
+                        text: ' chưa xử lý',
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
+                              color: color.withValues(alpha: 0.8),
+                              fontWeight: FontWeight.w700,
+                            ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+Color _toneColorForFall(StatusTone tone) {
+  switch (tone) {
+    case StatusTone.danger:
+      return AppColors.danger;
+    case StatusTone.success:
+      return AppColors.success;
+    default:
+      return AppColors.textSecondary;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// _MetricTrendChart
+// ---------------------------------------------------------------------------
+
 class _MetricTrendChart extends StatelessWidget {
   const _MetricTrendChart({
     required this.title,
     required this.metric,
     required this.points,
     required this.currentValue,
-    required this.subtitle,
     required this.onOpenHistory,
   });
 
@@ -298,7 +513,6 @@ class _MetricTrendChart extends StatelessWidget {
   final Metric metric;
   final List<VitalPoint> points;
   final double? currentValue;
-  final String subtitle;
   final Future<void> Function() onOpenHistory;
 
   @override
@@ -308,7 +522,7 @@ class _MetricTrendChart extends StatelessWidget {
 
     return HealthChartCard(
       title: title,
-      subtitle: 'Hiện tại: $valueText $unitText • $subtitle',
+      subtitle: 'Hiện tại: $valueText $unitText',
       metric: metric,
       points: points,
       height: 160,
@@ -319,11 +533,12 @@ class _MetricTrendChart extends StatelessWidget {
   }
 }
 
+// ---------------------------------------------------------------------------
+// _EcgOverviewSection
+// ---------------------------------------------------------------------------
+
 class _EcgOverviewSection extends StatelessWidget {
-  const _EcgOverviewSection({
-    required this.ecg,
-    required this.onOpenEcg,
-  });
+  const _EcgOverviewSection({required this.ecg, required this.onOpenEcg});
 
   final EcgProvider ecg;
   final Future<void> Function() onOpenEcg;
@@ -335,7 +550,6 @@ class _EcgOverviewSection extends StatelessWidget {
       children: [
         SectionHeader(
           title: 'Trạng thái ECG',
-          subtitle: 'Thay cho xu hướng 24 giờ, hiển thị bản ghi ECG gần nhất.',
           actionLabel: 'Mở ECG',
           onAction: () => onOpenEcg(),
         ),
@@ -361,58 +575,65 @@ class _EcgOverviewSection extends StatelessWidget {
             ),
           )
         else
-          ECGWaveformCard(
-            reading: ecg.latest!,
-            title: 'Bản ghi ECG gần nhất',
-          ),
+          ECGWaveformCard(reading: ecg.latest!, title: 'Bản ghi ECG gần nhất'),
       ],
     );
   }
 }
 
+// ---------------------------------------------------------------------------
+// _OverviewBanner
+// ---------------------------------------------------------------------------
+
 class _OverviewBanner extends StatelessWidget {
-  const _OverviewBanner({required this.status});
+  const _OverviewBanner({required this.status, required this.onOpenAlerts});
 
   final _OverviewStatus status;
+  final VoidCallback onOpenAlerts;
 
   @override
   Widget build(BuildContext context) {
     return AppCard(
       backgroundColor: status.background,
       borderColor: status.border,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
         children: [
           CircleAvatar(
-            radius: 22,
+            radius: 20,
             backgroundColor: status.iconBackground,
-            child: Icon(status.icon, color: status.iconColor),
+            child: Icon(status.icon, color: status.iconColor, size: 20),
           ),
-          const SizedBox(width: AppSpacing.lg),
+          const SizedBox(width: AppSpacing.md),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Tình trạng tổng quan: ${status.label}',
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    color: status.textColor,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  status.message,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: status.textColor.withValues(alpha: 0.9),
-                  ),
-                ),
-              ],
+            child: Text(
+              status.label,
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                color: status.textColor,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
+          if (status.isDanger) ...[
+            const SizedBox(width: AppSpacing.sm),
+            TextButton(
+              onPressed: onOpenAlerts,
+              style: TextButton.styleFrom(
+                foregroundColor: status.textColor,
+                backgroundColor: status.iconBackground,
+              ),
+              child: const Text('Chi tiết'),
+            ),
+          ],
         ],
       ),
     );
   }
 }
+
+// ---------------------------------------------------------------------------
+// _RecentAlertsSection
+// ---------------------------------------------------------------------------
 
 class _RecentAlertsSection extends StatelessWidget {
   const _RecentAlertsSection({
@@ -425,7 +646,14 @@ class _RecentAlertsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final alerts = context.watch<AlertsProvider>().items.take(2).toList();
+    final allAlerts = context.watch<AlertsProvider>().items;
+    final pendingAlerts = allAlerts
+        .where((alert) => !alert.acknowledged)
+        .take(2)
+        .toList(growable: false);
+    final alerts = pendingAlerts.isNotEmpty
+        ? pendingAlerts
+        : allAlerts.take(2).toList(growable: false);
     final device = context.watch<DeviceProvider>().current;
     if (alerts.isEmpty) {
       return AppCard(
@@ -434,7 +662,6 @@ class _RecentAlertsSection extends StatelessWidget {
           children: [
             SectionHeader(
               title: 'Cảnh báo gần đây',
-              subtitle: 'Hiện chưa có cảnh báo mới cho thiết bị này.',
               actionLabel: 'Xem tất cả',
               onAction: onSeeAll,
             ),
@@ -453,7 +680,6 @@ class _RecentAlertsSection extends StatelessWidget {
       children: [
         SectionHeader(
           title: 'Cảnh báo gần đây',
-          subtitle: 'Ưu tiên cảnh báo mới và chưa xử lý.',
           actionLabel: 'Xem tất cả',
           onAction: onSeeAll,
         ),
@@ -475,59 +701,64 @@ class _RecentAlertsSection extends StatelessWidget {
   }
 }
 
+// ---------------------------------------------------------------------------
+// _OverviewStatus
+// ---------------------------------------------------------------------------
+
 class _OverviewStatus {
   const _OverviewStatus({
     required this.label,
-    required this.message,
     required this.icon,
     required this.background,
     required this.border,
     required this.iconBackground,
     required this.iconColor,
     required this.textColor,
+    this.isDanger = false,
   });
 
   final String label;
-  final String message;
   final IconData icon;
   final Color background;
   final Color border;
   final Color iconBackground;
   final Color iconColor;
   final Color textColor;
+  final bool isDanger;
 }
 
 _OverviewStatus _overallStatus({
   required double? hr,
   required double? spo2,
   required double? temp,
-  required double? rr,
   required bool hasCriticalAlert,
+  required bool hasFallAlert,
   required bool leadOff,
 }) {
-  if (hasCriticalAlert || leadOff || (spo2 != null && spo2 < 90)) {
+  if (hasCriticalAlert ||
+      hasFallAlert ||
+      leadOff ||
+      (spo2 != null && spo2 < 90)) {
     return const _OverviewStatus(
-      label: 'Nguy hiểm',
-      message: 'Cần kiểm tra ngay cảnh báo và tình trạng tiếp xúc thiết bị.',
+      label: 'Có cảnh báo nguy hiểm cần kiểm tra',
       icon: Icons.error_outline_rounded,
       background: Color(0xFFFFF1F2),
       border: Color(0xFFFECDD3),
       iconBackground: Color(0xFFFEE2E2),
       iconColor: AppColors.danger,
       textColor: Color(0xFF991B1B),
+      isDanger: true,
     );
   }
 
   final warning =
       (hr != null && (hr < 50 || hr > 110)) ||
       (spo2 != null && spo2 < 94) ||
-      (temp != null && temp >= 37.8) ||
-      (rr != null && (rr < 12 || rr > 24));
+      (temp != null && (temp >= 37.8 || temp < 36));
 
   if (warning) {
     return const _OverviewStatus(
-      label: 'Cần chú ý',
-      message: 'Một số chỉ số đang chạm ngưỡng cần theo dõi sát hơn.',
+      label: 'Một số chỉ số cần chú ý',
       icon: Icons.warning_amber_rounded,
       background: Color(0xFFFFFBEB),
       border: Color(0xFFFDE68A),
@@ -538,8 +769,7 @@ _OverviewStatus _overallStatus({
   }
 
   return const _OverviewStatus(
-    label: 'Ổn định',
-    message: 'Các chỉ số chính đang nằm trong ngưỡng theo dõi an toàn.',
+    label: 'Tình trạng tổng quan ổn định',
     icon: Icons.check_circle_outline_rounded,
     background: Color(0xFFF0FDF4),
     border: Color(0xFFBBF7D0),
@@ -548,6 +778,10 @@ _OverviewStatus _overallStatus({
     textColor: Color(0xFF166534),
   );
 }
+
+// ---------------------------------------------------------------------------
+// helpers
+// ---------------------------------------------------------------------------
 
 String _displayMetric(Metric metric, double? value) {
   if (value == null || !value.isFinite) return '--';
@@ -569,6 +803,31 @@ String _metricUnit(Metric metric) {
       return '/phút';
     case Metric.leadOff:
       return '';
+  }
+}
+
+StatusTone _metricTone(Metric metric, double? value) {
+  if (value == null || !value.isFinite) return StatusTone.neutral;
+
+  switch (metric) {
+    case Metric.hr:
+      if (value < 45 || value > 130) return StatusTone.danger;
+      if (value < 50 || value > 110) return StatusTone.warning;
+      return StatusTone.success;
+    case Metric.spo2:
+      if (value < 90) return StatusTone.danger;
+      if (value < 94) return StatusTone.warning;
+      return StatusTone.success;
+    case Metric.temp:
+      if (value >= 39 || value < 35) return StatusTone.danger;
+      if (value >= 37.8 || value < 36) return StatusTone.warning;
+      return StatusTone.success;
+    case Metric.rr:
+      if (value < 10 || value > 30) return StatusTone.danger;
+      if (value < 12 || value > 24) return StatusTone.warning;
+      return StatusTone.success;
+    case Metric.leadOff:
+      return value == 1 ? StatusTone.danger : StatusTone.success;
   }
 }
 

@@ -14,6 +14,7 @@ class DeviceSelector extends StatelessWidget {
     required this.onChanged,
     this.onOpenDevices,
     this.isBusy = false,
+    this.isOnline,
   });
 
   final List<Device> devices;
@@ -21,6 +22,7 @@ class DeviceSelector extends StatelessWidget {
   final ValueChanged<String?> onChanged;
   final VoidCallback? onOpenDevices;
   final bool isBusy;
+  final bool? isOnline;
 
   @override
   Widget build(BuildContext context) {
@@ -78,6 +80,20 @@ class DeviceSelector extends StatelessWidget {
             spacing: 8,
             runSpacing: 8,
             children: [
+              if (current != null)
+                StatusBadge(
+                  label: isOnline == null
+                      ? 'Chưa có trạng thái'
+                      : (isOnline! ? 'Online' : 'Offline'),
+                  tone: isOnline == null
+                      ? StatusTone.neutral
+                      : (isOnline! ? StatusTone.success : StatusTone.warning),
+                  icon: isOnline == null
+                      ? Icons.watch_outlined
+                      : (isOnline!
+                          ? Icons.wifi_tethering_rounded
+                          : Icons.wifi_off_rounded),
+                ),
               StatusBadge(
                 label: current == null
                     ? 'Chưa chọn thiết bị'

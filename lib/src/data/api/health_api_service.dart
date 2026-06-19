@@ -73,6 +73,10 @@ class HealthApiService {
         .toList(growable: false);
   }
 
+  Future<void> requestEcgByDevice({required String deviceId}) async {
+    await _client.postJson('/api/v1/devices/$deviceId/ecg/request');
+  }
+
   List<Map<String, dynamic>> _readItems(Map<String, dynamic> json) {
     final items = json['items'];
     if (items is! List) {

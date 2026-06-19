@@ -61,18 +61,39 @@ class _ECGPageState extends State<ECGPage> {
     await ecg.loadHistoryForDay(_todayLocal());
   }
 
+  Future<void> _requestEcg() async {
+    final ecg = context.read<EcgProvider>();
+    final ok = await ecg.requestMeasurement();
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          ok
+              ? 'Đã gửi yêu cầu đo ECG tới thiết bị.'
+              : (ecg.error ?? 'Không thể gửi yêu cầu đo ECG.'),
+        ),
+      ),
+    );
+
+    if (ok) {
+      await ecg.refreshLatest(silent: true);
+      await ecg.loadHistoryForDay(_todayLocal());
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final deviceProvider = context.watch<DeviceProvider>();
     final ecg = context.watch<EcgProvider>();
     final currentDevice = deviceProvider.current;
     final recentReadings = ecg.historyReadings.reversed.take(6).toList();
+    final canRequestEcg = currentDevice?.isOwnerLink == true;
 
     _syncScope();
 
     return AppScaffold(
-      title: 'Điện tâm đồ ECG',
-      subtitle: 'Xem bản ghi gần nhất và lịch sử ECG trong ngày.',
+      title: 'Điện tâm đồ (ECG)',
       leading: Navigator.of(context).canPop()
           ? IconButton(
               onPressed: () => Navigator.pop(context),
@@ -118,9 +139,8 @@ class _ECGPageState extends State<ECGPage> {
               const SizedBox(height: AppSpacing.section),
               ECGWaveformCard(reading: ecg.latest!),
               const SizedBox(height: AppSpacing.section),
-              SectionHeader(
-                title: 'Lần đo gần đây',
-                subtitle: 'Danh sách các bản ghi ECG gần nhất trong ngày.',
+              const SectionHeader(
+                title: 'Lịch sử ECG hôm nay',
               ),
               const SizedBox(height: AppSpacing.lg),
               if (recentReadings.isEmpty)
@@ -142,7 +162,10 @@ class _ECGPageState extends State<ECGPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Yêu cầu đo ECG', style: Theme.of(context).textTheme.titleMedium),
+                  Text(
+                    'Yêu cầu đo ECG',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
                   const SizedBox(height: AppSpacing.sm),
                   Text(
                     _requestReason(currentDevice),
@@ -153,7 +176,10 @@ class _ECGPageState extends State<ECGPage> {
                     width: double.infinity,
                     child: PrimaryButton(
                       label: 'Yêu cầu đo ECG',
-                      onPressed: null,
+                      onPressed: canRequestEcg && !ecg.isRequesting
+                          ? _requestEcg
+                          : null,
+                      isLoading: ecg.isRequesting,
                       icon: const Icon(Icons.send_outlined),
                     ),
                   ),
@@ -188,7 +214,10 @@ class _LatestSummaryCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Lần đo gần nhất', style: Theme.of(context).textTheme.titleMedium),
+          Text(
+            'Lần đo gần nhất',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
           const SizedBox(height: AppSpacing.md),
           Wrap(
             spacing: 12,

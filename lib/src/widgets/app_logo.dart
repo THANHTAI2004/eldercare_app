@@ -95,13 +95,11 @@ class AppBrandLockup extends StatelessWidget {
     super.key,
     this.logoSize = 72,
     this.title = 'Eldercare',
-    this.subtitle = 'Theo dõi sức khỏe người thân một cách rõ ràng và an tâm.',
     this.center = true,
   });
 
   final double logoSize;
   final String title;
-  final String subtitle;
   final bool center;
 
   @override
@@ -109,10 +107,6 @@ class AppBrandLockup extends StatelessWidget {
     final titleStyle = Theme.of(context).textTheme.headlineSmall?.copyWith(
       fontWeight: FontWeight.w800,
       letterSpacing: -0.5,
-    );
-    final subtitleStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
-      color: Theme.of(context).colorScheme.onSurfaceVariant,
-      height: 1.45,
     );
 
     return Column(
@@ -122,15 +116,6 @@ class AppBrandLockup extends StatelessWidget {
         AppLogo(size: logoSize),
         const SizedBox(height: 14),
         Text(title, style: titleStyle, textAlign: center ? TextAlign.center : null),
-        const SizedBox(height: 6),
-        ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: logoSize * 3.8),
-          child: Text(
-            subtitle,
-            style: subtitleStyle,
-            textAlign: center ? TextAlign.center : null,
-          ),
-        ),
       ],
     );
   }

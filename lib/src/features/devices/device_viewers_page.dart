@@ -175,7 +175,6 @@ class _DeviceViewersPageState extends State<DeviceViewersPage> {
 
     return AppScaffold(
       title: 'Quản lý người xem',
-      subtitle: 'Chia sẻ quyền theo dõi cho người thân bằng User ID hiện có.',
       leading: IconButton(
         onPressed: () => Navigator.pop(context),
         icon: const Icon(Icons.arrow_back_rounded),

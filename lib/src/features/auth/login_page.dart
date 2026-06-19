@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:eldercare_app/src/app/routes.dart';
-import 'package:eldercare_app/src/config/env.dart';
 import 'package:eldercare_app/src/core/app_strings.dart';
 import 'package:eldercare_app/src/core/validators.dart';
 import 'package:eldercare_app/src/state/session_provider.dart';
@@ -33,8 +32,6 @@ class _LoginPageState extends State<LoginPage> {
   @override
   void initState() {
     super.initState();
-    _phoneCtrl.text = Env.debugLoginPhoneNumber;
-    _passwordCtrl.text = Env.debugLoginPassword;
   }
 
   @override
@@ -182,11 +179,6 @@ class _LoginHeroPanel extends StatelessWidget {
           'Chăm sóc người thân rõ ràng hơn,\ndễ dùng hơn mỗi ngày.',
           style: Theme.of(context).textTheme.headlineMedium,
         ),
-        const SizedBox(height: AppSpacing.lg),
-        Text(
-          'Theo dõi thiết bị, chỉ số sức khỏe, cảnh báo và chia sẻ quyền xem trong một giao diện mới, tối giản và dễ đọc.',
-          style: Theme.of(context).textTheme.bodyLarge,
-        ),
         const SizedBox(height: AppSpacing.section),
         Wrap(
           spacing: 12,
@@ -273,23 +265,12 @@ class _LoginFormCard extends StatelessWidget {
             autovalidateMode: AutovalidateMode.onUserInteraction,
             child: AutofillGroup(
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const AppBrandLockup(
-                    center: false,
-                    logoSize: 56,
-                    subtitle:
-                        'Đăng nhập nhanh, rõ ràng, dễ sử dụng cho người chăm sóc và người lớn tuổi.',
-                  ),
-                  const SizedBox(height: AppSpacing.xxl),
                   Text(
                     'Chào mừng trở lại',
                     style: Theme.of(context).textTheme.headlineSmall,
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  Text(
-                    'Đăng nhập để theo dõi và chăm sóc người thân của bạn.',
-                    style: Theme.of(context).textTheme.bodyMedium,
+                    textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: AppSpacing.xxl),
                   AppTextField(
@@ -369,6 +350,7 @@ class _LoginFormCard extends StatelessWidget {
                   const SizedBox(height: AppSpacing.md),
                   Center(
                     child: Wrap(
+                      crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
                         Text(
                           'Chưa có tài khoản? ',

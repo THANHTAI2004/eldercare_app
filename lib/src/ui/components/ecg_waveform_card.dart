@@ -91,14 +91,6 @@ class ECGWaveformCard extends StatelessWidget {
             runSpacing: 12,
             children: [
               _MetaPill(
-                label: 'Sampling rate',
-                value: '${reading.samplingRate ?? '--'} Hz',
-              ),
-              _MetaPill(
-                label: 'ECG HR',
-                value: '${reading.ecgHr ?? '--'} bpm',
-              ),
-              _MetaPill(
                 label: 'Mẫu sóng',
                 value: '${reading.waveform.length}',
               ),
