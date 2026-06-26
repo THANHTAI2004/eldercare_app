@@ -591,30 +591,37 @@ class _EcgTabContentState extends State<_EcgTabContent>
             _EcgSummaryStats(readings: widget.readings),
             const SizedBox(height: AppSpacing.lg),
 
-            // ── Latest waveform ──
-            if (widget.readings.last.hasWaveform) ...[
-              ECGWaveformCard(
-                reading: widget.readings.last,
-                title: 'ECG mới nhất',
-              ),
-              const SizedBox(height: AppSpacing.lg),
-            ],
-
-            // ── Full list ──
-            if (widget.readings.length > 1) ...[
-              SectionHeader(
-                title: 'Tất cả bản ghi ECG',
-                subtitle:
-                    '${widget.readings.length} bản ghi • ${widget.rangeLabel}',
-              ),
-              const SizedBox(height: AppSpacing.md),
-              ...widget.readings.reversed.map(
-                (r) => Padding(
-                  padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                  child: _EcgListItem(reading: r),
-                ),
-              ),
-            ],
+            // ── Continuous Waveforms ──
+            Builder(
+              builder: (context) {
+                // Ensure readings are sorted chronologically
+                final sorted = List<EcgReading>.from(widget.readings)
+                  ..sort((a, b) => a.recordedAt.compareTo(b.recordedAt));
+                  
+                final morningReadings = sorted.where((r) => r.recordedAt.toLocal().hour < 12).toList();
+                final afternoonReadings = sorted.where((r) => r.recordedAt.toLocal().hour >= 12).toList();
+                
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (morningReadings.isNotEmpty) ...[
+                      ContinuousEcgCard(
+                        title: 'Sáng (00:00 - 12:00)',
+                        readings: morningReadings,
+                      ),
+                      const SizedBox(height: AppSpacing.lg),
+                    ],
+                    if (afternoonReadings.isNotEmpty) ...[
+                      ContinuousEcgCard(
+                        title: 'Chiều (12:00 - 24:00)',
+                        readings: afternoonReadings,
+                      ),
+                      const SizedBox(height: AppSpacing.lg),
+                    ],
+                  ],
+                );
+              },
+            ),
           ],
           const SizedBox(height: AppSpacing.section),
         ],
@@ -653,36 +660,24 @@ class _DateRangeFilterCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final wide = constraints.maxWidth >= 480;
-              final fromPicker = _DatePickerField(
-                label: 'Từ ngày',
-                value: fmt.format(fromDate),
-                onTap: onPickFrom,
-              );
-              final toPicker = _DatePickerField(
-                label: 'Đến ngày',
-                value: fmt.format(toDate),
-                onTap: onPickTo,
-              );
-              if (wide) {
-                return Row(
-                  children: [
-                    Expanded(child: fromPicker),
-                    const SizedBox(width: AppSpacing.lg),
-                    Expanded(child: toPicker),
-                  ],
-                );
-              }
-              return Column(
-                children: [
-                  fromPicker,
-                  const SizedBox(height: AppSpacing.md),
-                  toPicker,
-                ],
-              );
-            },
+          Row(
+            children: [
+              Expanded(
+                child: _DatePickerField(
+                  label: 'Từ ngày',
+                  value: fmt.format(fromDate),
+                  onTap: onPickFrom,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: _DatePickerField(
+                  label: 'Đến ngày',
+                  value: fmt.format(toDate),
+                  onTap: onPickTo,
+                ),
+              ),
+            ],
           ),
           if (errorText != null && errorText!.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.md),
@@ -701,11 +696,14 @@ class _DateRangeFilterCard extends StatelessWidget {
               ],
             ),
           ],
-          const SizedBox(height: AppSpacing.lg),
+          const SizedBox(height: AppSpacing.md),
           SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
               onPressed: onApply,
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
               icon: const Icon(Icons.search_rounded, size: 18),
               label: const Text('Áp dụng bộ lọc'),
             ),
@@ -734,10 +732,7 @@ class _DatePickerField extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(10),
       child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.md,
-          vertical: AppSpacing.md,
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: BoxDecoration(
           border: Border.all(color: scheme.outline.withValues(alpha: 0.6)),
           borderRadius: BorderRadius.circular(10),
@@ -747,31 +742,30 @@ class _DatePickerField extends StatelessWidget {
           children: [
             Icon(
               Icons.calendar_today_rounded,
-              size: 18,
+              size: 16,
               color: scheme.primary,
             ),
-            const SizedBox(width: AppSpacing.sm),
+            const SizedBox(width: 8),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     label,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
                       color: scheme.onSurfaceVariant,
                     ),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     value,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ],
               ),
             ),
-            Icon(Icons.arrow_drop_down_rounded, color: scheme.onSurfaceVariant),
           ],
         ),
       ),
@@ -856,13 +850,6 @@ class _EcgSummaryStats extends StatelessWidget {
     final latest = readings.last;
     final fmt = DateFormat('HH:mm dd/MM');
     final leadOffCount = readings.where((r) => r.leadOff == true).length;
-    final hrs = readings
-        .map((r) => r.ecgHr)
-        .whereType<int>()
-        .toList(growable: false);
-    final avgHr = hrs.isEmpty
-        ? '--'
-        : '${(hrs.reduce((a, b) => a + b) / hrs.length).round()} bpm';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -886,12 +873,6 @@ class _EcgSummaryStats extends StatelessWidget {
               value: fmt.format(latest.recordedAt.toLocal()),
               icon: Icons.schedule_rounded,
               tone: StatusTone.neutral,
-            ),
-            SummaryStatCard(
-              label: 'ECG HR trung bình',
-              value: avgHr,
-              icon: Icons.favorite_border_rounded,
-              tone: StatusTone.success,
             ),
             if (leadOffCount > 0)
               SummaryStatCard(
@@ -958,82 +939,7 @@ class _ScrollableChartWrapperState extends State<_ScrollableChartWrapper> {
   }
 }
 
-// ---------------------------------------------------------------------------
-// _EcgListItem
-// ---------------------------------------------------------------------------
 
-class _EcgListItem extends StatelessWidget {
-  const _EcgListItem({required this.reading});
-
-  final EcgReading reading;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final fmt = DateFormat('HH:mm, dd/MM/yyyy');
-    final quality = (reading.quality ?? '').trim();
-
-    return AppCard(
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 20,
-            backgroundColor: scheme.primaryContainer,
-            child: Icon(
-              Icons.monitor_heart_outlined,
-              size: 20,
-              color: scheme.primary,
-            ),
-          ),
-          const SizedBox(width: AppSpacing.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  fmt.format(reading.recordedAt.toLocal()),
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 4,
-                  children: [
-                    if (reading.ecgHr != null)
-                      Text(
-                        '${reading.ecgHr} bpm',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    if (quality.isNotEmpty)
-                      StatusBadge(
-                        label: quality,
-                        tone: quality.toLowerCase() == 'good'
-                            ? StatusTone.success
-                            : StatusTone.info,
-                      ),
-                    if (reading.leadOff == true)
-                      const StatusBadge(
-                        label: 'Lead off',
-                        tone: StatusTone.warning,
-                        icon: Icons.warning_amber_rounded,
-                      ),
-                    Text(
-                      '${reading.waveform.length} mẫu',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 // ---------------------------------------------------------------------------
 // _ErrorCard

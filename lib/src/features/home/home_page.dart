@@ -442,41 +442,41 @@ class _FallAlertCard extends StatelessWidget {
                 ),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
-                  child: Text(
-                    'Cảnh báo ngã',
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleSmall,
+                  child: FittedBox(
+                    alignment: Alignment.centerLeft,
+                    fit: BoxFit.scaleDown,
+                    child: RichText(
+                      text: TextSpan(
+                        children: [
+                          TextSpan(
+                            text: hasAlerts && unacked > 0
+                                ? '$unacked'
+                                : 'Bình thường',
+                            style: Theme.of(context).textTheme.headlineMedium
+                                ?.copyWith(color: color, fontWeight: FontWeight.w800),
+                          ),
+                          if (hasAlerts && unacked > 0)
+                            TextSpan(
+                              text: ' chưa xử lý',
+                              style: Theme.of(context).textTheme.titleMedium
+                                  ?.copyWith(
+                                    color: color.withValues(alpha: 0.8),
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                            ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: AppSpacing.lg),
-            FittedBox(
-              alignment: Alignment.centerLeft,
-              fit: BoxFit.scaleDown,
-              child: RichText(
-                text: TextSpan(
-                  children: [
-                    TextSpan(
-                      text: hasAlerts && unacked > 0
-                          ? '$unacked'
-                          : 'Bình thường',
-                      style: Theme.of(context).textTheme.headlineMedium
-                          ?.copyWith(color: color, fontWeight: FontWeight.w800),
-                    ),
-                    if (hasAlerts && unacked > 0)
-                      TextSpan(
-                        text: ' chưa xử lý',
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(
-                              color: color.withValues(alpha: 0.8),
-                              fontWeight: FontWeight.w700,
-                            ),
-                      ),
-                  ],
-                ),
-              ),
+            const SizedBox(height: AppSpacing.md),
+            Text(
+              'Cảnh báo ngã',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.titleSmall,
             ),
           ],
         ),
@@ -693,6 +693,7 @@ class _RecentAlertsSection extends StatelessWidget {
               canAcknowledge: device?.isOwnerLink == true,
               onDetails: onSeeAll,
               onAcknowledge: () => onAcknowledge(alert.id),
+              compact: true,
             ),
           ),
         ),

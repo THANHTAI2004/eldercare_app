@@ -19,7 +19,7 @@ class EcgWaveformCard extends StatelessWidget {
     final qualityLabel = quality == null || quality.isEmpty
         ? 'Không rõ'
         : quality;
-    final heartRateLabel = reading.ecgHr?.toString() ?? '--';
+    final heartRateLabel = '--';
     final samplingLabel = reading.samplingRate?.toString() ?? '--';
     final recordedText = DateFormat(
       'HH:mm:ss dd/MM',
@@ -147,7 +147,7 @@ class EcgHistoryWaveformCard extends StatelessWidget {
     final leadOffCount = validReadings
         .where((reading) => reading.leadOff == true)
         .length;
-    final averageHr = _averageEcgHr(validReadings);
+    final averageHr = null;
     const chartHeight = 260.0;
     const chartPadding = 12.0;
 
@@ -384,16 +384,7 @@ int _totalHistorySlotCount(List<EcgReading> readings) {
   return total;
 }
 
-double? _averageEcgHr(List<EcgReading> readings) {
-  final values = readings
-      .map((reading) => reading.ecgHr)
-      .whereType<int>()
-      .toList(growable: false);
-  if (values.isEmpty) return null;
 
-  final total = values.fold<int>(0, (sum, value) => sum + value);
-  return total / values.length;
-}
 
 class _MetaChip extends StatelessWidget {
   const _MetaChip({required this.label, required this.value});

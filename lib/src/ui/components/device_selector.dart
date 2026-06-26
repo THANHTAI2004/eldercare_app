@@ -38,44 +38,67 @@ class DeviceSelector extends StatelessWidget {
         : null;
 
     return AppCard(
+      padding: const EdgeInsets.all(12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
               Expanded(
-                child: Text(
-                  'Đang theo dõi',
-                  style: Theme.of(context).textTheme.titleSmall,
+                child: Row(
+                  children: [
+                    Text(
+                      'Đang theo dõi',
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                    if (isBusy) ...[
+                      const SizedBox(width: 8),
+                      const SizedBox(
+                        width: 12,
+                        height: 12,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    ],
+                  ],
                 ),
               ),
-              if (isBusy)
-                const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+              if (onOpenDevices != null)
+                TextButton.icon(
+                  onPressed: onOpenDevices,
+                  icon: const Icon(Icons.devices_outlined, size: 16),
+                  label: const Text('Danh sách', style: TextStyle(fontSize: 12)),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
                 ),
             ],
           ),
-          const SizedBox(height: AppSpacing.md),
+          const SizedBox(height: 8),
           DropdownButtonFormField<String>(
             initialValue: dropdownValue,
             isExpanded: true,
             decoration: const InputDecoration(
               labelText: 'Chọn thiết bị',
-              prefixIcon: Icon(Icons.watch_outlined),
+              prefixIcon: Icon(Icons.watch_outlined, size: 20),
+              isDense: true,
+              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             ),
             items: devices
                 .map(
                   (device) => DropdownMenuItem<String>(
                     value: device.id,
-                    child: Text('${device.name} • ${device.resolvedDeviceId}'),
+                    child: Text(
+                      '${device.name} • ${device.resolvedDeviceId}',
+                      style: const TextStyle(fontSize: 14),
+                    ),
                   ),
                 )
                 .toList(growable: false),
             onChanged: devices.length <= 1 ? null : onChanged,
           ),
-          const SizedBox(height: AppSpacing.md),
+          const SizedBox(height: 12),
           Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -109,17 +132,6 @@ class DeviceSelector extends StatelessWidget {
                 ),
             ],
           ),
-          if (onOpenDevices != null) ...[
-            const SizedBox(height: AppSpacing.md),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton.icon(
-                onPressed: onOpenDevices,
-                icon: const Icon(Icons.devices_outlined),
-                label: const Text('Mở danh sách thiết bị'),
-              ),
-            ),
-          ],
         ],
       ),
     );

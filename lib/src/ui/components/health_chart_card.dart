@@ -49,11 +49,13 @@ class HealthChartCard extends StatelessWidget {
             subtitle: subtitle,
             actionLabel: actionLabel,
             onAction: onAction,
+            inlineSubtitle: true,
+            showAccent: false,
           ),
-          const SizedBox(height: AppSpacing.xl),
+          const SizedBox(height: AppSpacing.md),
           if (spots.isEmpty)
-            SizedBox(
-              height: height,
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
               child: Center(
                 child: Text(
                   emptyMessage ?? 'Chưa có dữ liệu biểu đồ',

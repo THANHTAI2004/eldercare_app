@@ -27,6 +27,19 @@ class MainShell extends StatefulWidget {
 
 class _MainShellState extends State<MainShell> implements MainShellController {
   late MainTab _currentTab = widget.initialTab;
+  late final PageController _pageController;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController(initialPage: widget.initialTab.index);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
 
   @override
   void goToTab(MainTab tab) {
@@ -34,16 +47,32 @@ class _MainShellState extends State<MainShell> implements MainShellController {
     setState(() {
       _currentTab = tab;
     });
+    if (_pageController.hasClients && _pageController.page?.round() != tab.index) {
+      _pageController.animateToPage(
+        tab.index,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    }
+  }
+
+  void _onPageChanged(int index) {
+    final tab = MainTab.values[index];
+    if (_currentTab != tab) {
+      setState(() {
+        _currentTab = tab;
+      });
+    }
   }
 
   int get _selectedIndex => MainTab.values.indexOf(_currentTab);
 
   List<Widget> get _pages => const <Widget>[
-    HomePage(),
-    HistoryPage(),
-    AlertsPage(),
-    DevicePage(),
-    AccountPage(),
+    _KeepAlivePage(child: HomePage()),
+    _KeepAlivePage(child: HistoryPage()),
+    _KeepAlivePage(child: AlertsPage()),
+    _KeepAlivePage(child: DevicePage()),
+    _KeepAlivePage(child: AccountPage()),
   ];
 
   @override
@@ -51,6 +80,9 @@ class _MainShellState extends State<MainShell> implements MainShellController {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.initialTab != widget.initialTab) {
       _currentTab = widget.initialTab;
+      if (_pageController.hasClients) {
+        _pageController.jumpToPage(_currentTab.index);
+      }
     }
   }
 
@@ -107,14 +139,19 @@ class _MainShellState extends State<MainShell> implements MainShellController {
                 ),
                 const VerticalDivider(width: 1),
                 Expanded(
-                  child: IndexedStack(
-                    index: _selectedIndex,
+                  child: PageView(
+                    controller: _pageController,
+                    onPageChanged: _onPageChanged,
                     children: _pages,
                   ),
                 ),
               ],
             )
-          : IndexedStack(index: _selectedIndex, children: _pages),
+          : PageView(
+              controller: _pageController,
+              onPageChanged: _onPageChanged,
+              children: _pages,
+            ),
       bottomNavigationBar: isWide
           ? null
           : NavigationBar(
@@ -123,5 +160,25 @@ class _MainShellState extends State<MainShell> implements MainShellController {
               destinations: destinations,
             ),
     );
+  }
+}
+
+class _KeepAlivePage extends StatefulWidget {
+  const _KeepAlivePage({required this.child});
+  final Widget child;
+
+  @override
+  State<_KeepAlivePage> createState() => _KeepAlivePageState();
+}
+
+class _KeepAlivePageState extends State<_KeepAlivePage>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return widget.child;
   }
 }

@@ -346,7 +346,6 @@ class _FakeHealthApiService extends HealthApiService {
       samplingRate: 250,
       quality: 'good',
       leadOff: false,
-      ecgHr: 72,
     );
   }
 

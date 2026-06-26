@@ -237,10 +237,6 @@ class _LatestSummaryCard extends StatelessWidget {
                     ? StatusTone.warning
                     : StatusTone.success,
               ),
-              StatusBadge(
-                label: 'ECG HR: ${reading.ecgHr ?? '--'} bpm',
-                tone: StatusTone.neutral,
-              ),
             ],
           ),
         ],
@@ -273,7 +269,7 @@ class _ReadingListTile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '${reading.ecgHr ?? '--'} bpm • ${reading.samplingRate ?? '--'} Hz',
+                  '${reading.samplingRate ?? '--'} Hz',
                   style: Theme.of(context).textTheme.titleSmall,
                 ),
                 const SizedBox(height: 4),

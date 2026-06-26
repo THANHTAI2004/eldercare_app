@@ -8,7 +8,6 @@ class EcgReading {
     this.samplingRate,
     this.quality,
     this.leadOff,
-    this.ecgHr,
   });
 
   final DateTime recordedAt;
@@ -17,7 +16,6 @@ class EcgReading {
   final int? samplingRate;
   final String? quality;
   final bool? leadOff;
-  final int? ecgHr;
 
   bool get hasWaveform => waveform.isNotEmpty;
 
@@ -36,7 +34,6 @@ class EcgReading {
       samplingRate: toInt(ecg['sampling_rate'] ?? ecg['samplingRate']),
       quality: _readString(ecg['quality']),
       leadOff: _readBool(ecg['lead_off'] ?? ecg['leadOff']),
-      ecgHr: toInt(ecg['ecg_hr'] ?? ecg['ecgHr']),
     );
   }
 

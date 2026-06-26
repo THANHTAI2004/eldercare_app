@@ -90,7 +90,6 @@ void main() {
                 'sampling_rate': 250,
                 'quality': 'good',
                 'lead_off': false,
-                'ecg_hr': 72,
               },
             },
           ],
@@ -102,7 +101,6 @@ void main() {
 
     expect(reading, isNotNull);
     expect(reading!.samplingRate, 250);
-    expect(reading.ecgHr, 72);
     expect(reading.waveform, hasLength(5));
   });
 }

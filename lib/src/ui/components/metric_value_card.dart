@@ -50,40 +50,40 @@ class MetricValueCard extends StatelessWidget {
               ),
               const SizedBox(width: AppSpacing.md),
               Expanded(
-                child: Text(
-                  title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.titleSmall,
+                child: FittedBox(
+                  alignment: Alignment.centerLeft,
+                  fit: BoxFit.scaleDown,
+                  child: RichText(
+                    text: TextSpan(
+                      children: [
+                        TextSpan(
+                          text: value,
+                          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                            color: color,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        if (unit.trim().isNotEmpty)
+                          TextSpan(
+                            text: ' $unit',
+                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              color: AppColors.textSecondary,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: AppSpacing.lg),
-          FittedBox(
-            alignment: Alignment.centerLeft,
-            fit: BoxFit.scaleDown,
-            child: RichText(
-              text: TextSpan(
-                children: [
-                  TextSpan(
-                    text: value,
-                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      color: color,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  if (unit.trim().isNotEmpty)
-                    TextSpan(
-                      text: ' $unit',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: AppColors.textSecondary,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                ],
-              ),
-            ),
+          const SizedBox(height: AppSpacing.md),
+          Text(
+            title,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.titleSmall,
           ),
           if (subtitle != null && subtitle!.trim().isNotEmpty) ...[
             const SizedBox(height: AppSpacing.sm),

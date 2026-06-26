@@ -44,7 +44,7 @@ class AlertsApiService {
   }
 
   Future<Map<String, dynamic>> acknowledgeAlert({required String alertId}) {
-    return _client.postJson('/api/v1/alerts/$alertId/acknowledge');
+    return _client.postJson('/api/v1/alerts/$alertId/acknowledge', data: const {});
   }
 
   List<Map<String, dynamic>> _extractMany(Map<String, dynamic> json) {

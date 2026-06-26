@@ -17,7 +17,6 @@ void main() {
           samplingRate: 250,
           quality: 'good',
           leadOff: false,
-          ecgHr: 72,
         ),
       ),
     );

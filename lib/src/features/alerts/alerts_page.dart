@@ -80,7 +80,18 @@ class _AlertsPageState extends State<AlertsPage> {
       ),
     );
     if (confirmed != true || !mounted) return;
-    await context.read<AlertsProvider>().acknowledge(alert.id);
+    
+    final provider = context.read<AlertsProvider>();
+    await provider.acknowledge(alert.id);
+    
+    if (provider.error != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(provider.error!),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+    }
   }
 
   Future<void> _showDetails(AlertItem alert) {
@@ -132,7 +143,14 @@ class _AlertsPageState extends State<AlertsPage> {
     final dangerousCount = alertsProvider.items
         .where((alert) => !alert.acknowledged && alert.isHighSeverity)
         .length;
-    final totalCount = alertsProvider.items.length;
+    
+    final today = DateTime.now();
+    final todayCount = alertsProvider.items.where((alert) {
+      final localDate = alert.createdAt.toLocal();
+      return localDate.year == today.year &&
+             localDate.month == today.month &&
+             localDate.day == today.day;
+    }).length;
 
     final visibleAlerts = alertsProvider.items.where((alert) {
       if (_ackFilter == _AckFilter.pending && alert.acknowledged) return false;
@@ -185,7 +203,7 @@ class _AlertsPageState extends State<AlertsPage> {
             _AlertsSummaryGrid(
               pendingCount: pendingCount,
               dangerousCount: dangerousCount,
-              totalCount: totalCount,
+              totalCount: todayCount,
             ),
             const SizedBox(height: AppSpacing.xl),
             _FilterChips(
@@ -248,26 +266,36 @@ class _AlertsSummaryGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ResponsiveGrid(
-      minItemWidth: 210,
+    return Row(
       children: [
-        SummaryStatCard(
-          label: 'Chưa xử lý',
-          value: pendingCount.toString(),
-          icon: Icons.pending_actions_rounded,
-          tone: pendingCount > 0 ? StatusTone.warning : StatusTone.success,
+        Expanded(
+          child: SummaryStatCard(
+            label: 'Chưa xử lý',
+            value: pendingCount.toString(),
+            icon: Icons.pending_actions_rounded,
+            tone: pendingCount > 0 ? StatusTone.warning : StatusTone.success,
+            compact: true,
+          ),
         ),
-        SummaryStatCard(
-          label: 'Nguy hiểm',
-          value: dangerousCount.toString(),
-          icon: Icons.error_outline_rounded,
-          tone: dangerousCount > 0 ? StatusTone.danger : StatusTone.success,
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(
+          child: SummaryStatCard(
+            label: 'Nguy hiểm',
+            value: dangerousCount.toString(),
+            icon: Icons.error_outline_rounded,
+            tone: dangerousCount > 0 ? StatusTone.danger : StatusTone.success,
+            compact: true,
+          ),
         ),
-        SummaryStatCard(
-          label: 'Tổng cảnh báo',
-          value: totalCount.toString(),
-          icon: Icons.notifications_active_outlined,
-          tone: StatusTone.info,
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(
+          child: SummaryStatCard(
+            label: 'Hôm nay',
+            value: totalCount.toString(),
+            icon: Icons.notifications_active_outlined,
+            tone: StatusTone.info,
+            compact: true,
+          ),
         ),
       ],
     );
