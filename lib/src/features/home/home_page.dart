@@ -366,6 +366,7 @@ class _CurrentVitalsGrid extends StatelessWidget {
           unit: _metricUnit(Metric.hr),
           icon: Icons.favorite_rounded,
           tone: _metricTone(Metric.hr, hr),
+          baseColor: AppColors.primary,
           subtitle: leadOff ? 'Kiểm tra tiếp xúc cảm biến' : null,
           onTap: () => onOpenHistory(metric: Metric.hr),
         ),
@@ -375,6 +376,7 @@ class _CurrentVitalsGrid extends StatelessWidget {
           unit: _metricUnit(Metric.spo2),
           icon: Icons.bloodtype_outlined,
           tone: _metricTone(Metric.spo2, spo2),
+          baseColor: AppColors.secondary,
           onTap: () => onOpenHistory(metric: Metric.spo2),
         ),
         MetricValueCard(
@@ -383,6 +385,7 @@ class _CurrentVitalsGrid extends StatelessWidget {
           unit: _metricUnit(Metric.temp),
           icon: Icons.thermostat_rounded,
           tone: _metricTone(Metric.temp, temp),
+          baseColor: const Color(0xFF059669), // Emerald 600
           onTap: () => onOpenHistory(metric: Metric.temp),
         ),
         _FallAlertCard(fallAlerts: fallAlerts, onTap: onOpenAlerts),

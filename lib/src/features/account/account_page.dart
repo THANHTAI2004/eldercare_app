@@ -320,6 +320,8 @@ class AccountPage extends StatelessWidget {
               children: [
                 Text('Thông tin cá nhân', style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: AppSpacing.lg),
+                _InfoRow(label: 'ID Người dùng', value: user?.userId ?? '--'),
+                const Divider(height: 24),
                 _InfoRow(label: 'Họ và tên', value: user?.name ?? '--'),
                 const Divider(height: 24),
                 _InfoRow(label: 'Ngày sinh', value: AppDateUtils.formatDateOfBirth(user?.dateOfBirth) ?? '--'),

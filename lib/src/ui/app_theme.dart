@@ -85,7 +85,8 @@ class AppTheme {
         titleTextStyle: textTheme.titleLarge,
       ),
       cardTheme: CardThemeData(
-        elevation: 0,
+        elevation: 2,
+        shadowColor: Colors.black.withValues(alpha: 0.05),
         color: scheme.surface,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(

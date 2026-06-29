@@ -30,9 +30,16 @@ class AppCard extends StatelessWidget {
         ),
         boxShadow: [
           BoxShadow(
-            color: AppColors.textPrimary.withValues(alpha: 0.05),
-            blurRadius: 26,
-            offset: const Offset(0, 14),
+            color: AppColors.textPrimary.withValues(alpha: 0.08),
+            blurRadius: 18,
+            spreadRadius: 2,
+            offset: const Offset(0, 8),
+          ),
+          BoxShadow(
+            color: Colors.white.withValues(alpha: 0.8),
+            blurRadius: 12,
+            spreadRadius: 1,
+            offset: const Offset(-4, -4),
           ),
         ],
       ),
@@ -40,3 +47,4 @@ class AppCard extends StatelessWidget {
     );
   }
 }
+

@@ -16,6 +16,7 @@ class MetricValueCard extends StatelessWidget {
     required this.unit,
     required this.icon,
     this.tone = StatusTone.neutral,
+    this.baseColor,
     this.subtitle,
     this.onTap,
   });
@@ -25,12 +26,13 @@ class MetricValueCard extends StatelessWidget {
   final String unit;
   final IconData icon;
   final StatusTone tone;
+  final Color? baseColor;
   final String? subtitle;
   final FutureOr<void> Function()? onTap;
 
   @override
   Widget build(BuildContext context) {
-    final color = _toneColor(tone);
+    final color = _toneColor(tone, baseColor);
     final card = AppCard(
       padding: const EdgeInsets.all(AppSpacing.lg),
       borderColor: color.withValues(alpha: 0.22),
@@ -107,17 +109,17 @@ class MetricValueCard extends StatelessWidget {
   }
 }
 
-Color _toneColor(StatusTone tone) {
+Color _toneColor(StatusTone tone, Color? baseColor) {
   switch (tone) {
     case StatusTone.info:
       return AppColors.info;
     case StatusTone.success:
-      return AppColors.success;
+      return baseColor ?? AppColors.success;
     case StatusTone.warning:
       return AppColors.warning;
     case StatusTone.danger:
       return AppColors.danger;
     case StatusTone.neutral:
-      return AppColors.textSecondary;
+      return baseColor ?? AppColors.textSecondary;
   }
 }
