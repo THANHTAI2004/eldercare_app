@@ -1,0 +1,17 @@
+tk admin (tk admin có thể đăng nhập vào web https://eldercare.io.vn/ để truy cập trang admin để quản lý thiết bị và tk người dung) 
+sdt: 0793953948
+mk: Tai@@2004
+
+tk user
+sdt: 0345781812
+mk: Tai@@2004
+
+thiết bị liên kết 
+
+id: div-001 (có dữ lieu)
+Pairing code: 3NKDDG9J
+
+id: div-002 (không có dữ lieu)
+Pairing code: YW5RA8L4
+
+sau khi cài eldercare_app.apk có thể đăng kí tk hoặc đăng nhập tài khoản có sẵn để xem dữ liệu
