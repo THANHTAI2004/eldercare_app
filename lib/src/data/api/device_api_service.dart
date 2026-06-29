@@ -28,6 +28,10 @@ class DeviceApiService {
     );
   }
 
+  Future<void> unclaimDevice({required String deviceId}) async {
+    await _client.deleteJson('/api/v1/devices/$deviceId/claim');
+  }
+
   Future<DeviceRegistrationResult> registerDevice({
     required String deviceId,
     String? deviceName,

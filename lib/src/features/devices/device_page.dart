@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:eldercare_app/src/app/routes.dart';
+import 'package:eldercare_app/src/data/api/api_client.dart';
+import 'package:eldercare_app/src/data/api/device_api_service.dart';
 import 'package:eldercare_app/src/domain/models/device.dart';
 import 'package:eldercare_app/src/features/devices/claim_device_page.dart';
 import 'package:eldercare_app/src/features/devices/device_thresholds_page.dart';
@@ -80,7 +82,7 @@ class _DevicePageState extends State<DevicePage> {
     );
   }
 
-  Future<void> _openManageSheet(Device device, bool isAdmin) async {
+  Future<void> _openManageSheet(Device device) async {
     await showModalBottomSheet<void>(
       context: context,
       builder: (context) => SafeArea(
@@ -137,16 +139,17 @@ class _DevicePageState extends State<DevicePage> {
                     );
                   },
                 ),
-              if (isAdmin)
-                ListTile(
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-                  leading: const Icon(Icons.admin_panel_settings_outlined),
-                  title: const Text('Đăng ký thiết bị mới'),
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.pushNamed(context, AppRoutes.adminDeviceRegister);
-                  },
-                ),
+
+              const Divider(),
+              ListTile(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                leading: const Icon(Icons.link_off_rounded, color: Colors.red),
+                title: const Text('Xoá liên kết thiết bị', style: TextStyle(color: Colors.red)),
+                onTap: () async {
+                  Navigator.pop(context);
+                  await _confirmUnlinkDevice(device);
+                },
+              ),
             ],
           ),
         ),
@@ -186,12 +189,67 @@ class _DevicePageState extends State<DevicePage> {
     await context.read<DeviceProvider>().rename(device.id, result.trim());
   }
 
+  Future<void> _confirmUnlinkDevice(Device device) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Xoá liên kết thiết bị?'),
+        content: Text(
+          'Bạn có chắc chắn muốn xoá liên kết với thiết bị "${device.name}" không?\n\n'
+          'Sau khi xoá, bạn sẽ không thể theo dõi dữ liệu từ thiết bị này nữa.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Huỷ'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Xoá liên kết'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true || !mounted) return;
+
+    try {
+      final session = context.read<SessionProvider>();
+      final api = DeviceApiService(client: context.read<ApiClient>());
+      if (!device.isOwnerLink) {
+        await api.removeViewer(
+          deviceId: device.resolvedDeviceId,
+          userId: session.authenticatedUserId,
+        );
+      } else {
+        await api.unclaimDevice(deviceId: device.resolvedDeviceId);
+      }
+
+      if (!mounted) return;
+      await context.read<DeviceProvider>().remove(device.id);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Đã xoá liên kết thiết bị.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      String errorMessage = 'Không thể xoá liên kết: $e';
+      if (e is ApiRequestException && e.statusCode == 405) {
+        errorMessage = 'Máy chủ chưa hỗ trợ tính năng huỷ liên kết cho chủ thiết bị. (Lỗi 405)';
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(errorMessage)),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final session = context.watch<SessionProvider>();
     final deviceProvider = context.watch<DeviceProvider>();
     final realtime = context.watch<RealtimeProvider>();
-    final isAdmin = session.authenticatedRole == 'admin';
     final currentDevice = deviceProvider.current;
     final visibleDevices = deviceProvider.devices.where((device) {
       if (_query.isEmpty) return true;
@@ -210,11 +268,6 @@ class _DevicePageState extends State<DevicePage> {
     return AppScaffold(
       title: 'Thiết bị',
       actions: [
-        if (isAdmin)
-          IconButton(
-            onPressed: () => Navigator.pushNamed(context, AppRoutes.adminDeviceRegister),
-            icon: const Icon(Icons.admin_panel_settings_outlined),
-          ),
         IconButton(
           onPressed: deviceProvider.isSyncing ? null : _refresh,
           icon: const Icon(Icons.refresh_rounded),
@@ -256,7 +309,7 @@ class _DevicePageState extends State<DevicePage> {
                   isCurrent: true,
                   isOnline: realtime.hasDevice ? realtime.isOnline : null,
                   onTrack: () => _selectDevice(currentDevice),
-                  onManage: () => _openManageSheet(currentDevice, isAdmin),
+                  onManage: () => _openManageSheet(currentDevice),
                 ),
               const SizedBox(height: AppSpacing.section),
               Row(
@@ -292,7 +345,7 @@ class _DevicePageState extends State<DevicePage> {
                       isCurrent: false,
                       isOnline: null,
                       onTrack: () => _selectDevice(device),
-                      onManage: () => _openManageSheet(device, isAdmin),
+                      onManage: () => _openManageSheet(device),
                     ),
                   ),
                 ),
